@@ -41,9 +41,10 @@ jobs:
       - name: Build
         run: pnpm build
         env:
-          # Placeholder values. The build must not require real credentials —
-          # if it ever does, something is reading the database at build time
-          # that should be reading it at revalidation time instead.
+          # Placeholder values. The build must succeed without a reachable
+          # database: generateStaticParams degrades to prerendering nothing and
+          # pages render on demand instead. A deploy should never fail because
+          # Supabase was briefly slow.
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder
           NEXT_PUBLIC_SITE_URL: https://jobstrackr.in

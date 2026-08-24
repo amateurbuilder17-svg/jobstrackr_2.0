@@ -82,14 +82,24 @@ function gzippedKb(assetPath) {
 }
 
 const rows = [];
+/**
+ * Pages of the same route share exactly the same chunk set, so they are grouped
+ * by that set and reported once. Without this, a site with 5,861 job pages
+ * prints 5,861 identical lines and the one route that regressed is invisible.
+ */
+const groups = new Map();
 
 for (const file of htmlFiles) {
   const route = toRoute(file);
   if (route === "/_global-error") continue;
 
+  // Partial-prerender shells for dynamic segments — `/jobs/[slug].html` — carry
+  // no scripts by design. The concrete pages generated from them are measured
+  // instead, so skipping the shell loses nothing.
+  if (route.includes("[")) continue;
+
   const html = readFileSync(file, "utf8");
 
-  // A chunk referenced both as a preload and as a script is downloaded once.
   const assets = new Set();
   const skipped = new Set();
 
@@ -111,27 +121,46 @@ for (const file of htmlFiles) {
     );
   }
 
+  const signature = [...assets].sort().join("|");
+  const existing = groups.get(signature);
+  if (existing) {
+    existing.pages += 1;
+    continue;
+  }
+
   let kb = 0;
   for (const asset of assets) kb += gzippedKb(asset);
 
   const limit = budget.routes[route] ?? budget.defaultRouteKb;
-  rows.push({ route, kb, limit, chunks: assets.size, over: kb > limit });
+  groups.set(signature, {
+    route,
+    kb,
+    limit,
+    chunks: assets.size,
+    pages: 1,
+    over: kb > limit,
+  });
 }
+
+rows.push(...groups.values());
 
 rows.sort((a, b) => b.kb - a.kb);
 
 /* ── Report ────────────────────────────────────────────────────────────── */
 
-const width = Math.max(...rows.map((r) => r.route.length), 5);
+const width = Math.min(Math.max(...rows.map((r) => r.route.length), 5), 46);
 
 console.log("");
-console.log(`  ${"Route".padEnd(width)}   First load   Budget   Chunks`);
-console.log(`  ${"─".repeat(width)}   ──────────   ──────   ──────`);
+console.log(`  ${"Route".padEnd(width)}   First load   Budget   Pages`);
+console.log(`  ${"─".repeat(width)}   ──────────   ──────   ─────`);
 
 for (const r of rows) {
+  // A representative page of a dynamic route carries a real slug, which can be
+  // far wider than the column. Truncate for display only.
+  const label = r.route.length > width ? `${r.route.slice(0, width - 1)}…` : r.route;
   console.log(
-    `${r.over ? "✗" : " "} ${r.route.padEnd(width)}   ${fmt(r.kb).padStart(10)}   ` +
-      `${fmt(r.limit).padStart(6)}   ${String(r.chunks).padStart(6)}`,
+    `${r.over ? "✗" : " "} ${label.padEnd(width)}   ${fmt(r.kb).padStart(10)}   ` +
+      `${fmt(r.limit).padStart(6)}   ${String(r.pages).padStart(5)}`,
   );
 }
 console.log("");
@@ -152,8 +181,10 @@ if (failures.length > 0) {
 }
 
 const heaviest = rows[0];
+const totalPages = rows.reduce((sum, r) => sum + r.pages, 0);
 console.log(
-  `  ✓ ${rows.length} route(s) within budget · heaviest ${heaviest.route} at ${fmt(heaviest.kb)}\n`,
+  `  ✓ ${rows.length} route group(s), ${totalPages} page(s) within budget · ` +
+    `heaviest ${heaviest.route} at ${fmt(heaviest.kb)}\n`,
 );
 
 /* ── Helpers ───────────────────────────────────────────────────────────── */

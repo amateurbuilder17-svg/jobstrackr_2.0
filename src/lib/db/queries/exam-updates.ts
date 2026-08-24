@@ -54,7 +54,7 @@ export async function listExamUpdates(
   options: UpdateListOptions = {},
 ): Promise<Page<ExamUpdateCard>> {
   "use cache";
-  cacheLife("hours");
+  cacheLife("feed");
   cacheTag(tags.examUpdateList());
 
   const limit = options.limit ?? PAGE_SIZE.list;
@@ -82,7 +82,7 @@ export async function listExamUpdates(
 
 export async function getExamUpdateBySlug(slug: string): Promise<ExamUpdateDetail | null> {
   "use cache";
-  cacheLife("hours");
+  cacheLife("content");
   cacheTag(tags.examUpdate(slug));
 
   return unwrapMaybe(
@@ -93,7 +93,7 @@ export async function getExamUpdateBySlug(slug: string): Promise<ExamUpdateDetai
 
 export async function listExamUpdateSlugs(): Promise<{ slug: string; updated_at: string }[]> {
   "use cache";
-  cacheLife("hours");
+  cacheLife("feed");
   cacheTag(tags.examUpdateList(), tags.sitemap());
 
   return unwrap(
@@ -120,7 +120,7 @@ export async function listUpdatesForJob(
   limit: number = PAGE_SIZE.rail,
 ): Promise<ExamUpdateCard[]> {
   "use cache";
-  cacheLife("hours");
+  cacheLife("content");
   cacheTag(tags.examUpdateList());
 
   return unwrap(
@@ -138,7 +138,7 @@ export async function searchExamUpdates(
   limit: number = PAGE_SIZE.list,
 ): Promise<ExamUpdateCard[]> {
   "use cache";
-  cacheLife("hours");
+  cacheLife("feed");
   cacheTag(tags.examUpdateList());
 
   const trimmed = term.trim();

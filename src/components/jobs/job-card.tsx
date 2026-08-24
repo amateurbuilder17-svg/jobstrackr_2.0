@@ -1,10 +1,10 @@
 import Link from "next/link";
 
-import { ClockIcon, UsersIcon } from "@/components/icons";
-import { Badge } from "@/components/ui/badge";
+import { UsersIcon } from "@/components/icons";
 import { CardInteractive } from "@/components/ui/card";
 import type { JobCard as JobCardData } from "@/lib/db/queries/jobs";
-import { describeDeadline, formatCount, formatSalary } from "@/lib/format/deadline";
+import { formatCount, formatSalary } from "@/lib/format/deadline";
+import { DeadlineBadge } from "./deadline-badge";
 
 /**
  * One job in a list.
@@ -19,7 +19,6 @@ import { describeDeadline, formatCount, formatSalary } from "@/lib/format/deadli
  * the job title, and the click target is still the card.
  */
 export function JobCard({ job }: { job: JobCardData }) {
-  const deadline = describeDeadline(job.last_date);
   const vacancies = job.vacancies_display ?? formatCount(job.vacancies);
   const salary = job.salary_display ?? formatSalary(job.salary_min, job.salary_max);
 
@@ -39,10 +38,7 @@ export function JobCard({ job }: { job: JobCardData }) {
           </h3>
         </div>
 
-        <Badge tone={deadline.tone} className="tabular shrink-0">
-          <ClockIcon className="size-3" />
-          {deadline.label}
-        </Badge>
+        <DeadlineBadge date={job.last_date} />
       </div>
 
       <dl className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-3">

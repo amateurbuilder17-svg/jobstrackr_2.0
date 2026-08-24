@@ -79,7 +79,7 @@ export interface JobListOptions {
  */
 export async function listJobs(options: JobListOptions = {}): Promise<Page<JobCard>> {
   "use cache";
-  cacheLife("days");
+  cacheLife("feed");
   cacheTag(tags.jobList());
 
   const limit = options.limit ?? PAGE_SIZE.list;
@@ -120,7 +120,7 @@ export async function listJobs(options: JobListOptions = {}): Promise<Page<JobCa
  */
 export async function getJobBySlug(slug: string): Promise<JobDetail | null> {
   "use cache";
-  cacheLife("days");
+  cacheLife("content");
   cacheTag(tags.job(slug));
 
   return unwrapMaybe(
@@ -138,7 +138,7 @@ export async function getJobBySlug(slug: string): Promise<JobDetail | null> {
  */
 export async function listJobSlugs(): Promise<{ slug: string; updated_at: string }[]> {
   "use cache";
-  cacheLife("days");
+  cacheLife("feed");
   cacheTag(tags.jobList(), tags.sitemap());
 
   return unwrap(
@@ -150,6 +150,50 @@ export async function listJobSlugs(): Promise<{ slug: string; updated_at: string
       .order("updated_at", { ascending: false })
       .limit(20000),
   );
+}
+
+/**
+ * Slugs for `generateStaticParams`, uncached and failure-tolerant.
+ *
+ * Deliberately separate from `listJobSlugs`. Three reasons:
+ *
+ *   1. It runs exactly once per build, so caching it buys nothing.
+ *   2. A promise that rejects *inside* a `"use cache"` scope cannot be caught
+ *      by the caller — Next fails the build before the catch runs.
+ *   3. Cache Components requires this to return at least one entry, so it can
+ *      validate at build time that the route has no unguarded dynamic access.
+ *      Returning an empty array is a hard build error, not a soft fallback.
+ *
+ * Hence the sentinel. If the database is unreachable — a blip, a paused
+ * project — the build still succeeds with one placeholder slug that renders a
+ * 404, and every real page renders on first request and caches from then on.
+ * The alternative is a failed deploy because Supabase was briefly slow, which
+ * trades a self-healing performance dip for a complete outage.
+ */
+export const BUILD_SENTINEL_SLUG = "unavailable-at-build-time";
+
+export async function listJobSlugsForBuild(): Promise<{ slug: string }[]> {
+  try {
+    const { data, error } = await publicDb()
+      .from("jobs")
+      .select("slug")
+      .eq("status", "published")
+      .order("updated_at", { ascending: false })
+      .limit(20000);
+
+    if (error) throw error;
+    if (data.length > 0) return data;
+
+    console.warn("[listJobSlugsForBuild] No published jobs found; prerendering none.");
+  } catch (error) {
+    console.warn(
+      "[listJobSlugsForBuild] Database unreachable; prerendering no job pages. " +
+        "They will render on first request and cache from then on.",
+      error instanceof Error ? error.message : error,
+    );
+  }
+
+  return [{ slug: BUILD_SENTINEL_SLUG }];
 }
 
 /**
@@ -165,7 +209,7 @@ export async function listRelatedJobs(
   limit: number = PAGE_SIZE.rail,
 ): Promise<JobCard[]> {
   "use cache";
-  cacheLife("days");
+  cacheLife("content");
   cacheTag(tags.jobList(), tags.organization(organizationSlug));
 
   return unwrap(

@@ -46,10 +46,8 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <ThemeScript />
-      </head>
       <body className={`${publicSans.variable} ${jetbrainsMono.variable}`}>
+        <ThemeScript />
         {/* Visible only on focus. The first thing a keyboard user meets should
             be a way past the navigation, not thirteen links they must tab
             through on every page. */}
