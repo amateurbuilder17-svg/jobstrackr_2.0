@@ -1,0 +1,27 @@
+-- ── Role check ─────────────────────────────────────────────────────────────
+-- SECURITY DEFINER so it can read user_roles from inside a policy that is
+-- itself guarding user_roles — without it, the policy recurses on itself.
+--
+-- `set search_path = ''` is not stylistic. A SECURITY DEFINER function without
+-- a pinned search_path can be hijacked by any caller who creates a same-named
+-- object in a schema they control, and this function decides who is an admin.
+-- Every object below is therefore schema-qualified.
+create or replace function public.has_role(check_role text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.user_roles ur
+    where ur.user_id = (select auth.uid())
+      and ur.role = check_role
+  );
+$$;
+
+comment on function public.has_role is
+  'True when the current user holds the named role. SECURITY DEFINER with a '
+  'pinned search_path so RLS policies on user_roles do not recurse.';
+

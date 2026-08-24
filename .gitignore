@@ -33,3 +33,6 @@ test-results/
 *.tsbuildinfo
 next-env.d.ts
 tsconfig.tsbuildinfo
+
+# Schema validation scratch
+/tmp-schema/

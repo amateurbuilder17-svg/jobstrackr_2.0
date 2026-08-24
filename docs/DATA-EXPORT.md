@@ -1,101 +1,199 @@
 # Getting the data out of the restricted project
 
-The old project returns HTTP 402 on REST, Auth and Storage. The **SQL Editor** in the
-dashboard goes through a different path and should still work — the Table Editor may
-not, because it talks to the same blocked PostgREST API.
-
-So: **use the SQL Editor**, not the Table Editor. Run each query, then use the
-**Download CSV** button above the results grid.
-
-> One rule throughout: this database times out (`57014`) on large unbounded scans, so
-> every query below is chunked. Do not remove the `LIMIT`s.
+Sizing came back. The picture is much better than it looked.
 
 ---
 
-## Step 1 — Size everything first
+## What is actually there
 
-Run this one query and paste me the result. It is cheap, and it tells me exactly how
-to chunk the rest. **Nothing else should be run until this comes back.**
+**87.6 MB across 37 tables**, and it splits cleanly into three tiers.
 
-```sql
-select
-  c.relname                                   as table_name,
-  c.reltuples::bigint                         as approx_rows,
-  pg_size_pretty(pg_total_relation_size(c.oid)) as total_size,
-  pg_total_relation_size(c.oid)               as bytes
-from pg_class c
-join pg_namespace n on n.oid = c.relnamespace
-where n.nspname = 'public' and c.relkind = 'r'
-order by bytes desc;
+### Tier 1 — Content · 72.8 MB · must migrate
+
+| Table | Rows | Size | Per row |
+|---|---:|---:|---:|
+| `exam_updates` | 5,336 | 39.5 MB | 7.6 kB |
+| `jobs` | 5,861 | 34.1 MB | 6.0 kB |
+| `exams` | 107 | 400 kB | 3.8 kB |
+| `syllabus_cache` | 19 | 304 kB | 16 kB |
+| `cutoff_cache` | ? | 120 kB | — |
+| `scraper_sources` | ? | 64 kB | — |
+
+`jobs` + `exam_updates` alone are **82% of the database**. Everything hard about
+this export is those two tables; everything else is trivial.
+
+Those per-row figures are the story in miniature: 6–7 kB per row is enormous for
+what is mostly short text fields. It is the JSONB columns — `job_metadata`
+(with `eligibility_profile` inside it) and `exam_updates.sections` /
+`overview` / `related_articles`. The old app shipped those columns to every
+visitor. Module 1 splits them into a separate cold table so a job *card* costs
+~400 bytes instead of 6 kB.
+
+### Tier 2 — User data · 0.8 MB · irreplaceable
+
+| Table | Rows |
+|---|---:|
+| `auth.users` | 99 |
+| `exam_attempts` | 66 |
+| `profiles` | 33 |
+| `documents` | 12 |
+| `saved_jobs` | 6 |
+| `user_roles` | 2 |
+| `education_qualifications` | 1 |
+| 6 more | unknown — see Step 1 |
+
+**Under a megabyte, all thirteen tables together.** No chunking, no pagination —
+one query each and you are done. This tier was the thing I was most worried
+about, and it turns out to be the easy part.
+
+Worth noticing: 99 accounts but only 33 profiles, 6 saved jobs, and 1 education
+record. Two thirds of registered users never finished onboarding. That is a
+product signal for Module 6, not a migration problem.
+
+### Tier 3 — Ops & logs · 14.1 MB · deliberately abandoned
+
+`api_usage_logs` (19,512 rows), `telegram_sent_jobs`, `sheet_sync_runs`,
+`auto_discover_logs`, `scraper_run_logs`, and thirteen more.
+
+These start empty in the new project — **14.1 MB reclaimed for free**, and they
+are exactly the unbounded-growth tables that helped fill the old one. The new
+schema gives every log table a retention policy from day one.
+
+---
+
+## Path A — one command (strongly preferred)
+
+The 402 restriction is applied at Supabase's **API gateway**. Direct Postgres
+connections usually keep working, which would make this whole document
+unnecessary.
+
+It needs the database password. If it was never saved, **reset it** — that is a
+platform-level operation and should work even while the project is restricted:
+
+> Dashboard → old project → Settings → Database → **Reset database password**
+
+Then, with the new password:
+
+```bash
+pg_dump "postgresql://postgres.fdxksytpdfgmbkttipdf:PASSWORD@aws-0-ap-south-1.pooler.supabase.com:5432/postgres" --no-owner --no-privileges --schema=public --schema=auth -f old-project.sql
 ```
 
-Then this, for the auth schema:
+Check first that your `pg_dump` is not older than the server, or it will refuse:
 
-```sql
-select count(*) as auth_users from auth.users;
+```bash
+pg_dump --version
 ```
 
----
+If that fails or your local version is too old, Docker sidesteps it entirely:
 
-## Step 2 — Export order
+```bash
+docker run --rm -v "$PWD:/out" postgres:17 pg_dump "postgresql://postgres.fdxksytpdfgmbkttipdf:PASSWORD@aws-0-ap-south-1.pooler.supabase.com:5432/postgres" --no-owner --no-privileges --schema=public --schema=auth -f /out/old-project.sql
+```
 
-Once I see the sizes I will give you exact chunked queries. The order matters,
-because the new project's foreign keys are created in this sequence:
-
-**Tier 1 — content (rebuildable from the Sheet if anything fails)**
-`jobs` · `exams` · `exam_updates` · `scraper_sources` · `logos`
-
-**Tier 2 — user data (irreplaceable — this is the tier that actually matters)**
-`auth.users` · `profiles` · `education_qualifications` · `saved_jobs` ·
-`saved_exam_updates` · `exam_attempts` · `documents` · `user_calendar_events` ·
-`notification_preferences` · `telegram_connections` · `user_roles`
-
-**Tier 3 — operational logs (deliberately not migrating)**
-`api_usage_logs` · `update_logs` · `ai_job_discover_logs` · `ai_exam_discover_logs` ·
-`scraper_run_logs` · `telegram_sent_jobs` · `facebook_sent_jobs` · `sheet_sync_runs` ·
-`scrape_queue`
-
-These start fresh in the new project. They are the tables that grew unbounded and
-contributed to the storage problem.
+**Try this before anything else.** One command, complete fidelity, password
+hashes included, and it takes about a minute. Tell me the error if it fails —
+the failure mode tells us whether the pooler is blocked or just the credentials
+are wrong.
 
 ---
 
-## Step 3 — Auth users
+## Path B — SQL Editor, if Path A is genuinely blocked
 
-Sign-ins only survive the move if the password hashes come with them. That means
-exporting `auth.users` with `encrypted_password` intact:
+### Step 1 — exact counts for the unknown tables
+
+Six tables reported `-1`, which means *never analysed*, not *empty*. One cheap
+query settles it:
+
+```sql
+select 'cutoff_cache' as t, count(*) from cutoff_cache
+union all select 'scraper_sources', count(*) from scraper_sources
+union all select 'telegram_connections', count(*) from telegram_connections
+union all select 'notification_preferences', count(*) from notification_preferences
+union all select 'user_calendar_events', count(*) from user_calendar_events
+union all select 'saved_exam_updates', count(*) from saved_exam_updates
+union all select 'suggestions_grievances', count(*) from suggestions_grievances
+union all select 'payment_history', count(*) from payment_history
+union all select 'user_subscriptions', count(*) from user_subscriptions
+union all select 'subscription_plans', count(*) from subscription_plans
+order by 1;
+```
+
+### Step 2 — user tier, one query per table
+
+All tiny. Run each, click **Download CSV**.
+
+```sql
+select * from profiles;
+select * from education_qualifications;
+select * from exam_attempts;
+select * from saved_jobs;
+select * from saved_exam_updates;
+select * from documents;
+select * from user_calendar_events;
+select * from notification_preferences;
+select * from telegram_connections;
+select * from user_roles;
+select * from suggestions_grievances;
+```
+
+And auth — handle this CSV like the password file it effectively is. Keep it off
+email and chat, and delete it once the import is verified.
 
 ```sql
 select id, email, encrypted_password, email_confirmed_at,
        raw_user_meta_data, raw_app_meta_data, created_at, updated_at,
        last_sign_in_at, phone, confirmation_sent_at
-from auth.users
-order by created_at
-limit 1000;
+from auth.users order by created_at;
 ```
 
-Handle that CSV like a password file — it effectively is one. Keep it off email and
-chat, and delete it once the import is verified.
+### Step 3 — the two big tables, chunked
 
-If migrating hashes turns out to be more trouble than it is worth, the fallback is a
-one-time "set a new password" flow on first sign-in, keyed on the preserved email.
-That is a product decision, not a technical blocker — tell me which you prefer.
+This database times out (`57014`) on large unbounded scans, so these go in
+slices. Keyset pagination on `id`, not `OFFSET` — offset gets slower every page
+and is exactly what times out.
+
+**`jobs` — 12 chunks of 500.** Run, download, then paste the last `id` of the
+result into the next run. Start with the empty-string sentinel:
+
+```sql
+select * from jobs
+where id::text > ''          -- ← replace with the previous chunk's last id
+order by id::text
+limit 500;
+```
+
+**`exam_updates` — 18 chunks of 300.** Rows are larger here, hence smaller slices:
+
+```sql
+select * from exam_updates
+where id::text > ''          -- ← replace with the previous chunk's last id
+order by id::text
+limit 300;
+```
+
+**Small content tables — one query each:**
+
+```sql
+select * from exams;
+select * from scraper_sources;
+select * from cutoff_cache;
+```
+
+`syllabus_cache` is a cache. It regenerates. Skip it.
 
 ---
 
-## Step 4 — Storage buckets
+## Step 4 — Storage
 
-If `documents` rows point at files in Supabase Storage, the rows are useless without
-the files, and Storage is also 402-blocked. Check whether the bucket is reachable
-from the dashboard's Storage tab. If it is not, uploaded documents are likely lost
-and the feature restarts empty — worth knowing now rather than at cutover.
+`documents` has 12 rows, and those rows are pointers — the files live in
+Supabase Storage, which is also 402-blocked. Check whether the Storage tab
+loads. With only 12 files, if it does not, the honest answer is that the feature
+restarts empty and twelve people re-upload. Not worth engineering around.
 
 ---
 
-## What I need back from you
+## What I need from you
 
-1. The output of the two Step 1 queries.
-2. Whether the Storage tab loads.
-3. Whether you have the old project's **database password** — if you do, a direct
-   `pg_dump` over the pooler may bypass all of this and take one command instead of
-   twenty.
+1. **Try Path A.** It replaces everything below it. Report the exact error if it fails.
+2. If Path A fails, the Step 1 count query.
+3. Whether the Storage tab loads.
