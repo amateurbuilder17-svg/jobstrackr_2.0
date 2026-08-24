@@ -82,10 +82,10 @@ describe("every query is bounded", () => {
    */
   const cases: [name: string, single: boolean, run: () => Promise<unknown>][] = [
     ["listJobs", false, async () => (await jobs()).listJobs()],
+    ["listJobs (search)", false, async () => (await jobs()).listJobs({ query: "engineer" })],
     ["getJobBySlug", true, async () => (await jobs()).getJobBySlug("ssc-cgl-2026")],
     ["listJobSlugs", false, async () => (await jobs()).listJobSlugs()],
     ["listRelatedJobs", false, async () => (await jobs()).listRelatedJobs("ssc", "x")],
-    ["searchJobs", false, async () => (await jobs()).searchJobs("engineer")],
     ["listExamUpdates", false, async () => (await updates()).listExamUpdates()],
     ["getExamUpdateBySlug", true, async () => (await updates()).getExamUpdateBySlug("s")],
     ["listExamUpdateSlugs", false, async () => (await updates()).listExamUpdateSlugs()],
@@ -121,7 +121,6 @@ describe("every query names its columns", () => {
     ["listJobs", async () => (await jobs()).listJobs()],
     ["getJobBySlug", async () => (await jobs()).getJobBySlug("ssc-cgl-2026")],
     ["listRelatedJobs", async () => (await jobs()).listRelatedJobs("ssc", "x")],
-    ["searchJobs", async () => (await jobs()).searchJobs("engineer")],
     ["listExamUpdates", async () => (await updates()).listExamUpdates()],
     ["getExamUpdateBySlug", async () => (await updates()).getExamUpdateBySlug("s")],
     ["listUpdatesForJob", async () => (await updates()).listUpdatesForJob("id")],

@@ -36,3 +36,4 @@ tsconfig.tsbuildinfo
 
 # Schema validation scratch
 /tmp-schema/
+.env.development.local

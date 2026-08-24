@@ -64,6 +64,9 @@ export interface JobListOptions {
   organizationSlug?: string | undefined;
   tag?: string | undefined;
   state?: string | undefined;
+  /** Full-text search term. Folded in here so search is paginated like any
+   *  other filter, rather than being a separate, unpaginated code path. */
+  query?: string | undefined;
 }
 
 /**
@@ -171,37 +174,6 @@ export async function listRelatedJobs(
       .eq("status", "published")
       .eq("organizations.slug", organizationSlug)
       .neq("slug", excludeSlug)
-      .order("published_at", { ascending: false })
-      .limit(limit),
-  );
-}
-
-/**
- * Full-text search over published jobs.
- *
- * `websearch_to_tsquery` accepts what people actually type — quoted phrases,
- * `or`, a leading minus — instead of erroring on syntax the way `to_tsquery`
- * does. Ranking is left to the index rather than re-sorted in JS.
- */
-export async function searchJobs(
-  term: string,
-  limit: number = PAGE_SIZE.list,
-): Promise<JobCard[]> {
-  "use cache";
-  cacheLife("hours");
-  cacheTag(tags.jobList());
-
-  const trimmed = term.trim();
-  if (trimmed.length < 2) return [];
-
-  return unwrap(
-    "searchJobs",
-    await cardQuery()
-      .eq("status", "published")
-      .textSearch("search_vector", trimmed, {
-        config: "public.jt_search",
-        type: "websearch",
-      })
       .order("published_at", { ascending: false })
       .limit(limit),
   );

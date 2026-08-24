@@ -22,7 +22,8 @@
     "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm build && pnpm budget",
     "db:validate": "./scripts/validate-schema.sh",
     "db:prove": "./scripts/prove-schema.sh",
-    "db:types": "./scripts/gen-types.sh"
+    "db:types": "./scripts/gen-types.sh",
+    "db:reset": "supabase db reset && psql postgresql://postgres:postgres@127.0.0.1:54422/postgres -q -c 'vacuum analyze' && echo '\u2713 reset, seeded, vacuumed'"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.4",
