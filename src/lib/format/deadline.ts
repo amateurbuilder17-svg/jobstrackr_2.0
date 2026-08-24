@@ -91,6 +91,28 @@ export function formatDate(date: string | null): string | null {
   }).format(parsed);
 }
 
+/**
+ * A timestamp with the time of day, for operational tables.
+ *
+ * Rendered in IST rather than UTC, unlike `formatDate`: this is read by one
+ * team in one timezone deciding whether a run finished half an hour ago, and
+ * "14:05" meaning something other than the clock on the wall is a trap.
+ */
+export function formatDateTime(value: string | null): string {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "—";
+
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(parsed);
+}
+
 /** Indian digit grouping: 17,727 but 1,77,270. */
 export function formatCount(value: number | null): string | null {
   if (value === null || !Number.isFinite(value)) return null;

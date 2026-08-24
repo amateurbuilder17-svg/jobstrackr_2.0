@@ -157,6 +157,43 @@ select
   jsonb_build_array(jsonb_build_object('label','Official notification','url','https://example.gov.in/pdf'))
 from public.exam_updates u;
 
+-- ── Operational rows, so the admin monitor has something to show ─────────
+-- Module 11 writes these for real. Seeded here because an ingest monitor with
+-- no runs in it cannot be reviewed, and a dead-letter list that is always empty
+-- never gets its rendering checked.
+
+insert into public.scraper_sources (name, url, category, limit_per_run, last_scraped_at)
+values
+  ('SSC notices',  'https://ssc.gov.in/notices',  'notification', 6, now() - interval '2 hours'),
+  ('RRB results',  'https://rrb.gov.in/results',  'result',       6, now() - interval '5 hours'),
+  ('UPSC admit',   'https://upsc.gov.in/admit',   'admit_card',   4, now() - interval '1 day');
+
+insert into public.sync_runs
+  (kind, status, rows_seen, rows_inserted, rows_updated, rows_unchanged, rows_failed,
+   started_at, finished_at, duration_ms, error)
+select
+  kind, status, seen, ins, upd, unchanged, failed,
+  now() - (n || ' hours')::interval,
+  now() - (n || ' hours')::interval + (ms || ' milliseconds')::interval,
+  ms, err
+from (values
+  (1,  'jobs',         'succeeded'::public.sync_status, 240, 0,  4,   236, 0, 4120,  null),
+  (2,  'exam_updates', 'succeeded'::public.sync_status, 180, 2,  1,   177, 0, 3080,  null),
+  (5,  'jobs',         'succeeded'::public.sync_status, 240, 0,  0,   240, 0, 2950,  null),
+  (9,  'exam_updates', 'partial'::public.sync_status,   180, 1,  0,   177, 2, 5210,  '2 rows failed to parse'),
+  (14, 'embeddings',   'succeeded'::public.sync_status,  60, 60, 0,   0,   0, 18400, null),
+  (26, 'jobs',         'failed'::public.sync_status,      0, 0,  0,   0,   0, 900,   'Apps Script feed returned 502')
+) as t(n, kind, status, seen, ins, upd, unchanged, failed, ms, err);
+
+insert into public.sync_dead_letter (kind, source_key, payload, error, attempts)
+values
+  ('exam_updates', 'rrb-group-d-result-2026',
+   '{"title":"RRB Group D Result 2026","raw":"…"}'::jsonb,
+   'published_date could not be parsed from "Coming Soon"', 3),
+  ('exam_updates', 'ssc-chsl-answer-key',
+   '{"title":"SSC CHSL Answer Key","raw":"…"}'::jsonb,
+   'source_url returned 404 after 3 attempts', 3);
+
 -- ANALYZE only: VACUUM cannot run inside the seeding pipeline (SQLSTATE 25001).
 -- The VACUUM matters too — a bulk insert leaves each GIN pending list unflushed,
 -- which prices the index roughly 76x above its true cost and makes the planner

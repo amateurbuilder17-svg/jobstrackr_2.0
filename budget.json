@@ -1,7 +1,9 @@
 {
-  "_comment": "First-load JS per route, gzipped, in kilobytes — what a modern browser actually downloads. Legacy noModule polyfills are excluded. Raising a number here is a deliberate, reviewable act; see docs/REBUILD-PLAN.md M0.",
+  "_comment": "First-load JS per route, gzipped, in kilobytes \u2014 what a modern browser actually downloads. Legacy noModule polyfills are excluded. Raising a number here is a deliberate, reviewable act; see docs/REBUILD-PLAN.md M0.",
   "_baselineKb": 134,
   "_baselineNote": "Measured framework floor: React 19 + Next 16 App Router shared runtime, on an empty page. Every route pays this. The default below leaves ~21 kB for route-specific code before CI complains.",
   "defaultRouteKb": 155,
-  "routes": {}
+  "routes": {},
+  "_unmeasuredNote": "Routes that emit no prerendered scripts because they are blocking (`export const instant = false`). They are never CDN-served, so first-load JS is not the figure that matters for them. Listing one here is a deliberate act: an unlisted route with no scripts still fails the build, so a route cannot drift out of measurement by accident.",
+  "unmeasured": ["/admin", "/admin/jobs", "/admin/updates", "/admin/egress"]
 }

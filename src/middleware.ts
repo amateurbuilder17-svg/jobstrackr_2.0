@@ -39,7 +39,7 @@ import { env } from "@/lib/env";
  * would be the app hiding their data from them. The page renders from
  * localStorage for guests and from the database for everyone else.
  */
-const PROTECTED = ["/profile", "/tracker", "/for-you"] as const;
+const PROTECTED = ["/profile", "/tracker", "/for-you", "/admin"] as const;
 
 /**
  * Routes a signed-in user has no reason to see. `/reset-password` is
@@ -114,6 +114,7 @@ export const config = {
     "/profile/:path*",
     "/tracker/:path*",
     "/for-you/:path*",
+    "/admin/:path*",
     "/sign-in",
     "/sign-up",
     "/forgot-password",

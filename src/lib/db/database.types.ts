@@ -976,6 +976,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_table_stats: {
+        Args: never
+        Returns: {
+          bytes_per_row: number
+          row_estimate: number
+          table_name: string
+          total_bytes: number
+        }[]
+      }
       has_role: { Args: { check_role: string }; Returns: boolean }
       match_jobs: {
         Args: { p_limit?: number }
@@ -1005,6 +1014,14 @@ export type Database = {
         Returns: {
           rows_deleted: number
           table_name: string
+        }[]
+      }
+      resolve_update_job_links: {
+        Args: { p_batch?: number }
+        Returns: {
+          ambiguous: number
+          linked: number
+          no_match: number
         }[]
       }
       slugify: { Args: { input: string }; Returns: string }

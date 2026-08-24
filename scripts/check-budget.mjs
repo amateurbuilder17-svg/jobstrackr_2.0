@@ -81,6 +81,9 @@ function gzippedKb(assetPath) {
   return kb;
 }
 
+const unmeasured = new Set(budget.unmeasured ?? []);
+const unmeasuredSeen = new Set();
+
 const rows = [];
 /**
  * Pages of the same route share exactly the same chunk set, so they are grouped
@@ -114,10 +117,21 @@ for (const file of htmlFiles) {
   }
 
   if (assets.size === 0) {
+    // A blocking route (`export const instant = false`) emits an HTML shell
+    // with no scripts. It is never CDN-served, so first-load JS is not the
+    // figure that matters for it — but it must be declared, or a route could
+    // drift out of measurement simply by becoming dynamic.
+    if (unmeasured.has(route)) {
+      unmeasuredSeen.add(route);
+      continue;
+    }
+
     fail(
       `No script tags found in ${relative(root, file)}.\n` +
-        `Next.js likely changed how it emits scripts. Fix this script rather\n` +
-        `than deleting it — a budget check that silently passes is worse than none.`,
+        `If this route is deliberately blocking, add "${route}" to "unmeasured"\n` +
+        `in budget.json. Otherwise Next.js changed how it emits scripts — fix\n` +
+        `this script rather than deleting it: a budget check that silently\n` +
+        `passes is worse than none.`,
     );
   }
 
@@ -180,12 +194,31 @@ if (failures.length > 0) {
   );
 }
 
+// A stale entry is its own failure: a route that was made blocking, then made
+// static again, would otherwise sit in the list unmeasured forever.
+const stale = [...unmeasured].filter((route) => !unmeasuredSeen.has(route));
+if (stale.length > 0) {
+  fail(
+    `budget.json lists these as "unmeasured", but they emitted scripts or\n` +
+      `were not built at all:\n${stale.map((r) => `  • ${r}`).join("\n")}\n\n` +
+      `Remove them so they are measured again.`,
+  );
+}
+
 const heaviest = rows[0];
 const totalPages = rows.reduce((sum, r) => sum + r.pages, 0);
 console.log(
   `  ✓ ${rows.length} route group(s), ${totalPages} page(s) within budget · ` +
-    `heaviest ${heaviest.route} at ${fmt(heaviest.kb)}\n`,
+    `heaviest ${heaviest.route} at ${fmt(heaviest.kb)}`,
 );
+
+if (unmeasuredSeen.size > 0) {
+  console.log(
+    `  · ${unmeasuredSeen.size} blocking route(s) not measured: ` +
+      `${[...unmeasuredSeen].sort().join(", ")}`,
+  );
+}
+console.log("");
 
 /* ── Helpers ───────────────────────────────────────────────────────────── */
 
