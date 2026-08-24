@@ -32,6 +32,11 @@ q 2>&1 < "$ROOT/supabase/.validate/02_rls_proof.sql" \
   | grep -E "ok|FAIL|ERROR" | sed 's/^NOTICE: */ /'
 
 echo
+echo "── Matching: no false eligible ──"
+q 2>&1 < "$ROOT/supabase/.validate/03_match_proof.sql" \
+  | grep -E "ok|FAIL|ERROR" | sed 's/^NOTICE: */ /'
+
+echo
 echo "── Index usage at production volume ──"
 q -q < "$ROOT/supabase/.validate/01_seed_proof.sql"
 

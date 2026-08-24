@@ -21,3 +21,12 @@ do $$ begin
   create role authenticated; exception when duplicate_object then null; end $$;
 do $$ begin
   create role service_role;  exception when duplicate_object then null; end $$;
+
+-- Supabase grants these on a real project. Without them a policy that calls
+-- auth.uid() fails with "permission denied for schema auth" the moment it is
+-- evaluated as anything other than the owner — which looks like a broken
+-- policy rather than a missing grant in this stub.
+grant usage on schema auth to anon, authenticated, service_role;
+grant select on auth.users to anon, authenticated, service_role;
+grant execute on function auth.uid() to anon, authenticated, service_role;
+grant execute on function auth.role() to anon, authenticated, service_role;
