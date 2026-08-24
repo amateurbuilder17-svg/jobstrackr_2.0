@@ -8,8 +8,6 @@ import { formatDate } from "@/lib/format/deadline";
 import { CATEGORY_LABELS } from "@/lib/updates/categories";
 import { Pager } from "../pager";
 
-export const metadata = { title: "Updates" };
-
 type SearchParams = Promise<{ page?: string; link?: string }>;
 
 const LINK_FILTERS = [

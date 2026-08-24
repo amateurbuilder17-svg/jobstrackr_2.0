@@ -7,8 +7,6 @@ import { asJobStatus, listJobsForAdmin } from "@/lib/db/queries/admin";
 import { formatDate } from "@/lib/format/deadline";
 import { Pager } from "../pager";
 
-export const metadata = { title: "Jobs" };
-
 type SearchParams = Promise<{ page?: string; status?: string; q?: string }>;
 
 /**

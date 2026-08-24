@@ -18,8 +18,22 @@ import { hasRole } from "@/lib/auth/session";
  */
 export const instant = false;
 
+/**
+ * Deliberately the site's default title, not "Admin".
+ *
+ * `notFound()` below is supposed to tell a signed-in non-admin nothing — but
+ * metadata resolves for the matched route regardless of what the render throws,
+ * so a distinctive title here (or on any page under it) survives into the 404
+ * and confirms the route exists. Measured: /admin returned "Overview ·
+ * JobsTrackr" while a genuine 404 returned the default. Now they are identical.
+ *
+ * The cost is that real admins get an undifferentiated tab title. There are
+ * three of them and they know which page they are on.
+ */
 export const metadata: Metadata = {
-  title: { default: "Admin", template: "%s · Admin" },
+  // `absolute`, or the root's "%s · JobsTrackr" template appends a second
+  // suffix and the title becomes distinctive again by a different route.
+  title: { absolute: "JobsTrackr — Government jobs and exam updates" },
   robots: { index: false, follow: false, nocache: true },
 };
 

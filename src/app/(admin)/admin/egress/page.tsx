@@ -3,8 +3,6 @@ import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getTableStats } from "@/lib/db/queries/admin";
 
-export const metadata = { title: "Egress" };
-
 export default function AdminEgressPage() {
   return (
     <div className="mt-6">

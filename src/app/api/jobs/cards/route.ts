@@ -14,13 +14,20 @@ import { PAGE_SIZE } from "@/lib/db/cursor";
  * The ids are the untrusted half. They are deduplicated and capped before the
  * query, so a hand-edited localStorage cannot turn this into a full-table read.
  */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function GET(request: NextRequest) {
   const raw = request.nextUrl.searchParams.get("ids") ?? "";
 
+  // Shape, not just count. An earlier version capped how many ids could
+  // arrive but not what they looked like, so `?ids=x` reached Postgres as an
+  // invalid uuid literal and the whole request 500'd. These come from
+  // localStorage, which anyone can edit — a malformed entry from an old
+  // format, or a hand-typed one, should return nothing rather than an error.
   const ids = raw
     .split(",")
     .map((id) => id.trim())
-    .filter(Boolean)
+    .filter((id) => UUID.test(id))
     .slice(0, PAGE_SIZE.savedIds);
 
   if (ids.length === 0) {

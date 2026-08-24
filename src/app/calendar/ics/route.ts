@@ -11,15 +11,28 @@ import { env } from "@/lib/env";
  * is public content, so the response is cacheable like any other page.
  */
 export async function GET(request: NextRequest) {
-  const raw = request.nextUrl.searchParams.get("m") ?? "";
-  const match = /^(\d{4})-(\d{2})$/.exec(raw);
+  const raw = request.nextUrl.searchParams.get("m");
 
+  // Absent means "this month". *Present but wrong* is an error, and both kinds
+  // of wrong are treated the same: an earlier version fell back to the current
+  // month for unparseable input while rejecting 2026-13, so `?m=abc`
+  // downloaded a file named for one month containing another. Silently
+  // substituting data in a file someone is about to import into their calendar
+  // is worse than refusing.
   const now = new Date();
-  const year = match ? Number(match[1]) : now.getUTCFullYear();
-  const month = match ? Number(match[2]) : now.getUTCMonth() + 1;
+  let year = now.getUTCFullYear();
+  let month = now.getUTCMonth() + 1;
 
-  if (month < 1 || month > 12 || year < 2000 || year > 2100) {
-    return new Response("Invalid month.", { status: 400 });
+  if (raw !== null) {
+    const match = /^(\d{4})-(\d{2})$/.exec(raw);
+    if (!match) return new Response("Invalid month.", { status: 400 });
+
+    year = Number(match[1]);
+    month = Number(match[2]);
+
+    if (month < 1 || month > 12 || year < 2000 || year > 2100) {
+      return new Response("Invalid month.", { status: 400 });
+    }
   }
 
   const events = await listDeadlinesInMonth(year, month);
@@ -30,7 +43,7 @@ export async function GET(request: NextRequest) {
     "PRODID:-//JobsTrackr//Exam Calendar//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
-    `X-WR-CALNAME:JobsTrackr deadlines ${raw || `${String(year)}-${pad(month)}`}`,
+    `X-WR-CALNAME:JobsTrackr deadlines ${String(year)}-${pad(month)}`,
   ];
 
   for (const event of events) {

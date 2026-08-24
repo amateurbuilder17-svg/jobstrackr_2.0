@@ -10,8 +10,6 @@ import {
 } from "@/lib/db/queries/admin";
 import { formatDateTime } from "@/lib/format/deadline";
 
-export const metadata = { title: "Overview" };
-
 export default function AdminOverviewPage() {
   return (
     <div className="mt-6 flex flex-col gap-8">
