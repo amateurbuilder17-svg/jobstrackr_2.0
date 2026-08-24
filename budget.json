@@ -1,0 +1,7 @@
+{
+  "_comment": "First-load JS per route, gzipped, in kilobytes — what a modern browser actually downloads. Legacy noModule polyfills are excluded. Raising a number here is a deliberate, reviewable act; see docs/REBUILD-PLAN.md M0.",
+  "_baselineKb": 134,
+  "_baselineNote": "Measured framework floor: React 19 + Next 16 App Router shared runtime, on an empty page. Every route pays this. The default below leaves ~21 kB for route-specific code before CI complains.",
+  "defaultRouteKb": 155,
+  "routes": {}
+}

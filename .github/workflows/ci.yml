@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format
+        run: pnpm format:check
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+        env:
+          # Placeholder values. The build must not require real credentials —
+          # if it ever does, something is reading the database at build time
+          # that should be reading it at revalidation time instead.
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder
+          NEXT_PUBLIC_SITE_URL: https://jobstrackr.in
+          SUPABASE_SECRET_KEY: sb_secret_placeholder
+          REVALIDATE_SECRET: ci000000000000000000000000000000000000000000000000000000000000
+          CRON_SECRET: ci000000000000000000000000000000000000000000000000000000000000
+
+      - name: Bundle budget
+        run: pnpm budget

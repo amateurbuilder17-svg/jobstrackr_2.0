@@ -1,0 +1,86 @@
+// @ts-check
+import next from "eslint-config-next";
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
+import tseslint from "typescript-eslint";
+
+export default tseslint.config(
+  { ignores: [".next/**", "node_modules/**", "next-env.d.ts", "supabase/**"] },
+
+  ...next,
+  ...nextCoreWebVitals,
+  ...tseslint.configs.strictTypeChecked,
+  ...tseslint.configs.stylisticTypeChecked,
+
+  {
+    // Type-aware rules need a tsconfig-backed program, which only covers the
+    // app source. Config files and build scripts are exempted below.
+    files: ["src/**/*.{ts,tsx}"],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      // ── Guardrails, not style preferences ─────────────────────────────
+      // The old codebase leaned on `as any` to get past its own generated
+      // Supabase types. That is how a "narrow column list" silently becomes a
+      // full-row fetch, so it is an error here rather than a warning.
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/no-unsafe-assignment": "error",
+      "@typescript-eslint/no-unsafe-member-access": "error",
+      "@typescript-eslint/no-unsafe-call": "error",
+      "@typescript-eslint/no-unsafe-return": "error",
+      "@typescript-eslint/no-unsafe-argument": "error",
+
+      // A floating promise in a server action is a silently dropped write.
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/await-thenable": "error",
+      "@typescript-eslint/require-await": "error",
+
+      "@typescript-eslint/consistent-type-imports": [
+        "error",
+        { prefer: "type-imports", fixStyle: "inline-type-imports" },
+      ],
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
+
+      // ── The egress guardrail ──────────────────────────────────────────
+      // `select("*")` is the single habit that caused the outage this rebuild
+      // is recovering from. It is banned outright; every query names its
+      // columns. See docs/REBUILD-PLAN.md §1, cause 1.
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "CallExpression[callee.property.name='select'][arguments.0.value='*']",
+          message:
+            "select('*') is banned — name the columns this screen renders. See docs/REBUILD-PLAN.md §1.",
+        },
+        {
+          selector: "CallExpression[callee.property.name='select'][arguments.length=0]",
+          message:
+            "select() with no argument returns every column. Name the columns this screen renders.",
+        },
+      ],
+
+      // console.log in a server component runs on every render.
+      "no-console": ["error", { allow: ["warn", "error"] }],
+    },
+  },
+
+  // Config files and build scripts: plain JS/Node, outside the TS program, and
+  // allowed to write to stdout. Type-aware rules cannot run here at all — they
+  // need a program these files are not part of.
+  {
+    files: ["**/*.{mjs,js,cjs}", "*.config.ts"],
+    extends: [tseslint.configs.disableTypeChecked],
+    rules: {
+      "no-console": "off",
+      // `headers()` in next.config.ts must return a Promise to satisfy Next's
+      // own type, so `async` without `await` is correct there.
+      "@typescript-eslint/require-await": "off",
+    },
+  },
+);
