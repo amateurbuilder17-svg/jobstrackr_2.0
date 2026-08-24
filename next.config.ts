@@ -37,6 +37,15 @@ const nextConfig: NextConfig = {
       revalidate: 60 * 60 * 6, // 6 hours
       expire: 60 * 60 * 24 * 7, // 7 days
     },
+    // Project configuration that changes when someone edits a dashboard
+    // setting — which external auth providers are enabled, and little else.
+    // Long-lived because the answer is stable for months, but not permanent:
+    // enabling Google should light up its button without a redeploy.
+    config: {
+      stale: 60 * 15, // 15 minutes
+      revalidate: 60 * 60, // 1 hour
+      expire: 60 * 60 * 24, // 1 day
+    },
   },
 
   // A build that type-errors must fail. This defaults to false already; it is

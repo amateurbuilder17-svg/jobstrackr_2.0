@@ -12,9 +12,12 @@ import { Button } from "@/components/ui/button";
 export function SignInForm({
   next,
   initialError,
+  google,
 }: {
   next?: string | undefined;
   initialError?: string | undefined;
+  /** False when the project has no Google provider configured — see providers.ts. */
+  google: boolean;
 }) {
   const [state, formAction] = useActionState(signInAction, EMPTY_FORM_STATE);
 
@@ -24,20 +27,26 @@ export function SignInForm({
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Google first: it is one click against seven fields, and most returning
-          users took that path originally. */}
-      <form action={signInWithGoogleAction}>
-        <input type="hidden" name="next" value={next ?? ""} />
-        <Button type="submit" variant="secondary" size="lg" className="w-full">
-          Continue with Google
-        </Button>
-      </form>
+      {/* Google first when it exists: one click against three fields, and most
+          returning users took that path originally. Hidden rather than
+          disabled when the provider is off — an button that always fails is
+          worse than no button. */}
+      {google ? (
+        <>
+          <form action={signInWithGoogleAction}>
+            <input type="hidden" name="next" value={next ?? ""} />
+            <Button type="submit" variant="secondary" size="lg" className="w-full">
+              Continue with Google
+            </Button>
+          </form>
 
-      <div className="flex items-center gap-3 text-xs text-ink-3">
-        <span className="h-px flex-1 bg-line" />
-        or
-        <span className="h-px flex-1 bg-line" />
-      </div>
+          <div className="flex items-center gap-3 text-xs text-ink-3">
+            <span className="h-px flex-1 bg-line" />
+            or
+            <span className="h-px flex-1 bg-line" />
+          </div>
+        </>
+      ) : null}
 
       <form action={formAction} className="flex flex-col gap-4">
         <input type="hidden" name="next" value={next ?? ""} />

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { enabledOAuthProviders } from "@/lib/auth/providers";
 import { SignUpForm } from "./sign-up-form";
 
 export const metadata: Metadata = {
@@ -38,8 +39,8 @@ export default function SignUpPage({ searchParams }: { searchParams: SearchParam
 }
 
 async function Credentials({ searchParams }: { searchParams: SearchParams }) {
-  const { next } = await searchParams;
-  return <SignUpForm next={next} />;
+  const [{ next }, providers] = await Promise.all([searchParams, enabledOAuthProviders()]);
+  return <SignUpForm next={next} google={providers.google} />;
 }
 
 function FormFallback() {

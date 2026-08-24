@@ -8,7 +8,14 @@ import { Field, FormError, FormNotice, Input } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Button } from "@/components/ui/button";
 
-export function SignUpForm({ next }: { next?: string | undefined }) {
+export function SignUpForm({
+  next,
+  google,
+}: {
+  next?: string | undefined;
+  /** False when the project has no Google provider configured — see providers.ts. */
+  google: boolean;
+}) {
   const [state, formAction] = useActionState(signUpAction, EMPTY_FORM_STATE);
 
   // Success here is "we sent you an email", not a session — so the form is
@@ -19,18 +26,22 @@ export function SignUpForm({ next }: { next?: string | undefined }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <form action={signInWithGoogleAction}>
-        <input type="hidden" name="next" value={next ?? ""} />
-        <Button type="submit" variant="secondary" size="lg" className="w-full">
-          Continue with Google
-        </Button>
-      </form>
+      {google ? (
+        <>
+          <form action={signInWithGoogleAction}>
+            <input type="hidden" name="next" value={next ?? ""} />
+            <Button type="submit" variant="secondary" size="lg" className="w-full">
+              Continue with Google
+            </Button>
+          </form>
 
-      <div className="flex items-center gap-3 text-xs text-ink-3">
-        <span className="h-px flex-1 bg-line" />
-        or
-        <span className="h-px flex-1 bg-line" />
-      </div>
+          <div className="flex items-center gap-3 text-xs text-ink-3">
+            <span className="h-px flex-1 bg-line" />
+            or
+            <span className="h-px flex-1 bg-line" />
+          </div>
+        </>
+      ) : null}
 
       <form action={formAction} className="flex flex-col gap-4">
         <FormError>{state.errors?.form}</FormError>

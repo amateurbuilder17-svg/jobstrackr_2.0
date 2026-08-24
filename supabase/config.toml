@@ -176,6 +176,33 @@ web3 = 30
 # provider = "hcaptcha"
 # secret = ""
 
+# ── Google sign-in ──────────────────────────────────────────────────────────
+# Off by default so `supabase start` works on a clean checkout. The app asks the
+# auth server which providers are enabled (see src/lib/auth/providers.ts), so
+# while this is false the "Continue with Google" button is simply not rendered —
+# it does not appear and then fail.
+#
+# To turn it on locally:
+#   1. Google Cloud Console → APIs & Services → Credentials → OAuth client ID
+#      (type: Web application).
+#   2. Add this authorised redirect URI, exactly:
+#        http://127.0.0.1:54421/auth/v1/callback
+#   3. Put the two values in .env.local (they are read from the environment, so
+#      no secret is ever committed here):
+#        SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID=...
+#        SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET=...
+#   4. Flip `enabled` to true and run `supabase stop && supabase start`.
+#
+# In production the same pair goes in Supabase → Authentication → Providers,
+# with the redirect URI pointing at the hosted project rather than 127.0.0.1.
+[auth.external.google]
+enabled = false
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+# Left empty so Supabase uses its own /auth/v1/callback, which is what the
+# console redirect URI above must match.
+redirect_uri = ""
+
 [auth.email]
 # Allow/disallow new user signups via email to your project.
 enable_signup = true
