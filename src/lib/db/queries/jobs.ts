@@ -130,6 +130,29 @@ export async function getJobBySlug(slug: string): Promise<JobDetail | null> {
 }
 
 /**
+ * Title and slug for one job, by id.
+ *
+ * For the "related notification" link on an update page. Two columns, because
+ * that is what the link renders — pulling a full card to draw one line of text
+ * is the habit this codebase's column lists exist to break.
+ */
+export async function getJobById(id: string): Promise<{ slug: string; title: string } | null> {
+  "use cache";
+  cacheLife("content");
+  cacheTag(tags.jobList());
+
+  return unwrapMaybe(
+    "getJobById",
+    await publicDb()
+      .from("jobs")
+      .select("slug, title")
+      .eq("id", id)
+      .eq("status", "published")
+      .maybeSingle(),
+  );
+}
+
+/**
  * Cards for a specific set of ids, for the guest saved list.
  *
  * A guest's shortlist lives in their browser, so the ids arrive from the client

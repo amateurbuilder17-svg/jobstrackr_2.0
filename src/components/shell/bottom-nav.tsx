@@ -22,7 +22,11 @@ export function BottomNav() {
     >
       <ul className="flex">
         {PRIMARY_NAV.map(({ label, href, icon: Icon }) => (
-          <li key={href} className="flex-1">
+          // `min-w-0` on the item, not just `flex-1`. A flex child's default
+          // `min-width: auto` lets its longest label — "My Exams" — set a floor
+          // the bar cannot shrink below, so on a 320px screen the nav grew
+          // wider than the viewport and scrolled the whole page sideways.
+          <li key={href} className="min-w-0 flex-1">
             <NavLink
               href={href}
               className={
@@ -33,7 +37,7 @@ export function BottomNav() {
               inactiveClassName="text-ink-3"
             >
               <Icon className="size-[1.3rem]" />
-              {label}
+              <span className="max-w-full truncate px-0.5">{label}</span>
             </NavLink>
           </li>
         ))}
