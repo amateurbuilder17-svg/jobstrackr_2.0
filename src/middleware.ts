@@ -33,7 +33,13 @@ import { env } from "@/lib/env";
  */
 
 /** Routes that require a signed-in user. Prefix match, so children are covered. */
-const PROTECTED = ["/profile", "/saved", "/tracker", "/for-you"] as const;
+/**
+ * `/saved` is deliberately absent: a signed-out visitor has a real shortlist in
+ * their browser, and redirecting them to sign in to see their own saved jobs
+ * would be the app hiding their data from them. The page renders from
+ * localStorage for guests and from the database for everyone else.
+ */
+const PROTECTED = ["/profile", "/tracker", "/for-you"] as const;
 
 /**
  * Routes a signed-in user has no reason to see. `/reset-password` is
@@ -106,7 +112,6 @@ export const config = {
   // cannot be interpolated here. Keep the two in step when adding a route.
   matcher: [
     "/profile/:path*",
-    "/saved/:path*",
     "/tracker/:path*",
     "/for-you/:path*",
     "/sign-in",

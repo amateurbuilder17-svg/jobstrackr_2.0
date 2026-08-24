@@ -25,7 +25,7 @@ import { tags } from "../tags";
  * something visible. The organization join costs ~60 bytes per row and replaces
  * the 13 kB client-side logo lookup the old app shipped.
  */
-const JOB_CARD_SELECT = `
+export const JOB_CARD_SELECT = `
   id, slug, title, location, state,
   last_date, last_date_display,
   vacancies, vacancies_display,
@@ -126,6 +126,35 @@ export async function getJobBySlug(slug: string): Promise<JobDetail | null> {
   return unwrapMaybe(
     "getJobBySlug",
     await detailQuery().eq("slug", slug).eq("status", "published").maybeSingle(),
+  );
+}
+
+/**
+ * Cards for a specific set of ids, for the guest saved list.
+ *
+ * A guest's shortlist lives in their browser, so the ids arrive from the client
+ * and the server has no prior knowledge of them. Bounded and de-duplicated
+ * before it reaches Postgres: the input is localStorage, which anyone can edit
+ * into a request for the entire table.
+ *
+ * Public content, so it caches and tags like every other job read — a hundred
+ * guests with overlapping shortlists share the cached rows.
+ */
+export async function listJobCardsByIds(ids: string[]): Promise<JobCard[]> {
+  "use cache";
+  cacheLife("feed");
+  cacheTag(tags.jobList());
+
+  const wanted = [...new Set(ids)].slice(0, PAGE_SIZE.savedIds);
+  if (wanted.length === 0) return [];
+
+  return unwrap(
+    "listJobCardsByIds",
+    await cardQuery()
+      .in("id", wanted)
+      .eq("status", "published")
+      .order("published_at", { ascending: false })
+      .limit(PAGE_SIZE.savedIds),
   );
 }
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { UsersIcon } from "@/components/icons";
+import { SaveButton } from "@/components/saved/save-button";
 import { CardInteractive } from "@/components/ui/card";
 import type { JobCard as JobCardData } from "@/lib/db/queries/jobs";
 import { formatCount, formatSalary } from "@/lib/format/deadline";
@@ -9,8 +10,9 @@ import { DeadlineBadge } from "./deadline-badge";
 /**
  * One job in a list.
  *
- * A Server Component with no interactive state, so none of this reaches the
- * client bundle — a list of 20 costs zero JavaScript.
+ * A Server Component apart from the save toggle, which is the one interactive
+ * element and the only thing here that reaches the client bundle. Twenty cards
+ * therefore ship one button component, not twenty copies of a card.
  *
  * The whole card is clickable via a stretched pseudo-element on the title link
  * rather than by wrapping everything in one anchor. Wrapping means a screen
@@ -38,7 +40,10 @@ export function JobCard({ job }: { job: JobCardData }) {
           </h3>
         </div>
 
-        <DeadlineBadge date={job.last_date} />
+        <div className="flex shrink-0 items-center gap-1">
+          <DeadlineBadge date={job.last_date} />
+          <SaveButton jobId={job.id} title={job.title} />
+        </div>
       </div>
 
       <dl className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-3">

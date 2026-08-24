@@ -95,6 +95,14 @@ export const PAGE_SIZE = {
   rail: 12,
   /** Admin tables — larger, but still bounded. */
   admin: 50,
+  /**
+   * Saved-job ids, fetched once per session to light up the save buttons.
+   * Ids only, so 200 of them is ~8 kB — generous for a personal shortlist
+   * while still being a bound rather than "everything this user ever saved".
+   */
+  savedIds: 200,
+  /** The tracker. One person's exams; more than this is not a real list. */
+  attempts: 100,
 } as const;
 
 export const MAX_PAGE_SIZE = 100;
