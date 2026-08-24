@@ -1,70 +1,221 @@
 @import "tailwindcss";
 
-/* Class-based dark mode, so the theme can be set from a cookie during server
-   render. `prefers-color-scheme` alone would force a client-side flash. */
+/* Class-based dark mode so the theme can be resolved during server render from
+   a cookie. `prefers-color-scheme` alone forces a client-side flash. */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ─────────────────────────────────────────────────────────────────────────
-   Seed tokens. Module 3 replaces this with the full system — scale, elevation,
-   motion, semantic surfaces. What is here is only enough to build against.
-   ───────────────────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   Design tokens
+   ═══════════════════════════════════════════════════════════════════════════
+   Colour is authored in OKLCH. Unlike HSL, equal lightness steps look equal —
+   so `--color-ink-2` reads as the same weight of grey against every surface,
+   and the dark palette can be derived by moving lightness rather than by
+   hand-tuning each value until it "looks right".
+
+   The subject is government exam listings: deadlines, eligibility, vacancy
+   counts. People arrive anxious about a date. So the palette is deliberately
+   quiet — one accent, semantic colour reserved for genuine state, and no
+   decorative hues. The old app gave each nav item its own colour (rose, amber,
+   emerald, blue, violet); that reads as playful, and playful is the wrong
+   register for "you have three days left to apply".
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 @theme {
-  --color-bg: oklch(98.4% 0.003 250);
+  /* ── Surfaces ─────────────────────────────────────────────────────────── */
+  /* Neutrals carry a slight cool bias (hue 250) toward the accent, so greys
+     read as chosen rather than inherited from a default stylesheet. */
+  --color-bg: oklch(98.6% 0.003 250);
   --color-surface: oklch(100% 0 0);
-  --color-surface-2: oklch(96.2% 0.005 250);
-  --color-line: oklch(90.5% 0.007 250);
+  --color-surface-2: oklch(96.4% 0.005 250);
+  --color-surface-3: oklch(93.5% 0.007 250);
+  --color-line: oklch(90.8% 0.008 250);
+  --color-line-strong: oklch(84% 0.011 250);
 
-  --color-ink: oklch(21% 0.018 255);
-  --color-ink-2: oklch(44% 0.015 255);
-  --color-ink-3: oklch(60% 0.014 255);
+  /* ── Text ─────────────────────────────────────────────────────────────── */
+  --color-ink: oklch(22% 0.018 255);
+  --color-ink-2: oklch(45% 0.016 255);
+  /* 54%, not the 60.5% this started at. Measured: 60.5% gives 3.7:1 against
+     both the page background and a card surface, which fails AA for body text.
+     55.5% is the first passing value and 54% leaves real margin — muted enough
+     to read as secondary, dark enough to be legible. Dark mode is unaffected;
+     it measured clean at its own lightness. */
+  --color-ink-3: oklch(54% 0.015 255);
 
-  --color-accent: oklch(52% 0.086 205);
-  --color-accent-soft: oklch(95% 0.019 205);
+  /* ── Accent ───────────────────────────────────────────────────────────── */
+  /* Deep teal: institutional without being a bank, distinct from the blue that
+     every SaaS dashboard defaults to, and legible on white at AA without
+     needing a darker variant for text. */
+  --color-accent: oklch(51% 0.088 205);
+  --color-accent-hover: oklch(45% 0.09 205);
+  --color-accent-soft: oklch(95.5% 0.021 205);
+  --color-accent-line: oklch(85% 0.05 205);
+  --color-on-accent: oklch(100% 0 0);
 
-  --color-critical: oklch(52% 0.14 32);
-  --color-good: oklch(52% 0.1 155);
-  --color-warn: oklch(58% 0.11 75);
+  /* ── Semantic ─────────────────────────────────────────────────────────── */
+  /* Reserved for state, never decoration. If a colour here appears on
+     something that is not a status, it is being misused. */
+  --color-good: oklch(52% 0.107 155);
+  --color-good-soft: oklch(95.5% 0.028 155);
+  --color-warn: oklch(58% 0.115 75);
+  --color-warn-soft: oklch(96% 0.04 75);
+  --color-critical: oklch(53% 0.155 27);
+  --color-critical-soft: oklch(95.5% 0.03 27);
 
+  /* ── Type ─────────────────────────────────────────────────────────────── */
   --font-sans: var(--font-public-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+
+  /* A 1.2 (minor third) scale. Tight enough that a card can hold four levels
+     of hierarchy without any of them shouting. */
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --text-4xl: 2.25rem;
+
+  /* ── Radius ───────────────────────────────────────────────────────────── */
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+
+  /* ── Elevation ────────────────────────────────────────────────────────── */
+  /* Two layers each: a tight contact shadow plus a wide soft one. A single
+     blurred shadow reads as fog; the contact layer is what makes an edge look
+     like it is resting on the surface. */
+  --shadow-xs: 0 1px 2px oklch(22% 0.018 255 / 0.05);
+  --shadow-sm: 0 1px 2px oklch(22% 0.018 255 / 0.06), 0 2px 8px -4px oklch(22% 0.018 255 / 0.1);
+  --shadow-md:
+    0 1px 3px oklch(22% 0.018 255 / 0.07), 0 8px 24px -12px oklch(22% 0.018 255 / 0.18);
+  --shadow-lg:
+    0 2px 4px oklch(22% 0.018 255 / 0.06), 0 16px 40px -16px oklch(22% 0.018 255 / 0.22);
+
+  /* ── Motion ───────────────────────────────────────────────────────────── */
+  /* Fast enough to feel like a response rather than an animation. Anything
+     above ~200ms on a tap reads as lag on a mid-range Android, which is most
+     of this audience. */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 280ms;
 }
 
+/* ── Dark ─────────────────────────────────────────────────────────────────
+   Not an inversion. Dark surfaces need more separation between adjacent
+   layers than light ones do, and saturated accents bloom against dark
+   backgrounds — so the accent gains lightness and sheds a little chroma. */
 @layer base {
   .dark {
     --color-bg: oklch(17.5% 0.012 258);
-    --color-surface: oklch(21.5% 0.013 258);
-    --color-surface-2: oklch(25% 0.014 258);
-    --color-line: oklch(30% 0.014 258);
+    --color-surface: oklch(21.5% 0.014 258);
+    --color-surface-2: oklch(25.5% 0.015 258);
+    --color-surface-3: oklch(30% 0.016 258);
+    --color-line: oklch(30.5% 0.015 258);
+    --color-line-strong: oklch(39% 0.017 258);
 
-    --color-ink: oklch(93.5% 0.006 250);
-    --color-ink-2: oklch(78% 0.011 250);
-    --color-ink-3: oklch(62% 0.013 250);
+    --color-ink: oklch(94% 0.006 250);
+    --color-ink-2: oklch(78.5% 0.011 250);
+    --color-ink-3: oklch(62.5% 0.013 250);
 
-    --color-accent: oklch(76% 0.098 200);
-    --color-accent-soft: oklch(27% 0.038 200);
+    --color-accent: oklch(76% 0.1 200);
+    --color-accent-hover: oklch(82% 0.095 200);
+    --color-accent-soft: oklch(27.5% 0.04 200);
+    --color-accent-line: oklch(38% 0.055 200);
+    --color-on-accent: oklch(17.5% 0.012 258);
 
-    --color-critical: oklch(72% 0.12 35);
-    --color-good: oklch(74% 0.11 155);
-    --color-warn: oklch(78% 0.11 80);
+    --color-good: oklch(74% 0.115 155);
+    --color-good-soft: oklch(26% 0.045 155);
+    --color-warn: oklch(79% 0.115 80);
+    --color-warn-soft: oklch(27% 0.05 80);
+    --color-critical: oklch(71% 0.135 27);
+    --color-critical-soft: oklch(27% 0.05 27);
+
+    --shadow-xs: 0 1px 2px oklch(0% 0 0 / 0.4);
+    --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.5), 0 2px 8px -4px oklch(0% 0 0 / 0.6);
+    --shadow-md: 0 1px 3px oklch(0% 0 0 / 0.5), 0 8px 24px -12px oklch(0% 0 0 / 0.7);
+    --shadow-lg: 0 2px 4px oklch(0% 0 0 / 0.5), 0 16px 40px -16px oklch(0% 0 0 / 0.8);
   }
+}
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   Base
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+    /* Reserve the scrollbar gutter permanently. Without it, navigating from a
+       short page to a long one shifts the entire layout sideways by the
+       scrollbar's width — a CLS hit on every route change, on desktop. */
+    scrollbar-gutter: stable;
   }
 
   body {
     background-color: var(--color-bg);
     color: var(--color-ink-2);
     font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.6;
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
-  /* Every interactive element gets a visible focus ring. Never remove this. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    color: var(--color-ink);
+    font-weight: 600;
+    letter-spacing: -0.014em;
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+
+  /* Long-form text breaks better with orphan control; headings use `balance`. */
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Digits that sit in columns — deadlines, vacancy counts, fees — must line
+     up. Proportional figures make a table of numbers look ragged. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
   :focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
+    border-radius: var(--radius-xs);
   }
 
+  /* Removing the ring entirely is an accessibility failure; this only skips it
+     for pointer users, who did not ask for it. */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  ::selection {
+    background-color: var(--color-accent-soft);
+    color: var(--color-ink);
+  }
+
+  [hidden] {
+    display: none !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Motion
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@layer base {
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -74,5 +225,34 @@
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
     }
+
+    ::view-transition-group(*),
+    ::view-transition-old(*),
+    ::view-transition-new(*) {
+      animation: none !important;
+    }
   }
+}
+
+/* Skeletons shimmer rather than pulse. A pulse changes overall luminance, which
+   at the page level reads as flicker; a travelling highlight reads as loading. */
+@keyframes jt-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@utility skeleton {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-surface-2) 25%,
+    var(--color-surface-3) 50%,
+    var(--color-surface-2) 75%
+  );
+  background-size: 200% 100%;
+  animation: jt-shimmer 1.6s linear infinite;
+  border-radius: var(--radius-sm);
 }
