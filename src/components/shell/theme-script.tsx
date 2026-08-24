@@ -18,11 +18,20 @@ import Script from "next/script";
  * ahead of hydration, which is both correct and quiet.
  *
  * Minified by hand because it is inlined verbatim and short enough to read.
+ *
+ * The lint rule disabled below is a Pages Router rule: it wants
+ * `beforeInteractive` confined to `pages/_document.js`, which does not exist in
+ * an App Router project. Verified empirically rather than assumed — swapping
+ * this back to a bare `<script>` reproduces the console error on every page,
+ * while this version emits none. `beforeInteractive` does not hoist the tag
+ * into `<head>` here; it renders inline at the top of `<body>`, which still runs
+ * before any body content paints, so the anti-flash guarantee holds.
  */
 const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem('theme');var d=t?t==='dark':matchMedia('(prefers-color-scheme:dark)').matches;var e=document.documentElement;e.classList.toggle('dark',d);e.style.colorScheme=d?'dark':'light'}catch(e){}})()`;
 
 export function ThemeScript() {
   return (
+    // eslint-disable-next-line @next/next/no-before-interactive-script-outside-document -- see above
     <Script id="jt-theme" strategy="beforeInteractive">
       {THEME_SCRIPT}
     </Script>

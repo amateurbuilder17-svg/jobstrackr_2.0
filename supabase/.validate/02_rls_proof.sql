@@ -34,6 +34,9 @@ insert into public.jobs (id, slug, title, organization_id, status, last_date, pu
 insert into public.saved_jobs (user_id, job_id) values
   ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444444');
 
+insert into public.education_qualifications (user_id, level, discipline) values
+  ('11111111-1111-4111-8111-111111111111', 'bachelor', 'Physics');
+
 insert into public.user_roles (user_id, role) values
   ('22222222-2222-4222-8222-222222222222', 'admin');
 
@@ -107,6 +110,33 @@ do $$ begin
   raise notice '  ok   mallory UPDATE on alice profile affected 0 rows';
 end $$;
 
+-- Module 6 writes education rows from the profile screen, so the same
+-- cross-user attempts are proved against that table too.
+select pg_temp.check('mallory CANNOT see alice education',
+  (select count(*) from public.education_qualifications)::int, 0);
+
+do $$ begin
+  insert into public.education_qualifications (user_id, level)
+  values ('11111111-1111-4111-8111-111111111111', 'master');
+  raise exception 'FAIL  mallory inserted education owned by alice';
+exception
+  when insufficient_privilege then raise notice '  ok   mallory BLOCKED from writing education as alice';
+end $$;
+
+do $$ begin
+  update public.education_qualifications set discipline = 'Owned'
+   where user_id = '11111111-1111-4111-8111-111111111111';
+  if found then raise exception 'FAIL  mallory updated alice education'; end if;
+  raise notice '  ok   mallory UPDATE on alice education affected 0 rows';
+end $$;
+
+do $$ begin
+  delete from public.education_qualifications
+   where user_id = '11111111-1111-4111-8111-111111111111';
+  if found then raise exception 'FAIL  mallory deleted alice education'; end if;
+  raise notice '  ok   mallory DELETE on alice education affected 0 rows';
+end $$;
+
 -- Mallory is an admin, so she legitimately sees drafts. That is the policy
 -- working, not a hole — but it must not extend to other users' private rows,
 -- which the checks above already established.
@@ -126,6 +156,8 @@ select pg_temp.check('alice is NOT an admin',
   public.has_role('admin'), false);
 select pg_temp.check('alice does NOT see drafts',
   (select count(*) from public.jobs)::int, 1);
+select pg_temp.check('alice sees her own education',
+  (select count(*) from public.education_qualifications)::int, 1);
 select pg_temp.check('alice sees no role rows',
   (select count(*) from public.user_roles)::int, 0);
 
