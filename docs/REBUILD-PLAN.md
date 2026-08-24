@@ -29,6 +29,11 @@ of the old project** (see §7, Q1).
 | **Old data** | Export via the dashboard SQL Editor — see [`DATA-EXPORT.md`](DATA-EXPORT.md) |
 | **Scope** | Every feature survives. The brief is faster and clearer, not fewer. |
 | **Pace** | Sequential, with review at M2, M5, M8, M12 |
+| **Domain** | `jobstrackr.in`, unchanged — 301 map is mandatory |
+| **Scale** | 99 registered users, ~30 daily |
+| **Supabase** | `wqiffxkakigmtzrficrp` — live, empty, both keys verified |
+| **Repo** | `amateurbuilder17-svg/jobstrackr_2.0` — M0 committed, not pushed |
+| **Dropped** | PWA install prompt + offline mode |
 
 Two version pins that look like mistakes but are not:
 
@@ -335,12 +340,12 @@ carrying that same answer across the five features the question had no room for 
 Job Quiz, Application Guide, Document upload + OCR, AI job search, PWA install +
 offline. Veto any of them and I will drop it; otherwise they are in the M1 schema.
 
-**Q3 — Users.** Roughly how many registered users and daily actives does the old app
-have? It changes whether we optimise for 500 or 50,000, and whether losing the user
-tables in Q1(c) is survivable.
+**Q3 — Users.** *Answered:* 99 registered, ~30 daily. The auth migration is a
+non-event at that size.
 
-**Q4 — Domain.** Same domain as today, or a new one? If the same, we need every old
-URL pattern mapped to a 301 before cutover so search rankings survive.
+**Q4 — Domain.** *Answered:* `jobstrackr.in`, unchanged. With ~5,200 indexed job
+pages, the redirect map is mandatory — M1's slug scheme reproduces existing URLs
+where it can, M5 ships 301s for the rest.
 
 **Q5 — Framework.** *Answered:* Next.js App Router. Scaffolded and building.
 
