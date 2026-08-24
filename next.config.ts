@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  cacheComponents: true,
 
   // This project currently sits inside the old repository's directory tree, so
   // Turbopack's lockfile-based root inference walks up and picks the wrong one.
