@@ -6,7 +6,8 @@ import { z } from "zod";
 import { adminDb } from "@/lib/db/clients";
 import { tags } from "@/lib/db/tags";
 import { getServerEnv } from "@/lib/env.server";
-import { ingestJobs } from "@/lib/sync/ingest";
+import { ingestJobs, recordJobChanges } from "@/lib/sync/ingest";
+import { ingestExamUpdates } from "@/lib/sync/updates";
 
 /**
  * The ingestion worker.
@@ -101,7 +102,92 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
+    if (kind === "exam_updates") {
+      const result = await ingestExamUpdates(rows);
+
+      if (result.failures.length > 0) {
+        await db.from("sync_dead_letter").insert(
+          result.failures.map((f) => ({
+            sync_run_id: run.id,
+            kind,
+            source_key: f.sourceKey,
+            payload: f.payload as never,
+            error: f.error,
+          })),
+        );
+      }
+
+      // Attach new updates to the job they are about. This is the link the old
+      // schema left unpopulated on 3,370 of 3,373 rows, which is why every job
+      // page paid for a title-similarity scan instead of a foreign key.
+      //
+      // Logged and stepped over on failure: an unlinked update is still a
+      // readable update, and the next run retries it — the function walks
+      // `job_link_state = 'unresolved'`.
+      let linked = 0;
+      if (result.inserted + result.updated > 0) {
+        const { data, error } = await db.rpc("resolve_update_job_links", { p_batch: 500 });
+        if (error) console.error("[sync] resolve_update_job_links:", error.message);
+        else linked = data[0]?.linked ?? 0;
+      }
+
+      await db
+        .from("sync_runs")
+        .update({
+          status: result.failed > 0 ? "partial" : "succeeded",
+          rows_seen: result.seen,
+          rows_inserted: result.inserted,
+          rows_updated: result.updated,
+          rows_unchanged: result.unchanged,
+          rows_failed: result.failed,
+          finished_at: new Date().toISOString(),
+          duration_ms: Date.now() - startedAt,
+        })
+        .eq("id", run.id);
+
+      const wroteUpdates = result.inserted + result.updated;
+      if (wroteUpdates > 0) {
+        revalidateTag(tags.examUpdateList(), { expire: 0 });
+        revalidateTag(tags.sitemap(), { expire: 0 });
+        // An update that resolved onto a job changes that job's page too.
+        if (linked > 0) revalidateTag(tags.jobList(), { expire: 0 });
+      }
+
+      return NextResponse.json({
+        runId: run.id,
+        ...summarise(result),
+        detailsWritten: result.detailsWritten,
+        linked,
+        revalidated: wroteUpdates > 0,
+      });
+    }
+
+    // Retire anything whose window shut
+    //
+    // This rides on the Apps Script trigger rather than a Vercel cron: Hobby
+    // allows two crons at daily granularity and both are spoken for, and hourly
+    // is the right cadence anyway — a job should leave the feed within an hour
+    // of closing, not within a day. It is what makes `status = 'published'`
+    // mean "still open", which is what the closing-soonest default sort on
+    // /jobs relies on to show the next deadline rather than the oldest expired
+    // one.
+    //
+    // A failure here is logged and stepped over rather than thrown: a stale
+    // listing in the feed is a much smaller problem than a batch of new jobs
+    // that never lands.
+    let closed = 0;
+    {
+      const { data, error } = await db.rpc("close_expired_jobs");
+      if (error) console.error("[sync] close_expired_jobs:", error.message);
+      else closed = data;
+    }
+
     const result = await ingestJobs(rows);
+
+    // After the rows land, never before: `job_changes.job_id` references
+    // `jobs`, and a change entry is worthless without its subject.
+    const recorded = await recordJobChanges(result.changes, run.id);
+    if (recorded.error) console.error("[sync] recordJobChanges:", recorded.error);
 
     if (result.failures.length > 0) {
       await db.from("sync_dead_letter").insert(
@@ -132,7 +218,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Only when something actually changed. Revalidating on every run would
     // throw away the whole cache daily for no reason — which is the cost this
     // module's diff exists to avoid, undone at the last step.
-    const wrote = result.inserted + result.updated;
+    const wrote = result.inserted + result.updated + closed;
     if (wrote > 0) {
       revalidateTag(tags.jobList(), { expire: 0 });
       revalidateTag(tags.sitemap(), { expire: 0 });
@@ -141,6 +227,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({
       runId: run.id,
       ...summarise(result),
+      detailsWritten: result.detailsWritten,
+      closed,
+      changesRecorded: recorded.written,
       revalidated: wrote > 0,
     });
   } catch (error) {

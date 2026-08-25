@@ -5,7 +5,7 @@ select 'org-'||i, 'Organisation '||i, 'ORG'||i from generate_series(1,120) i;
 
 insert into jobs (slug, title, organization_id, location, state, qualification_summary,
                   tags, status, last_date, published_at, vacancies,
-                  min_qualification_level, age_min, age_max)
+                  age_min, age_max)
 select
   'job-'||i,
   -- A per-row token ('notif<i>') alongside the shared template. Without it
@@ -24,8 +24,11 @@ select
   case i%3 when 0 then array['ssc','graduate']
            when 1 then array['railway','group-d']
            else        array['psc','engineering'] end,
+  -- `min_qualification_level` is derived from the qualification line above
+  -- since 0019, so it is no longer seeded: the three templates cycle at the
+  -- same `i%3` and produce bachelor / class_12 / diploma between them.
   'published', current_date + (i%180), now() - (i||' hours')::interval, 10+(i%500),
-  (array['bachelor','class_12','diploma'])[1+(i%3)]::qualification_level, 18, 27+(i%8)
+  18, 27+(i%8)
 from generate_series(1,6000) i
 join lateral (select id from organizations offset (i%120) limit 1) o on true;
 

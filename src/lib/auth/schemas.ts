@@ -200,6 +200,43 @@ export const educationSchema = z.object({
 
 export type EducationInput = z.infer<typeof educationSchema>;
 
+/* ── The matcher's minimum ─────────────────────────────────────────────── */
+
+/**
+ * The three fields `match_jobs` cannot work without, as one small form.
+ *
+ * Deliberately stricter than `profileSchema`, which allows every field to be
+ * null because a half-finished profile is a legitimate state. Here a null is
+ * the whole problem: the feed this form appears above is empty precisely
+ * because one of these is missing, so accepting a blank would be accepting a
+ * submission that changes nothing.
+ *
+ * `discipline` stays optional, and that is not an inconsistency. Without it the
+ * matcher still works — it just only matches postings open to any discipline,
+ * which is an honest partial answer rather than a broken one.
+ */
+export const matchProfileSchema = z.object({
+  dateOfBirth: z
+    .string()
+    .trim()
+    .min(1, "Enter your date of birth — every notification states an age limit.")
+    .refine((v) => !Number.isNaN(Date.parse(v)), { message: "Enter a valid date." })
+    .refine((v) => v >= DOB_FLOOR && v <= today(), {
+      message: "That date of birth is out of range.",
+    }),
+
+  highestQualification: z
+    .enum(QUALIFICATION_LEVELS, "Choose your highest qualification.")
+    .nullable()
+    .refine((v): v is (typeof QUALIFICATION_LEVELS)[number] => v !== null, {
+      message: "Choose your highest qualification.",
+    }),
+
+  discipline: optionalText(120),
+});
+
+export type MatchProfileInput = z.infer<typeof matchProfileSchema>;
+
 /* ── Helpers ───────────────────────────────────────────────────────────── */
 
 function today(): string {

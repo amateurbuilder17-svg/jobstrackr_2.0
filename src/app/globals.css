@@ -18,52 +18,71 @@
    decorative hues. The old app gave each nav item its own colour (rose, amber,
    emerald, blue, violet); that reads as playful, and playful is the wrong
    register for "you have three days left to apply".
+
+   The palette is "Gazette": a ledger-paper ground and a deep seal green, both
+   on the cool half of the wheel. That is structural rather than decorative —
+   because nothing else in the interface is warm, an amber or vermilion deadline
+   is the only warm object on any screen, and urgency reads without having to
+   compete for attention. Any warm hue introduced elsewhere breaks that, which
+   is the one rule this file exists to hold.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 @theme {
   /* ── Surfaces ─────────────────────────────────────────────────────────── */
-  /* Neutrals carry a slight cool bias (hue 250) toward the accent, so greys
-     read as chosen rather than inherited from a default stylesheet. */
-  --color-bg: oklch(98.6% 0.003 250);
+  /* Neutrals carry a slight green bias (hue ~150) toward the accent, so greys
+     read as chosen rather than inherited from a default stylesheet — and the
+     ground reads as paper stock rather than as the cool blue-grey every
+     dashboard defaults to. */
+  --color-bg: oklch(96.7% 0.005 146);
   --color-surface: oklch(100% 0 0);
-  --color-surface-2: oklch(96.4% 0.005 250);
-  --color-surface-3: oklch(93.5% 0.007 250);
-  --color-line: oklch(90.8% 0.008 250);
-  --color-line-strong: oklch(84% 0.011 250);
+  --color-surface-2: oklch(94.1% 0.008 152);
+  --color-surface-3: oklch(91.1% 0.012 154);
+  --color-line: oklch(88.6% 0.014 153);
+  --color-line-strong: oklch(80.7% 0.02 153);
 
   /* ── Text ─────────────────────────────────────────────────────────────── */
-  --color-ink: oklch(22% 0.018 255);
-  --color-ink-2: oklch(45% 0.016 255);
-  /* 54%, not the 60.5% this started at. Measured: 60.5% gives 3.7:1 against
-     both the page background and a card surface, which fails AA for body text.
-     55.5% is the first passing value and 54% leaves real margin — muted enough
-     to read as secondary, dark enough to be legible. Dark mode is unaffected;
-     it measured clean at its own lightness. */
-  --color-ink-3: oklch(54% 0.015 255);
+  --color-ink: oklch(23% 0.021 163);
+  --color-ink-2: oklch(40.1% 0.023 162);
+  /* 53.9%, carried over from the measurement that set the previous value: at
+     ~60% lightness a muted grey gives 3.7:1 against both the page background
+     and a card surface, which fails AA for body text. This is muted enough to
+     read as secondary and dark enough to stay legible. */
+  --color-ink-3: oklch(53.9% 0.024 161);
 
   /* ── Accent ───────────────────────────────────────────────────────────── */
-  /* Deep teal: institutional without being a bank, distinct from the blue that
-     every SaaS dashboard defaults to, and legible on white at AA without
-     needing a darker variant for text. */
-  --color-accent: oklch(51% 0.088 205);
-  --color-accent-hover: oklch(45% 0.09 205);
-  --color-accent-soft: oklch(95.5% 0.021 205);
-  --color-accent-line: oklch(85% 0.05 205);
+  /* Seal green: the colour of official stamps, ledgers and PSU signage. Deep
+     enough to carry white text, dark enough to be legible on the ground at AA
+     without a separate text variant, and pointedly not the blue every job
+     board reaches for. */
+  --color-accent: oklch(39.7% 0.064 168);
+  --color-accent-hover: oklch(33.8% 0.052 170);
+  --color-accent-soft: oklch(93.4% 0.018 165);
+  --color-accent-line: oklch(81.5% 0.044 164);
   --color-on-accent: oklch(100% 0 0);
 
   /* ── Semantic ─────────────────────────────────────────────────────────── */
   /* Reserved for state, never decoration. If a colour here appears on
-     something that is not a status, it is being misused. */
-  --color-good: oklch(52% 0.107 155);
-  --color-good-soft: oklch(95.5% 0.028 155);
-  --color-warn: oklch(58% 0.115 75);
-  --color-warn-soft: oklch(96% 0.04 75);
-  --color-critical: oklch(53% 0.155 27);
-  --color-critical-soft: oklch(95.5% 0.03 27);
+     something that is not a status, it is being misused.
+
+     `good` is the accent, deliberately: "verified" and "confirmed" are the same
+     institutional signal in this product, and a second green would be two words
+     for one idea. `warn` and `critical` are the deadline ramp, and they are the
+     only warm values in the file. */
+  --color-good: oklch(39.7% 0.064 168);
+  --color-good-soft: oklch(93.4% 0.018 165);
+  --color-warn: oklch(49.4% 0.109 67);
+  --color-warn-soft: oklch(95.5% 0.031 85);
+  --color-critical: oklch(50.9% 0.165 34);
+  --color-critical-soft: oklch(94.2% 0.023 37);
 
   /* ── Type ─────────────────────────────────────────────────────────────── */
-  --font-sans: var(--font-public-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+  /* Archivo is a grotesque drawn for signage and functional typography; Archivo
+     Narrow is its condensed sibling from the same foundry, used for metadata
+     and table headers where an organisation's full name has to fit on one line.
+     There is no monospace: both faces ship `tnum`, so `.tabular` below aligns
+     figures without a third family. */
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-cond: var(--font-archivo-narrow), var(--font-archivo), ui-sans-serif, sans-serif;
 
   /* A 1.2 (minor third) scale. Tight enough that a card can hold four levels
      of hierarchy without any of them shouting. */
@@ -78,22 +97,33 @@
   --text-4xl: 2.25rem;
 
   /* ── Radius ───────────────────────────────────────────────────────────── */
-  --radius-xs: 0.25rem;
-  --radius-sm: 0.375rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
+  /* Tighter than the previous scale. A list of records should have crisp
+     corners; the soft 8–12px radius on everything is what makes an interface
+     read as a template rather than as a reference tool. Full round survives in
+     one place only — the deadline pill. */
+  --radius-xs: 0.125rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.25rem;
+  --radius-lg: 0.375rem;
+  --radius-xl: 0.5rem;
 
   /* ── Elevation ────────────────────────────────────────────────────────── */
-  /* Two layers each: a tight contact shadow plus a wide soft one. A single
-     blurred shadow reads as fog; the contact layer is what makes an edge look
-     like it is resting on the surface. */
-  --shadow-xs: 0 1px 2px oklch(22% 0.018 255 / 0.05);
-  --shadow-sm: 0 1px 2px oklch(22% 0.018 255 / 0.06), 0 2px 8px -4px oklch(22% 0.018 255 / 0.1);
+  /* Shadow is demoted to one job: surfaces that genuinely float above another
+     one — the filter sheet, the command palette, the outbound interstitial.
+     Everything else separates with a hairline rule, because this content is a
+     list of records that should read as one aligned table rather than as a
+     stack of cards drifting over a background.
+
+     `--shadow-xs` is deliberately `none`. It was applied to every card, which
+     is precisely the use this system is removing; keeping the token as a no-op
+     means the removal is one line here rather than a sweep through every
+     component, and a stray `shadow-xs` cannot quietly reintroduce it. */
+  --shadow-xs: 0 0 #0000;
+  --shadow-sm: 0 1px 2px oklch(23% 0.021 163 / 0.06), 0 2px 8px -4px oklch(23% 0.021 163 / 0.1);
   --shadow-md:
-    0 1px 3px oklch(22% 0.018 255 / 0.07), 0 8px 24px -12px oklch(22% 0.018 255 / 0.18);
+    0 1px 3px oklch(23% 0.021 163 / 0.07), 0 8px 24px -12px oklch(23% 0.021 163 / 0.18);
   --shadow-lg:
-    0 2px 4px oklch(22% 0.018 255 / 0.06), 0 16px 40px -16px oklch(22% 0.018 255 / 0.22);
+    0 2px 4px oklch(23% 0.021 163 / 0.06), 0 16px 40px -16px oklch(23% 0.021 163 / 0.22);
 
   /* ── Motion ───────────────────────────────────────────────────────────── */
   /* Fast enough to feel like a response rather than an animation. Anything
@@ -112,31 +142,34 @@
    backgrounds — so the accent gains lightness and sheds a little chroma. */
 @layer base {
   .dark {
-    --color-bg: oklch(17.5% 0.012 258);
-    --color-surface: oklch(21.5% 0.014 258);
-    --color-surface-2: oklch(25.5% 0.015 258);
-    --color-surface-3: oklch(30% 0.016 258);
-    --color-line: oklch(30.5% 0.015 258);
-    --color-line-strong: oklch(39% 0.017 258);
+    --color-bg: oklch(18.4% 0.011 163);
+    --color-surface: oklch(22.1% 0.014 163);
+    --color-surface-2: oklch(26.2% 0.016 169);
+    --color-surface-3: oklch(30.7% 0.022 161);
+    --color-line: oklch(30.7% 0.022 161);
+    --color-line-strong: oklch(38.4% 0.027 159);
 
-    --color-ink: oklch(94% 0.006 250);
-    --color-ink-2: oklch(78.5% 0.011 250);
-    --color-ink-3: oklch(62.5% 0.013 250);
+    --color-ink: oklch(93.9% 0.01 155);
+    --color-ink-2: oklch(79.7% 0.02 158);
+    --color-ink-3: oklch(66.2% 0.027 156);
 
-    --color-accent: oklch(76% 0.1 200);
-    --color-accent-hover: oklch(82% 0.095 200);
-    --color-accent-soft: oklch(27.5% 0.04 200);
-    --color-accent-line: oklch(38% 0.055 200);
-    --color-on-accent: oklch(17.5% 0.012 258);
+    /* Seal green inverts to a mint. A deep green on a dark ground is
+       unreadable, so the accent gains lightness and sheds chroma — the same
+       move the previous palette made, at the new hue. */
+    --color-accent: oklch(76.1% 0.107 163);
+    --color-accent-hover: oklch(82.7% 0.089 164);
+    --color-accent-soft: oklch(29.8% 0.041 169);
+    --color-accent-line: oklch(42.9% 0.06 166);
+    --color-on-accent: oklch(18.4% 0.011 163);
 
-    --color-good: oklch(74% 0.115 155);
-    --color-good-soft: oklch(26% 0.045 155);
-    --color-warn: oklch(79% 0.115 80);
-    --color-warn-soft: oklch(27% 0.05 80);
-    --color-critical: oklch(71% 0.135 27);
-    --color-critical-soft: oklch(27% 0.05 27);
+    --color-good: oklch(76.1% 0.107 163);
+    --color-good-soft: oklch(29.8% 0.041 169);
+    --color-warn: oklch(78.7% 0.119 79);
+    --color-warn-soft: oklch(28.1% 0.042 83);
+    --color-critical: oklch(71.5% 0.13 34);
+    --color-critical-soft: oklch(25.8% 0.045 35);
 
-    --shadow-xs: 0 1px 2px oklch(0% 0 0 / 0.4);
+    --shadow-xs: 0 0 #0000;
     --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.5), 0 2px 8px -4px oklch(0% 0 0 / 0.6);
     --shadow-md: 0 1px 3px oklch(0% 0 0 / 0.5), 0 8px 24px -12px oklch(0% 0 0 / 0.7);
     --shadow-lg: 0 2px 4px oklch(0% 0 0 / 0.5), 0 16px 40px -16px oklch(0% 0 0 / 0.8);
@@ -184,9 +217,21 @@
   }
 
   /* Digits that sit in columns — deadlines, vacancy counts, fees — must line
-     up. Proportional figures make a table of numbers look ragged. */
+     up. Proportional figures make a table of numbers look ragged.
+
+     Verified against the shipped Archivo build: with `tnum` applied, ten 1s and
+     ten 0s measure identically. Without it they differ by ~10px at 20px. That
+     measurement is why there is no monospace in this system. */
   .tabular {
     font-variant-numeric: tabular-nums;
+  }
+
+  /* The condensed face. Used where a name has to fit on one line rather than
+     truncate mid-word — organisation names on a job row, column headers in a
+     vacancy table, the uppercase micro-labels above a section. Never for
+     running text: condensed type is for fitting, not for reading. */
+  .cond {
+    font-family: var(--font-cond);
   }
 
   :focus-visible {

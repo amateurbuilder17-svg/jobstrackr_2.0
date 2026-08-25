@@ -90,7 +90,11 @@ describe("every query is bounded", () => {
     ["getExamUpdateBySlug", true, async () => (await updates()).getExamUpdateBySlug("s")],
     ["listExamUpdateSlugs", false, async () => (await updates()).listExamUpdateSlugs()],
     ["listUpdatesForJob", false, async () => (await updates()).listUpdatesForJob("id")],
-    ["searchExamUpdates", false, async () => (await updates()).searchExamUpdates("result")],
+    [
+      "listExamUpdates (search)",
+      false,
+      async () => (await updates()).listExamUpdates({ query: "result" }),
+    ],
   ];
 
   it.each(cases)("%s sends a LIMIT", async (_name, single, run) => {

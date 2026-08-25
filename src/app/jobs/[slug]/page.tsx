@@ -3,14 +3,40 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
+import { ChangeLog } from "@/components/jobs/change-log";
+import { DeadlineBadge } from "@/components/jobs/deadline-badge";
+import {
+  ApplicationFees,
+  ImportantDates,
+  Overview,
+  Prose,
+  QuickLinks,
+  Section,
+  SelectionProcess,
+  VacancyBreakdown,
+  type QuickLink,
+} from "@/components/jobs/detail-sections";
+import { JobActions } from "@/components/jobs/job-actions";
 import { JobCard, JobCardSkeleton } from "@/components/jobs/job-card";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { env } from "@/lib/env";
-import { formatCount, formatDate, formatSalary } from "@/lib/format/deadline";
-import { DeadlineBadge } from "@/components/jobs/deadline-badge";
-import { getJobBySlug, listJobSlugsForBuild, listRelatedJobs } from "@/lib/db/queries/jobs";
-import { listUpdatesForJob } from "@/lib/db/queries/exam-updates";
+import {
+  formatCount,
+  formatDate,
+  formatDeadlineText,
+  formatSalary,
+  formatVacancies,
+} from "@/lib/format/deadline";
+import { maxFee, toFeeRows } from "@/lib/jobs/detail-shape";
+import {
+  getJobBySlug,
+  listJobChanges,
+  listJobSlugsForBuild,
+  listRelatedJobs,
+} from "@/lib/db/queries/jobs";
+import { listUpdateLinksForJob, listUpdatesForJob } from "@/lib/db/queries/exam-updates";
+import { CATEGORY_LABELS } from "@/lib/updates/categories";
 import { jobPostingJsonLd } from "@/lib/seo/job-jsonld";
 
 /**
@@ -21,18 +47,20 @@ import { jobPostingJsonLd } from "@/lib/seo/job-jsonld";
  * walking 5,000 job pages reads 5,000 static files and issues no database
  * queries at all. The old app answered each of those hits with a serverless
  * function and a Supabase round trip.
+ *
+ * ── What this page owes the reader ────────────────────────────────────────
+ * The old app's job page was its best screen: it printed everything the
+ * notification said — the fee table, the vacancy breakdown, the selection
+ * stages, every date — and put Apply and Track within thumb reach. This page
+ * had the same data available in `job_details` from the first day and rendered
+ * none of it, because nothing was writing that table (see Module 13).
+ *
+ * The rebuilt version keeps the completeness and drops the cost. Every section
+ * below is a Server Component; the only JavaScript on this route is the action
+ * bar, which exists because a static document cannot know today's date, who is
+ * reading it, or whether their device can share.
  */
 
-/**
- * Which slugs to prerender at build.
- *
- * Failure here degrades rather than breaks. If the database is unreachable —
- * a blip, a paused project, a CI run with placeholder credentials — the build
- * still succeeds with nothing prerendered, and pages render on first request
- * and cache from then on. The alternative is a deploy that fails because
- * Supabase was briefly slow, which trades a small, self-healing performance
- * dip for a complete outage.
- */
 export async function generateStaticParams() {
   return listJobSlugsForBuild();
 }
@@ -79,37 +107,40 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
   const job = await getJobBySlug(slug);
   if (!job) notFound();
 
-  const vacancies = job.vacancies_display ?? formatCount(job.vacancies);
+  const detail = job.detail;
+  const vacancies = formatVacancies(job.vacancies_display, job.vacancies);
   const salary = job.salary_display ?? formatSalary(job.salary_min, job.salary_max);
-  const applyLink = job.detail?.apply_link ?? job.organization?.website ?? null;
+
+  // The typed column first, then the fee table. A notification that prints a
+  // table of concessional rates and no single figure is normal, and "not
+  // stated" would be the wrong answer to "what will this cost me".
+  const fee =
+    job.application_fee === 0
+      ? "No fee"
+      : job.application_fee !== null
+        ? `₹${String(job.application_fee)}`
+        : formatFallbackFee(detail?.application_fees ?? null);
 
   const facts = [
     { label: "Vacancies", value: vacancies },
     { label: "Salary", value: salary },
     { label: "Qualification", value: job.qualification_summary },
-    {
-      label: "Age limit",
-      value:
-        job.age_min !== null && job.age_max !== null
-          ? `${String(job.age_min)}–${String(job.age_max)} years`
-          : null,
-    },
+    { label: "Age limit", value: formatAgeLimit(job.age_min, job.age_max) },
     { label: "Location", value: job.location },
-    {
-      label: "Application fee",
-      value:
-        job.application_fee === 0
-          ? "No fee"
-          : job.application_fee !== null
-            ? `₹${String(job.application_fee)}`
-            : null,
-    },
+    { label: "Application fee", value: fee },
     { label: "Opens", value: formatDate(job.application_start_date) },
-    { label: "Closes", value: formatDate(job.last_date) },
+    { label: "Closes", value: formatDeadlineText(job.last_date_display, job.last_date) },
   ].filter((f) => f.value);
 
+  const documents: QuickLink[] = detail?.notification_pdf
+    ? [{ label: "Official notification (PDF)", url: detail.notification_pdf }]
+    : [];
+
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 lg:px-6">
+    // `relative` so the share confirmation can position against this column
+    // rather than against the viewport. `pb-28` on mobile clears the fixed
+    // action bar; without it the last section sits underneath it.
+    <div className="relative mx-auto max-w-3xl px-4 pt-8 pb-28 lg:px-6 lg:pb-12">
       {/* Emitted server-side so a crawler sees it in the initial HTML. */}
       <script
         type="application/ld+json"
@@ -124,12 +155,14 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
           Jobs
         </Link>
         <span aria-hidden> / </span>
-        <span className="text-ink-2">{job.organization?.short_name ?? "Listing"}</span>
+        <span className="text-ink-2">
+          {job.organization?.short_name ?? job.organization?.name ?? "Listing"}
+        </span>
       </nav>
 
       <header className="mt-3">
         {job.organization ? (
-          <p className="text-2xs font-medium tracking-wide text-ink-3 uppercase">
+          <p className="cond text-2xs font-medium tracking-wide text-ink-3 uppercase">
             {job.organization.name}
           </p>
         ) : null}
@@ -144,23 +177,15 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
         </div>
       </header>
 
-      {/* Shown regardless of whether the window has closed: this page is
-          static, so it cannot know today's date, and hiding the link at build
-          time would hide it permanently. The badge above carries the status. */}
-      {applyLink ? (
-        <a
-          href={applyLink}
-          target="_blank"
-          rel="noopener noreferrer nofollow"
-          className={
-            "mt-5 inline-flex h-11 items-center rounded-lg bg-accent px-6 text-sm font-medium " +
-            "text-on-accent shadow-xs transition-colors duration-(--duration-fast) " +
-            "hover:bg-accent-hover"
-          }
-        >
-          Apply on the official site
-        </a>
-      ) : null}
+      <JobActions
+        jobId={job.id}
+        slug={job.slug}
+        title={job.title}
+        applyLink={detail?.apply_link ?? null}
+        officialWebsite={detail?.official_website ?? job.organization?.website ?? null}
+        lastDate={job.last_date}
+        lastDateDisplay={job.last_date_display}
+      />
 
       <Card className="mt-6 p-0">
         <dl className="divide-y divide-line">
@@ -173,23 +198,60 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
         </dl>
       </Card>
 
-      {job.detail?.description ? (
-        <section className="mt-8">
-          <h2 className="text-lg font-semibold text-ink">About this recruitment</h2>
-          <p className="mt-2 leading-relaxed text-ink-2">{job.detail.description}</p>
-        </section>
+      {/* Above the prose deliberately: someone returning to a listing they
+          saved is asking what moved, not what the post is. */}
+      <ChangeLog changes={await listJobChanges(job.id)} />
+
+      {detail?.description ? (
+        <Section title="About this recruitment">
+          <Prose text={detail.description} />
+        </Section>
       ) : null}
 
-      {job.detail?.eligibility_text ? (
-        <section className="mt-6">
-          <h2 className="text-lg font-semibold text-ink">Eligibility</h2>
-          <p className="mt-2 leading-relaxed text-ink-2">{job.detail.eligibility_text}</p>
-        </section>
+      {detail?.eligibility_text ? (
+        <Section title="Eligibility">
+          <Prose text={detail.eligibility_text} />
+        </Section>
       ) : null}
 
-      {/* Rails stream in separately: neither is needed for the page to be
-          useful, so neither should delay it appearing. */}
-      <Suspense fallback={<RailSkeleton title="Related updates" />}>
+      {detail?.experience_text ? (
+        <Section title="Experience">
+          <Prose text={detail.experience_text} />
+        </Section>
+      ) : null}
+
+      {/* The typed age window is the unrelaxed one — `match_jobs` says so, and
+          never applies a relaxation. This paragraph is the only place someone
+          eligible through OBC or SC/ST relaxation can read that. */}
+      {detail?.age_limit_text ? (
+        <Section title="Age limit in full">
+          <Prose text={detail.age_limit_text} />
+        </Section>
+      ) : null}
+
+      {detail?.salary_text ? (
+        <Section title="Pay and allowances">
+          <Prose text={detail.salary_text} />
+        </Section>
+      ) : null}
+
+      <ImportantDates value={detail?.important_dates ?? null} />
+      <VacancyBreakdown value={detail?.vacancies_detail ?? null} />
+      <ApplicationFees value={detail?.application_fees ?? null} />
+      <SelectionProcess value={detail?.selection_process ?? null} />
+      <Overview value={detail?.overview ?? null} />
+      <QuickLinks links={documents} />
+
+      {/* Rails stream in separately: none is needed for the page to be useful,
+          so none should delay it appearing. */}
+      <Suspense fallback={null}>
+        <UpdateDocuments jobId={job.id} />
+      </Suspense>
+
+      {/* No skeleton: most jobs have no linked updates, and a heading that
+          paints and then vanishes is a layout shift advertising something that
+          was never there. The rail renders its own heading once it has rows. */}
+      <Suspense fallback={null}>
         <UpdatesRail jobId={job.id} />
       </Suspense>
 
@@ -202,26 +264,64 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
   );
 }
 
+/** "18–27 years", "Up to 30 years", or nothing. */
+function formatAgeLimit(min: number | null, max: number | null): string | null {
+  if (min !== null && max !== null) {
+    return min === max ? `${String(min)} years` : `${String(min)}–${String(max)} years`;
+  }
+  if (min !== null) return `From ${String(min)} years`;
+  if (max !== null) return `Up to ${String(max)} years`;
+  return null;
+}
+
+function formatFallbackFee(value: unknown): string | null {
+  const highest = maxFee(toFeeRows(value));
+  return highest === null ? null : `Up to ₹${String(highest)}`;
+}
+
+/**
+ * Admit cards, answer keys and results, from the updates linked to this job.
+ *
+ * Someone opening a job page a month after applying is looking for a document,
+ * not a description. The old app surfaced these too — through a title-similarity
+ * scan costing ~44 kB per page view, because `job_id` was populated on three
+ * rows out of 3,373. This is a foreign-key lookup, resolved at ingest.
+ */
+async function UpdateDocuments({ jobId }: { jobId: string }) {
+  const updates = await listUpdateLinksForJob(jobId);
+  if (updates.length === 0) return null;
+
+  const links: QuickLink[] = updates.flatMap((update) =>
+    update.links.map((link) => ({
+      label: link.label,
+      url: link.url,
+      category: CATEGORY_LABELS[update.category],
+    })),
+  );
+
+  return <QuickLinks links={links} />;
+}
+
 async function UpdatesRail({ jobId }: { jobId: string }) {
   const updates = await listUpdatesForJob(jobId, 5);
   if (updates.length === 0) return null;
 
   return (
-    <section className="mt-8">
-      <h2 className="text-lg font-semibold text-ink">Related updates</h2>
-      <ul className="mt-3 flex flex-col divide-y divide-line rounded-lg border border-line bg-surface">
+    <Section title="Related updates">
+      <ul className="flex flex-col divide-y divide-line overflow-hidden rounded-lg border border-line bg-surface">
         {updates.map((update) => (
           <li key={update.id}>
             <Link
               href={`/updates/${update.slug}`}
-              className="block px-4 py-3 text-sm transition-colors duration-(--duration-fast) hover:bg-surface-2"
+              className="flex items-center gap-3 px-4 py-3 text-sm transition-colors duration-(--duration-fast) hover:bg-surface-2"
             >
-              <span className="text-ink">{update.title}</span>
+              <Badge className="shrink-0">{CATEGORY_LABELS[update.category]}</Badge>
+              <span className="min-w-0 flex-1 truncate text-ink">{update.title}</span>
             </Link>
           </li>
         ))}
       </ul>
-    </section>
+    </Section>
   );
 }
 
@@ -236,16 +336,15 @@ async function RelatedRail({
   if (jobs.length === 0) return null;
 
   return (
-    <section className="mt-8">
-      <h2 className="text-lg font-semibold text-ink">More from this department</h2>
-      <ul className="mt-3 flex flex-col gap-3">
+    <Section title="More from this department">
+      <ul className="overflow-hidden rounded-lg border border-line border-b-0">
         {jobs.map((job) => (
           <li key={job.id}>
             <JobCard job={job} />
           </li>
         ))}
       </ul>
-    </section>
+    </Section>
   );
 }
 

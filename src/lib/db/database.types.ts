@@ -89,6 +89,7 @@ export type Database = {
           exam_date: string | null
           exam_id: string | null
           id: string
+          job_id: string | null
           notes: string | null
           result_date: string | null
           roll_number: string | null
@@ -105,6 +106,7 @@ export type Database = {
           exam_date?: string | null
           exam_id?: string | null
           id?: string
+          job_id?: string | null
           notes?: string | null
           result_date?: string | null
           roll_number?: string | null
@@ -121,6 +123,7 @@ export type Database = {
           exam_date?: string | null
           exam_id?: string | null
           id?: string
+          job_id?: string | null
           notes?: string | null
           result_date?: string | null
           roll_number?: string | null
@@ -136,6 +139,13 @@ export type Database = {
             columns: ["exam_id"]
             isOneToOne: false
             referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exam_attempts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
         ]
@@ -334,8 +344,54 @@ export type Database = {
           },
         ]
       }
+      job_changes: {
+        Row: {
+          changed_at: string
+          field: string
+          id: number
+          job_id: string
+          new_value: string | null
+          old_value: string | null
+          sync_run_id: string | null
+        }
+        Insert: {
+          changed_at?: string
+          field: string
+          id?: never
+          job_id: string
+          new_value?: string | null
+          old_value?: string | null
+          sync_run_id?: string | null
+        }
+        Update: {
+          changed_at?: string
+          field?: string
+          id?: never
+          job_id?: string
+          new_value?: string | null
+          old_value?: string | null
+          sync_run_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_changes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_changes_sync_run_id_fkey"
+            columns: ["sync_run_id"]
+            isOneToOne: false
+            referencedRelation: "sync_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_details: {
         Row: {
+          age_limit_text: string | null
           application_fees: Json | null
           apply_link: string | null
           description: string | null
@@ -348,11 +404,13 @@ export type Database = {
           official_website: string | null
           overview: Json | null
           raw: Json | null
+          salary_text: string | null
           selection_process: Json | null
           updated_at: string
           vacancies_detail: Json | null
         }
         Insert: {
+          age_limit_text?: string | null
           application_fees?: Json | null
           apply_link?: string | null
           description?: string | null
@@ -365,11 +423,13 @@ export type Database = {
           official_website?: string | null
           overview?: Json | null
           raw?: Json | null
+          salary_text?: string | null
           selection_process?: Json | null
           updated_at?: string
           vacancies_detail?: Json | null
         }
         Update: {
+          age_limit_text?: string | null
           application_fees?: Json | null
           apply_link?: string | null
           description?: string | null
@@ -382,6 +442,7 @@ export type Database = {
           official_website?: string | null
           overview?: Json | null
           raw?: Json | null
+          salary_text?: string | null
           selection_process?: Json | null
           updated_at?: string
           vacancies_detail?: Json | null
@@ -991,7 +1052,12 @@ export type Database = {
           total_bytes: number
         }[]
       }
+      close_expired_jobs: { Args: never; Returns: number }
       has_role: { Args: { check_role: string }; Returns: boolean }
+      level_of: {
+        Args: { subject: string }
+        Returns: Database["public"]["Enums"]["qualification_level"]
+      }
       match_jobs: {
         Args: { p_limit?: number }
         Returns: {
@@ -1013,6 +1079,43 @@ export type Database = {
           title: string
           vacancies: number
           vacancies_display: string
+        }[]
+      }
+      match_jobs_blocked: {
+        Args: { p_limit?: number }
+        Returns: {
+          application_fee: number
+          blocker: string
+          blocker_value: string
+          id: string
+          is_featured: boolean
+          last_date: string
+          last_date_display: string
+          location: string
+          organization: Json
+          published_at: string
+          salary_display: string
+          salary_max: number
+          salary_min: number
+          slug: string
+          state: string
+          tags: string[]
+          title: string
+          vacancies: number
+          vacancies_display: string
+        }[]
+      }
+      popular_exams: {
+        Args: { p_limit?: number }
+        Returns: {
+          id: string
+          logo_path: string
+          name: string
+          next_event_at: string
+          next_event_label: string
+          short_name: string
+          slug: string
+          tracked: number
         }[]
       }
       prune_operational_data: {

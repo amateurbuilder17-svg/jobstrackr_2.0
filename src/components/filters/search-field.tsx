@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
 import { SearchIcon } from "@/components/icons";
@@ -15,11 +15,22 @@ import { SearchIcon } from "@/components/icons";
  *
  * `useTransition` keeps the previous results on screen while the next set is
  * fetched, instead of blanking to a skeleton on every keystroke.
+ *
+ * The destination is the current path. It used to be the literal `"/jobs"`,
+ * which was invisible while `/jobs` was the only route with a search field and
+ * would have silently redirected `/updates` the moment it got one.
  */
-export function SearchField({ initial = "" }: { initial?: string }) {
+export function SearchField({
+  placeholder = "Search by post, department or qualification",
+  label = "Search jobs",
+}: {
+  placeholder?: string;
+  label?: string;
+}) {
   const router = useRouter();
+  const pathname = usePathname();
   const params = useSearchParams();
-  const urlTerm = params.get("q") ?? initial;
+  const urlTerm = params.get("q") ?? "";
   const [value, setValue] = useState(urlTerm);
   const [syncedTerm, setSyncedTerm] = useState(urlTerm);
   const [isPending, startTransition] = useTransition();
@@ -45,8 +56,9 @@ export function SearchField({ initial = "" }: { initial?: string }) {
     // Any change to the query resets pagination; keeping the old cursor would
     // page through the previous result set.
     next.delete("after");
+    const query = next.toString();
     startTransition(() => {
-      router.replace(next.toString() ? `/jobs?${next.toString()}` : "/jobs", { scroll: false });
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
     });
   }
 
@@ -78,8 +90,8 @@ export function SearchField({ initial = "" }: { initial?: string }) {
         onChange={(e) => {
           onChange(e.target.value);
         }}
-        placeholder="Search by post, department or qualification"
-        aria-label="Search jobs"
+        placeholder={placeholder}
+        aria-label={label}
         className={
           "h-10 w-full rounded-md border border-line bg-surface pr-3 pl-9 text-sm text-ink " +
           "placeholder:text-ink-3 focus:border-accent-line " +

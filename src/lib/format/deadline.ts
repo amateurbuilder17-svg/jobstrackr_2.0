@@ -27,13 +27,24 @@ export function todayInIndia(now: Date = new Date()): string {
 
 /** Whole days from today (IST) until `date`. Negative once the date has passed. */
 export function daysUntil(date: string | null, now: Date = new Date()): number | null {
+  return daysUntilFrom(todayInIndia(now), date);
+}
+
+/**
+ * The same arithmetic, from an IST calendar date already in hand.
+ *
+ * The UI computes "today" once per page and passes it down (see
+ * `TodayProvider`), so the common path should not have to round-trip that
+ * string back through a `Date` and a timezone conversion to be usable.
+ */
+export function daysUntilFrom(today: string, date: string | null): number | null {
   if (!date) return null;
 
   const target = Date.parse(`${date.slice(0, 10)}T00:00:00Z`);
-  const today = Date.parse(`${todayInIndia(now)}T00:00:00Z`);
-  if (Number.isNaN(target) || Number.isNaN(today)) return null;
+  const from = Date.parse(`${today.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(target) || Number.isNaN(from)) return null;
 
-  return Math.round((target - today) / 86_400_000);
+  return Math.round((target - from) / 86_400_000);
 }
 
 export type DeadlineUrgency = "closed" | "today" | "urgent" | "soon" | "open";
@@ -52,7 +63,12 @@ export interface Deadline {
  * starts being tonight's job; two weeks is when it is worth a calendar entry.
  */
 export function describeDeadline(date: string | null, now: Date = new Date()): Deadline {
-  const daysLeft = daysUntil(date, now);
+  return describeDeadlineFrom(todayInIndia(now), date);
+}
+
+/** `describeDeadline` from an IST calendar date already in hand. */
+export function describeDeadlineFrom(today: string, date: string | null): Deadline {
+  const daysLeft = daysUntilFrom(today, date);
 
   if (daysLeft === null) {
     return { urgency: "open", daysLeft: null, label: "Date not announced", tone: "neutral" };
@@ -113,10 +129,89 @@ export function formatDateTime(value: string | null): string {
   }).format(parsed);
 }
 
+/**
+ * The closing date as a person should read it.
+ *
+ * `last_date_display` exists to carry what the notification actually said —
+ * "TBD", "Walk-in", "Third week of March" — the answers a `date` column cannot
+ * hold. So preferring it over the typed date is right in principle, and wrong
+ * for most of the corpus: 4,884 of 6,003 production rows have a raw ISO string
+ * in that column, and the detail page duly printed "2026-08-25" in a field
+ * headed "Closes".
+ *
+ * So the rule is narrower than "prefer the display string". Prefer it only
+ * when it says something a date cannot: if it is itself a machine date, the
+ * formatted column is the better rendering of the same fact.
+ */
+export function formatDeadlineText(display: string | null, date: string | null): string | null {
+  const text = display?.trim();
+  if (!text) return formatDate(date);
+
+  // ISO, or the other machine renderings that turn up in this column.
+  const machine =
+    /^\d{4}-\d{2}-\d{2}([T ].*)?$/.test(text) || /^\d{2}[/-]\d{2}[/-]\d{4}$/.test(text);
+  if (!machine) return text;
+
+  // Format the display string itself when the typed column is empty — the two
+  // disagree often enough that falling back to `date` would silently show a
+  // different day.
+  return formatDate(date) ?? formatDate(text.slice(0, 10)) ?? text;
+}
+
 /** Indian digit grouping: 17,727 but 1,77,270. */
 export function formatCount(value: number | null): string | null {
   if (value === null || !Number.isFinite(value)) return null;
   return new Intl.NumberFormat("en-IN").format(value);
+}
+
+/**
+ * A vacancy count, ready to render on its own.
+ *
+ * The caller must not append the word "vacancies" — this returns it, or a
+ * source string that already carries its own noun.
+ *
+ * That distinction is the bug this function exists to remove. The row used to
+ * render `vacancies_display ?? formatCount(vacancies)` and then print the
+ * literal word "vacancies" after it. `vacancies_display` is free text scraped
+ * from the notice, and it frequently already contains a noun — "10 Posts" — so
+ * the list showed "10 Posts vacancies" on every such row.
+ *
+ * The rule: if the source string ends in a word, trust it and print it
+ * verbatim. Only a bare number gets a noun supplied, and it is pluralised.
+ */
+export function formatVacancies(display: string | null, count: number | null): string | null {
+  const text = display?.trim();
+
+  // The feed writes a placeholder rather than leaving the cell empty, so
+  // "Not Available" arrives as a value and rendered as one — a job row that
+  // announced, in the slot where a vacancy count belongs, that there was no
+  // vacancy count. An absent fact should read as absent: the row simply omits
+  // the field, which is what every other null here already does.
+  if (text && PLACEHOLDER.test(text)) return formatFromCount(count);
+
+  if (text) {
+    // A display value that is only digits and separators is a count with no
+    // noun of its own — "1,200" — so it still needs one.
+    return /^[\d,\s]+$/.test(text) ? withNoun(text, Number(text.replace(/[^\d]/g, ""))) : text;
+  }
+
+  return formatFromCount(count);
+}
+
+/**
+ * Placeholders the feed writes in place of an empty cell. Matched whole, not as
+ * a substring: "Various Posts" is a real answer and must survive.
+ */
+const PLACEHOLDER =
+  /^(not\s*available|n\.?\s*\/?\s*a\.?|nil|none|tbd|to\s*be\s*(announced|decided|notified)|-+|—+|unknown|not\s*specified|not\s*mentioned)$/i;
+
+function formatFromCount(count: number | null): string | null {
+  const formatted = formatCount(count);
+  return formatted === null ? null : withNoun(formatted, count);
+}
+
+function withNoun(formatted: string, count: number | null): string {
+  return `${formatted} ${count === 1 ? "vacancy" : "vacancies"}`;
 }
 
 /** Salary as a range, in the compact form a listing would print. */

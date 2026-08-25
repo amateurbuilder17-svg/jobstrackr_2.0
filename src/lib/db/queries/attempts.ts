@@ -31,13 +31,16 @@ export type ExamAttempt = Pick<
   | "roll_number"
   | "score"
   | "notes"
+  | "job_id"
 > & {
   /** Null for an exam this app has never heard of, which is a supported case. */
   exam: { slug: string; name: string; short_name: string | null } | null;
+  /** Set when the attempt was started by pressing Track on a job page. */
+  job: { slug: string; title: string } | null;
 };
 
 const ATTEMPT_COLUMNS =
-  "id, exam_id, custom_name, stage, status, applied_at, exam_date, result_date, roll_number, score, notes, exam:exams ( slug, name, short_name )" as const;
+  "id, exam_id, job_id, custom_name, stage, status, applied_at, exam_date, result_date, roll_number, score, notes, exam:exams ( slug, name, short_name ), job:jobs ( slug, title )" as const;
 
 export async function listExamAttempts(): Promise<ExamAttempt[]> {
   const db = await sessionDb();
@@ -77,4 +80,28 @@ export async function listExams(): Promise<ExamOption[]> {
       .order("name", { ascending: true })
       .limit(PAGE_SIZE.admin),
   );
+}
+
+/**
+ * Which jobs the current user tracks, as ids.
+ *
+ * The sibling of `listSavedJobIds`, and it rides on the same request: the
+ * job page and every job card need one bit per job, and a second round trip
+ * to learn a second bit would double the per-session cost of keeping the
+ * static pages static. See `/api/saved`.
+ */
+export async function listTrackedJobIds(): Promise<string[]> {
+  const db = await sessionDb();
+
+  const rows = unwrap(
+    "listTrackedJobIds",
+    await db
+      .from("exam_attempts")
+      .select("job_id")
+      .not("job_id", "is", null)
+      .limit(PAGE_SIZE.savedIds),
+  );
+
+  // `job_id` is non-null by the filter above, and the generated type agrees.
+  return rows.map((row) => row.job_id);
 }

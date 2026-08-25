@@ -23,17 +23,22 @@ insert into public.organizations (slug, name, short_name, aliases, website) valu
 -- 240 rows: enough for 12 pages at the default page size, so deep-page
 -- pagination is genuinely exercised rather than assumed.
 with orgs as (select id, slug, short_name, row_number() over (order by slug) - 1 as n from public.organizations),
-     posts(post, qual, level, minage, maxage, smin, smax) as (values
-       ('Combined Graduate Level Examination',        'Bachelor''s degree in any discipline',            'bachelor', 18, 32,  25500,  81100),
-       ('Multi Tasking Staff (Non-Technical)',        'Class 10 pass from a recognised board',           'class_10', 18, 27,  18000,  22000),
-       ('Junior Engineer (Civil)',                    'Diploma or B.E./B.Tech in Civil Engineering',     'diploma',  18, 32,  35400, 112400),
-       ('Assistant Section Officer',                  'Bachelor''s degree in any discipline',            'bachelor', 21, 30,  44900, 142400),
-       ('Probationary Officer',                       'Graduate in any discipline',                      'bachelor', 20, 30,  41960,  63840),
-       ('Group D Level 1 Posts',                      'Class 10 pass or ITI from a recognised institute','class_10', 18, 33,  18000,  56900),
-       ('Scientist / Engineer Grade B',               'B.E./B.Tech in a relevant branch',                'bachelor', 21, 35,  56100, 177500),
-       ('Nursing Officer',                            'B.Sc Nursing from a recognised university',       'bachelor', 21, 35,  44900, 142400),
-       ('Stenographer Grade C and D',                 'Class 12 pass from a recognised board',           'class_12', 18, 27,  25500,  81100),
-       ('Assistant Executive Engineer',               'B.E./B.Tech in the relevant discipline',          'bachelor', 21, 38,  56100, 177500)
+     -- `level` is gone from this list on purpose: min_qualification_level is a
+     -- generated column since 0019, derived from the qualification line to its
+     -- left. The ten strings below produce bachelor / class_10 / diploma /
+     -- class_12 between them, which is exactly what used to be hand-written
+     -- here — and now cannot drift from the text it claims to describe.
+     posts(post, qual, minage, maxage, smin, smax) as (values
+       ('Combined Graduate Level Examination',        'Bachelor''s degree in any discipline',            18, 32,  25500,  81100),
+       ('Multi Tasking Staff (Non-Technical)',        'Class 10 pass from a recognised board',           18, 27,  18000,  22000),
+       ('Junior Engineer (Civil)',                    'Diploma or B.E./B.Tech in Civil Engineering',     18, 32,  35400, 112400),
+       ('Assistant Section Officer',                  'Bachelor''s degree in any discipline',            21, 30,  44900, 142400),
+       ('Probationary Officer',                       'Graduate in any discipline',                      20, 30,  41960,  63840),
+       ('Group D Level 1 Posts',                      'Class 10 pass or ITI from a recognised institute',18, 33,  18000,  56900),
+       ('Scientist / Engineer Grade B',               'B.E./B.Tech in a relevant branch',                21, 35,  56100, 177500),
+       ('Nursing Officer',                            'B.Sc Nursing from a recognised university',       21, 35,  44900, 142400),
+       ('Stenographer Grade C and D',                 'Class 12 pass from a recognised board',           18, 27,  25500,  81100),
+       ('Assistant Executive Engineer',               'B.E./B.Tech in the relevant discipline',          21, 38,  56100, 177500)
      ),
      places(city, st) as (values
        ('New Delhi','Delhi'), ('Bhubaneswar','Odisha'), ('Mumbai','Maharashtra'),
@@ -44,7 +49,6 @@ with orgs as (select id, slug, short_name, row_number() over (order by slug) - 1
          i,
          (array(select post from posts))[1 + (i % 10)]  as post,
          (array(select qual from posts))[1 + (i % 10)]  as qual,
-         (array(select level from posts))[1 + (i % 10)] as level,
          (array(select minage from posts))[1 + (i % 10)] as minage,
          (array(select maxage from posts))[1 + (i % 10)] as maxage,
          (array(select smin from posts))[1 + (i % 10)]  as smin,
@@ -58,7 +62,7 @@ with orgs as (select id, slug, short_name, row_number() over (order by slug) - 1
      )
 insert into public.jobs (
   slug, title, organization_id, location, state, qualification_summary,
-  min_qualification_level, age_min, age_max, salary_min, salary_max,
+  age_min, age_max, salary_min, salary_max,
   vacancies, application_fee, tags, status, is_featured,
   application_start_date, last_date, published_at, dedupe_key, source_url
 )
@@ -70,7 +74,6 @@ select
   public.slugify(org_slug || ' ' || post || ' ' || yr || ' ' || i),
   upper(org_slug) || ' ' || post || ' ' || yr,
   org_id, city, st, qual,
-  level::public.qualification_level,
   minage, maxage, smin, smax,
   50 + (i * 37) % 18000,
   case when i % 4 = 0 then 0 else 100 end,
@@ -91,7 +94,17 @@ select
   'https://example.gov.in/notification/' || i
 from rows;
 
-insert into public.job_details (job_id, description, eligibility_text, apply_link, important_dates, overview)
+-- ── Job details — the cold half ────────────────────────────────────────────
+-- Every column the detail page renders, because a seed that only fills three of
+-- them cannot tell you whether the other eight render correctly. This is the
+-- shape `toJobDetailPayload` writes: dates as an array of {event, date}, fees
+-- as {category, fee}, the vacancy table as {columns, rows}, steps as strings.
+insert into public.job_details (
+  job_id, description, eligibility_text, experience_text,
+  salary_text, age_limit_text,
+  apply_link, official_website, notification_pdf,
+  important_dates, application_fees, vacancies_detail, selection_process, overview
+)
 select
   j.id,
   'The ' || j.title || ' notification has been released. Candidates meeting the eligibility '
@@ -99,13 +112,51 @@ select
     || 'Applications submitted after the deadline will not be considered under any circumstances.',
   'Applicants must hold ' || coalesce(j.qualification_summary, 'the prescribed qualification')
     || '. Age relaxation applies as per government norms for SC/ST/OBC/PwD candidates.',
+  case when j.id::text like '%1' then 'Two years of relevant experience in a government or PSU establishment.' end,
+  'Pay Level ' || (4 + (length(j.title) % 6)) || ' of the 7th CPC pay matrix — ₹'
+    || to_char(j.salary_min, 'FM9,99,999') || ' to ₹' || to_char(j.salary_max, 'FM9,99,999')
+    || ', plus Dearness Allowance, House Rent Allowance and Transport Allowance as admissible.',
+  'Minimum ' || j.age_min || ' years and maximum ' || j.age_max || ' years as on the closing date. '
+    || 'Upper age relaxation: OBC 3 years, SC/ST 5 years, PwD 10 years, ex-servicemen as per rules.',
   'https://example.gov.in/apply/' || j.slug,
-  jsonb_build_object(
-    'application_start', to_char(j.application_start_date, 'YYYY-MM-DD'),
-    'application_end',   to_char(j.last_date, 'YYYY-MM-DD')
+  'https://example.gov.in',
+  'https://example.gov.in/notice/' || j.slug || '.pdf',
+  jsonb_build_array(
+    jsonb_build_object('event', 'Application Start', 'date', to_char(j.application_start_date, 'DD Mon YYYY')),
+    jsonb_build_object('event', 'Last Date to Apply', 'date', to_char(j.last_date, 'DD Mon YYYY')),
+    jsonb_build_object('event', 'Last Date for Fee Payment', 'date', to_char(j.last_date, 'DD Mon YYYY')),
+    jsonb_build_object('event', 'Admit Card', 'date', 'Two weeks before the exam'),
+    jsonb_build_object('event', 'Exam Date', 'date', to_char(j.last_date + 45, 'DD Mon YYYY'))
   ),
-  jsonb_build_object('vacancies', j.vacancies, 'mode', 'Online')
-from public.jobs j;
+  jsonb_build_array(
+    jsonb_build_object('category', 'General / OBC / EWS', 'fee',
+      case when j.application_fee = 0 then 'Nil' else '₹' || j.application_fee end),
+    jsonb_build_object('category', 'SC / ST / PwD', 'fee', 'Nil'),
+    jsonb_build_object('category', 'Women (all categories)', 'fee', 'Nil')
+  ),
+  jsonb_build_object(
+    'columns', jsonb_build_array('Post', 'UR', 'OBC', 'SC', 'ST', 'EWS', 'Total'),
+    'rows', jsonb_build_array(
+      jsonb_build_array(j.title, (j.vacancies / 2)::text, (j.vacancies / 5)::text,
+                        (j.vacancies / 8)::text, (j.vacancies / 12)::text,
+                        (j.vacancies / 10)::text, j.vacancies::text)
+    )
+  ),
+  jsonb_build_array(
+    'Computer Based Test (Tier I)',
+    'Descriptive Paper (Tier II)',
+    'Skill Test / Typing Test, where applicable',
+    'Document Verification',
+    'Medical Examination'
+  ),
+  jsonb_build_object(
+    'conducting_body', coalesce(o.name, 'Government of India'),
+    'mode_of_application', 'Online',
+    'job_location', coalesce(j.location, 'All India'),
+    'official_website', 'https://example.gov.in'
+  )
+from public.jobs j
+left join public.organizations o on o.id = j.organization_id;
 
 -- ── Exams ──────────────────────────────────────────────────────────────────
 insert into public.exams (slug, name, short_name, organization_id, description)

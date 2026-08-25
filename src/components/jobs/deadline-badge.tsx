@@ -1,10 +1,9 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
-
 import { ClockIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
-import { describeDeadline, formatDate, todayInIndia } from "@/lib/format/deadline";
+import { describeDeadlineFrom, formatDate } from "@/lib/format/deadline";
+import { useToday } from "./today-provider";
 
 /**
  * "5 days left", computed in the browser.
@@ -19,38 +18,11 @@ import { describeDeadline, formatDate, todayInIndia } from "@/lib/format/deadlin
  * also what a crawler should index. The client then upgrades it to the relative
  * countdown, which is what a person actually wants to read.
  *
- * `useSyncExternalStore` rather than an effect: today's date is external state,
- * and the server snapshot of `null` is what lets the same component render the
- * static form during prerender without a hydration mismatch.
+ * Today's date arrives from `TodayProvider` rather than being derived here, so
+ * a list of twenty jobs runs one clock instead of twenty. See that file.
  */
-
-/** Re-read at the next IST midnight, so an open tab does not go stale. */
-function subscribe(onChange: () => void): () => void {
-  let timer: ReturnType<typeof setTimeout>;
-
-  const scheduleNextMidnight = () => {
-    const nowIst = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-    const nextMidnight = new Date(nowIst);
-    nextMidnight.setHours(24, 0, 30, 0); // 30s past, to clear any rounding
-    const delay = Math.max(nextMidnight.getTime() - nowIst.getTime(), 60_000);
-
-    timer = setTimeout(() => {
-      onChange();
-      scheduleNextMidnight();
-    }, delay);
-  };
-
-  scheduleNextMidnight();
-  return () => {
-    clearTimeout(timer);
-  };
-}
-
-const getSnapshot = (): string => todayInIndia();
-const getServerSnapshot = (): null => null;
-
 export function DeadlineBadge({ date }: { date: string | null }) {
-  const today = useSyncExternalStore<string | null>(subscribe, getSnapshot, getServerSnapshot);
+  const today = useToday();
 
   // Prerender and first paint: the absolute date, which never goes stale.
   if (today === null) {
@@ -63,9 +35,15 @@ export function DeadlineBadge({ date }: { date: string | null }) {
     );
   }
 
-  const deadline = describeDeadline(date);
+  const deadline = describeDeadlineFrom(today, date);
+
+  // The last day of a window is the one state that fills solid. Everything
+  // else is a tint, and an open deadline gets no colour at all — see the
+  // deadline ramp note in globals.css.
+  const tone = deadline.urgency === "today" ? "criticalSolid" : deadline.tone;
+
   return (
-    <Badge tone={deadline.tone} className="tabular shrink-0">
+    <Badge tone={tone} className="tabular shrink-0">
       <ClockIcon className="size-3" />
       {deadline.label}
     </Badge>

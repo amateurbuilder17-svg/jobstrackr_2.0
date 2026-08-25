@@ -4,7 +4,24 @@ import { createHash } from "node:crypto";
 
 import { adminDb } from "@/lib/db/clients";
 import type { Database } from "@/lib/db/database.types";
-import { toDate, toInt, toSlug, toStringArray, toText } from "./normalize";
+import { CHANGE_SELECT, diffWatched, type ComparableRow, type JobChange } from "./changes";
+import {
+  feeFromTable,
+  hasDetailContent,
+  toJobDetailPayload,
+  type JobDetailPayload,
+} from "./details";
+import { resolveOrganizations } from "./organizations";
+import { uniqueSlugs } from "./slugs";
+import {
+  toDate,
+  toInt,
+  toSalary,
+  toSlug,
+  toStringArray,
+  toText,
+  toVacancies,
+} from "./normalize";
 
 /**
  * The diff.
@@ -20,6 +37,8 @@ import { toDate, toInt, toSlug, toStringArray, toText } from "./normalize";
  * ones that match. A re-run over unchanged data touches nothing.
  */
 
+export type { JobChange, WatchedField } from "./changes";
+
 /** A row as it arrives from the Apps Script feed: entirely untrusted. */
 export type FeedRow = Record<string, unknown>;
 
@@ -31,6 +50,22 @@ export interface IngestResult {
   failed: number;
   /** Rows that could not be normalised, for the dead-letter table. */
   failures: { sourceKey: string | null; error: string; payload: FeedRow }[];
+  /** Watched fields that changed on existing rows. See `WATCHED`. */
+  changes: JobChange[];
+  /** Rows whose cold half — prose, dates, fee table — was written. */
+  detailsWritten: number;
+}
+
+/** A payload about to be written, reduced to the comparison shape. */
+function toComparable(payload: JobPayload): ComparableRow {
+  return {
+    last_date: payload.last_date ?? null,
+    application_start_date: payload.application_start_date ?? null,
+    vacancies: payload.vacancies ?? null,
+    vacancies_display: payload.vacancies_display ?? null,
+    application_fee: payload.application_fee ?? null,
+    status: payload.status ?? "draft",
+  };
 }
 
 /**
@@ -100,11 +135,11 @@ export function toJobPayload(
       source_url: sourceUrl,
       location: toText(row.location),
       state: toText(row.state),
-      vacancies: toInt(row.vacancies),
+      vacancies: toVacancies(row.vacancies),
       vacancies_display: toText(row.vacancies_display),
       qualification_summary: toText(row.qualification_summary),
-      salary_min: toInt(row.salary_min),
-      salary_max: toInt(row.salary_max),
+      salary_min: toSalary(row.salary_min),
+      salary_max: toSalary(row.salary_max),
       salary_display: toText(row.salary_display),
       application_fee: toInt(row.application_fee),
       age_min: toInt(row.age_min),
@@ -135,6 +170,8 @@ export async function ingestJobs(rows: FeedRow[]): Promise<IngestResult> {
     unchanged: 0,
     failed: 0,
     failures: [],
+    changes: [],
+    detailsWritten: 0,
   };
 
   // ── 1. Normalise, collecting failures ──────────────────────────────────
@@ -142,17 +179,45 @@ export async function ingestJobs(rows: FeedRow[]): Promise<IngestResult> {
     dedupeKey: string;
     contentHash: string;
     payload: JobPayload;
+    detail: JobDetailPayload | null;
   }[] = [];
 
   // Organisations are resolved for the whole batch first: the same body appears
   // on dozens of rows, and looking each one up separately would be dozens of
   // round trips to learn the same id.
-  const orgIds = await resolveOrganizations(rows);
+  const orgIds = await resolveOrganizations(
+    rows.map((row) => toText(row.organization) ?? toText(row.department)),
+  );
 
   for (const row of rows) {
     try {
       const { dedupeKey, payload } = toJobPayload(row, (name) => orgIds.get(name));
-      candidates.push({ dedupeKey, contentHash: hashContent(payload), payload });
+
+      const detailPayload = toJobDetailPayload(row);
+      const detail = hasDetailContent(detailPayload) ? detailPayload : null;
+
+      // The fee table is the fallback for the card's figure. The old page did
+      // this arithmetic inline on every render; it is a property of the row.
+      const payloadWithFee: JobPayload = {
+        ...payload,
+        application_fee: payload.application_fee ?? feeFromTable(row),
+      };
+
+      candidates.push({
+        dedupeKey,
+        // The detail half is inside the hash, so a notification that gains a
+        // selection process without touching any card field still counts as
+        // changed. Leaving it out would mean the cold table only ever caught up
+        // when something hot happened to change on the same row.
+        //
+        // Adding it also invalidates every existing hash once, which is what
+        // backfills `job_details` for rows already in the table: the first run
+        // after this ships rewrites everything, and every run after that
+        // writes nothing.
+        contentHash: hashContent({ ...payloadWithFee, detail }),
+        payload: payloadWithFee,
+        detail,
+      });
     } catch (error) {
       result.failed += 1;
       result.failures.push({
@@ -168,10 +233,18 @@ export async function ingestJobs(rows: FeedRow[]): Promise<IngestResult> {
   const db = adminDb();
 
   // ── 2. What do we already have? ────────────────────────────────────────
-  // Two columns for the whole batch, served by a covering index.
+  // One query for the whole batch. It used to name two columns — the key and
+  // the hash — which was enough to answer "did this row change?" but not "what
+  // changed?", so the answer was computed and thrown away on every run.
+  //
+  // The watched columns are added to that same round trip rather than fetched
+  // in a second one. Six extra narrow columns over a batch of ~450 rows is
+  // roughly 50 kB per run against a 5 GB monthly ceiling, and it is on the
+  // ingest path, which runs hourly — not on the traffic path, which is the
+  // distinction this whole architecture turns on.
   const { data: existingRows, error: readError } = await db
     .from("jobs")
-    .select("dedupe_key, content_hash")
+    .select(CHANGE_SELECT)
     .in(
       "dedupe_key",
       candidates.map((c) => c.dedupeKey),
@@ -179,13 +252,13 @@ export async function ingestJobs(rows: FeedRow[]): Promise<IngestResult> {
 
   if (readError) throw new Error(`ingestJobs: ${readError.message}`);
 
-  const existing = new Map(existingRows.map((r) => [r.dedupe_key, r.content_hash]));
+  const existing = new Map(existingRows.map((r) => [r.dedupe_key, r]));
 
   // ── 3. Partition ───────────────────────────────────────────────────────
   const changed = candidates.filter((c) => {
     const known = existing.get(c.dedupeKey);
     if (known === undefined) return true; // new
-    if (known === c.contentHash) {
+    if (known.content_hash === c.contentHash) {
       result.unchanged += 1;
       return false;
     }
@@ -193,8 +266,16 @@ export async function ingestJobs(rows: FeedRow[]): Promise<IngestResult> {
   });
 
   for (const c of changed) {
-    if (existing.has(c.dedupeKey)) result.updated += 1;
-    else result.inserted += 1;
+    const before = existing.get(c.dedupeKey);
+    if (before) {
+      result.updated += 1;
+      // Only for rows that already existed. An insert has no "before", and
+      // reporting a new listing's first closing date as a change would put
+      // "Last date set to 15 Sep" on every job the day it appears.
+      result.changes.push(...diffWatched(c.dedupeKey, before, toComparable(c.payload)));
+    } else {
+      result.inserted += 1;
+    }
   }
 
   if (changed.length === 0) return result;
@@ -210,7 +291,10 @@ export async function ingestJobs(rows: FeedRow[]): Promise<IngestResult> {
   const updates = changed.filter((c) => existing.has(c.dedupeKey));
 
   if (inserts.length > 0) {
-    const slugs = await uniqueSlugs(inserts.map((c) => toSlug(c.payload.title)));
+    const slugs = await uniqueSlugs(
+      "jobs",
+      inserts.map((c) => toSlug(c.payload.title)),
+    );
 
     // Zipped rather than indexed: `slugs[i]` is `string | undefined` under
     // noUncheckedIndexedAccess, and the alternatives are a cast or a `!`, both
@@ -239,93 +323,120 @@ export async function ingestJobs(rows: FeedRow[]): Promise<IngestResult> {
     if (error) throw new Error(`ingestJobs update: ${error.message}`);
   }
 
+  // ── 5. The cold half ───────────────────────────────────────────────────
+  result.detailsWritten = await writeJobDetails(
+    changed.flatMap((c) => (c.detail ? [{ dedupeKey: c.dedupeKey, detail: c.detail }] : [])),
+  );
+
   return result;
 }
 
 /**
- * Makes a batch of base slugs unique, against both the database and each other.
+ * Writes `job_details` for rows that have just been written.
  *
- * One query for the whole batch rather than one per row. The suffix is a
- * counter rather than a hash because these end up in URLs people read, and
- * `ssc-cgl-2026-2` is a better thing to share than `ssc-cgl-2026-a3f9c1`.
+ * After the job rows, never before: `job_details.job_id` references `jobs`, so
+ * the parent has to exist. Ingest speaks in dedupe keys and the table speaks in
+ * job ids, so one query resolves between them for the whole batch — the same
+ * shape as `recordJobChanges`, for the same reason.
+ *
+ * Failure is reported and stepped over rather than thrown. A job whose cold
+ * half did not land still renders: title, deadline, eligibility, the apply
+ * link. Throwing here would fail a batch of jobs that were successfully written
+ * seconds earlier, to protect the less important half of the row.
  */
-async function uniqueSlugs(bases: string[]): Promise<string[]> {
+async function writeJobDetails(
+  entries: { dedupeKey: string; detail: JobDetailPayload }[],
+): Promise<number> {
+  if (entries.length === 0) return 0;
+
   const db = adminDb();
 
-  const { data, error } = await db
+  const { data: rows, error: lookupError } = await db
     .from("jobs")
-    .select("slug")
-    .in("slug", bases)
-    .limit(bases.length);
+    .select("id, dedupe_key")
+    .in("dedupe_key", [...new Set(entries.map((e) => e.dedupeKey))]);
 
-  if (error) throw new Error(`uniqueSlugs: ${error.message}`);
+  if (lookupError) {
+    console.error(`[sync] writeJobDetails lookup: ${lookupError.message}`);
+    return 0;
+  }
 
-  const taken = new Set(data.map((r) => r.slug));
+  const idByKey = new Map(rows.map((r) => [r.dedupe_key, r.id]));
 
-  return bases.map((base) => {
-    // An empty base would produce "/jobs/" — fall back to something addressable
-    // rather than writing a row nobody can reach.
-    let candidate = base || "job";
-    let n = 1;
-    while (taken.has(candidate)) {
-      n += 1;
-      candidate = `${base || "job"}-${String(n)}`;
-    }
-    taken.add(candidate);
-    return candidate;
+  const payload = entries.flatMap((entry) => {
+    const jobId = idByKey.get(entry.dedupeKey);
+    if (!jobId) return [];
+    return [{ ...entry.detail, job_id: jobId, updated_at: new Date().toISOString() }];
   });
+
+  if (payload.length === 0) return 0;
+
+  // Upsert on the primary key: a job that already has a detail row gets it
+  // replaced, which is what a re-scrape of an amended notification means.
+  const { error } = await db.from("job_details").upsert(payload, { onConflict: "job_id" });
+
+  if (error) {
+    console.error(`[sync] writeJobDetails: ${error.message}`);
+    return 0;
+  }
+
+  return payload.length;
 }
 
 /**
- * Maps organisation names in a batch to ids, creating any that are new.
+ * Records what changed, after the rows themselves have been written.
  *
- * The feed carries a body's name, not its id, and a name that does not exist
- * yet is normal — a new recruiting body appears every few weeks. Creating it is
- * better than dead-lettering every job it posts, which is what refusing would
- * amount to.
+ * Separate from `ingestJobs` and called after it, in that order deliberately:
+ * `job_changes.job_id` references `jobs`, so the row has to exist first. It
+ * also means a failure to record history cannot cost you the history's subject.
  *
- * Matched case-insensitively on the generated slug rather than on the name, so
- * "Staff Selection Commission" and "staff selection commission" are one body
- * rather than two.
+ * Failure is reported, never thrown. A missing changelog entry is a gap in a
+ * feature; a thrown error here would roll the whole ingest run into the failure
+ * path and lose the batch of jobs that was successfully written seconds ago.
+ * The changelog is the less important half of this transaction and is treated
+ * that way.
  */
-async function resolveOrganizations(rows: FeedRow[]): Promise<Map<string, string>> {
+export async function recordJobChanges(
+  changes: JobChange[],
+  syncRunId: string | null,
+): Promise<{ written: number; error: string | null }> {
+  if (changes.length === 0) return { written: 0, error: null };
+
   const db = adminDb();
 
-  const names = new Map<string, string>(); // slug → original name
-  for (const row of rows) {
-    const name = toText(row.organization) ?? toText(row.department);
-    if (!name) continue;
-    const slug = toSlug(name);
-    if (slug) names.set(slug, name);
-  }
+  // The diff speaks in dedupe keys, because that is the identity ingestion
+  // works in; the table speaks in job ids, because that is what a page joins
+  // on. One query for the whole batch resolves between them.
+  const { data: rows, error: lookupError } = await db
+    .from("jobs")
+    .select("id, dedupe_key")
+    .in("dedupe_key", [...new Set(changes.map((c) => c.dedupeKey))]);
 
-  const out = new Map<string, string>(); // name → id
-  if (names.size === 0) return out;
+  if (lookupError) return { written: 0, error: lookupError.message };
 
-  const { data: existing, error } = await db
-    .from("organizations")
-    .select("id, slug")
-    .in("slug", [...names.keys()]);
+  const idByKey = new Map(rows.map((r) => [r.dedupe_key, r.id]));
 
-  if (error) throw new Error(`resolveOrganizations: ${error.message}`);
+  const payload = changes.flatMap((c) => {
+    const jobId = idByKey.get(c.dedupeKey);
+    // A key with no row means the update that produced this diff did not land.
+    // Dropping the entry is right: a changelog line pointing at nothing is
+    // worse than a missing one.
+    if (!jobId) return [];
+    return [
+      {
+        job_id: jobId,
+        field: c.field,
+        old_value: c.oldValue,
+        new_value: c.newValue,
+        sync_run_id: syncRunId,
+      },
+    ];
+  });
 
-  const bySlug = new Map(existing.map((o) => [o.slug, o.id]));
+  if (payload.length === 0) return { written: 0, error: null };
 
-  const missing = [...names.entries()].filter(([slug]) => !bySlug.has(slug));
+  const { error } = await db.from("job_changes").insert(payload);
+  if (error) return { written: 0, error: error.message };
 
-  if (missing.length > 0) {
-    const { data: created, error: createError } = await db
-      .from("organizations")
-      .insert(missing.map(([slug, name]) => ({ slug, name })))
-      .select("id, slug");
-
-    if (createError) throw new Error(`resolveOrganizations: ${createError.message}`);
-    for (const o of created) bySlug.set(o.slug, o.id);
-  }
-
-  for (const [slug, name] of names) {
-    const id = bySlug.get(slug);
-    if (id) out.set(name, id);
-  }
-  return out;
+  return { written: payload.length, error: null };
 }

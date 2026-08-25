@@ -1,100 +1,101 @@
 import Link from "next/link";
 
-import { UsersIcon } from "@/components/icons";
-import { SaveButton } from "@/components/saved/save-button";
-import { CardInteractive } from "@/components/ui/card";
+import { Row } from "@/components/ui/card";
 import type { JobCard as JobCardData } from "@/lib/db/queries/jobs";
-import { formatCount, formatSalary } from "@/lib/format/deadline";
+import { formatSalary, formatVacancies } from "@/lib/format/deadline";
 import { DeadlineBadge } from "./deadline-badge";
 
 /**
  * One job in a list.
  *
- * A Server Component apart from the save toggle, which is the one interactive
- * element and the only thing here that reaches the client bundle. Twenty cards
- * therefore ship one button component, not twenty copies of a card.
+ * A Server Component. The only thing that crosses into the client bundle is the
+ * deadline badge, which has to, because a countdown cannot be computed at build
+ * time on a page that is served from the CDN for days. Twenty rows therefore
+ * ship one badge component, not twenty copies of a row.
  *
- * The whole card is clickable via a stretched pseudo-element on the title link
+ * The whole row is clickable via a stretched pseudo-element on the title link
  * rather than by wrapping everything in one anchor. Wrapping means a screen
- * reader announces the entire card — organisation, deadline, salary, vacancy
+ * reader announces the entire row — organisation, deadline, salary, vacancy
  * count — as the link text, which is unusable. This way the accessible name is
- * the job title, and the click target is still the card.
+ * the job title, and the click target is still the row.
+ *
+ * ── Why this order ────────────────────────────────────────────────────────
+ * Title first and loudest, because it is what someone scanning a list is
+ * matching against. The organisation used to hold that position, set in
+ * uppercase above the title, where it truncated mid-word on anything as long as
+ * "Indian Institute of Information Technology Design and Manufacturing
+ * Kancheepuram" — the most prominent line on the row was the one nobody was
+ * looking for, rendered unreadably. It now sits below the title in the
+ * condensed face, which fits it.
+ *
+ * Then one eligibility line, then the muted meta. The deadline is the only
+ * coloured thing, which is the whole point of the palette.
  */
 export function JobCard({ job }: { job: JobCardData }) {
-  const vacancies = job.vacancies_display ?? formatCount(job.vacancies);
+  const vacancies = formatVacancies(job.vacancies_display, job.vacancies);
   const salary = job.salary_display ?? formatSalary(job.salary_min, job.salary_max);
+  const org = job.organization?.short_name ?? job.organization?.name;
+
+  // Organisation and qualification read as one sentence — "who, and what you
+  // need" — so they share a line rather than each claiming their own.
+  const eligibility = [org, job.qualification_summary].filter(Boolean).join(" · ");
+  const meta = [vacancies, salary, job.location].filter(Boolean);
 
   return (
-    <CardInteractive className="p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          {job.organization ? (
-            <p className="truncate text-2xs font-medium tracking-wide text-ink-3 uppercase">
-              {job.organization.short_name ?? job.organization.name}
-            </p>
-          ) : null}
-          <h3 className="mt-1 text-base leading-snug font-semibold text-ink">
+    <Row className="px-4 py-2 lg:px-5 lg:py-2.5">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          {/* Two lines, then ellipsis. Source titles run to sixty words —
+              unclamped, one row filled half a phone screen. */}
+          <h3 className="line-clamp-2 text-[0.9375rem] leading-snug font-bold text-ink">
             <Link href={`/jobs/${job.slug}`} className="after:absolute after:inset-0">
               {job.title}
             </Link>
           </h3>
+
+          {eligibility ? (
+            <p className="cond mt-0.5 line-clamp-1 text-[0.8125rem] text-ink-2">
+              {eligibility}
+            </p>
+          ) : null}
+
+          {meta.length > 0 ? (
+            <p className="tabular mt-0.5 line-clamp-1 text-xs text-ink-3">
+              {meta.join("  ·  ")}
+            </p>
+          ) : null}
         </div>
 
-        <div className="flex shrink-0 items-center gap-1">
-          <DeadlineBadge date={job.last_date} />
-          <SaveButton jobId={job.id} title={job.title} />
-        </div>
+        {/* Deadline only. The save control used to sit under it, which stacked
+            two elements down the right edge and cost the row an entire line of
+            height — on a phone that is the difference between five jobs above
+            the fold and six. Saving lives on the detail page, where the
+            decision to save is actually made, and it is not a 44px target
+            wedged inside a scrolling row where it invites mis-taps. */}
+        <DeadlineBadge date={job.last_date} />
       </div>
-
-      <dl className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-3">
-        {vacancies ? (
-          <div className="inline-flex items-center gap-1.5">
-            <UsersIcon className="size-3.5" />
-            <dt className="sr-only">Vacancies</dt>
-            <dd className="tabular font-mono text-ink-2">{vacancies}</dd>
-            <span>vacancies</span>
-          </div>
-        ) : null}
-
-        {salary ? (
-          <div className="inline-flex items-center gap-1.5">
-            <dt className="sr-only">Salary</dt>
-            <dd className="tabular font-mono text-ink-2">{salary}</dd>
-          </div>
-        ) : null}
-
-        {job.location ? (
-          <div>
-            <dt className="sr-only">Location</dt>
-            <dd>{job.location}</dd>
-          </div>
-        ) : null}
-      </dl>
-    </CardInteractive>
+    </Row>
   );
 }
 
 /**
  * Loading placeholder.
  *
- * Deliberately the same box as the real card — 4 units of padding, a two-line
- * head, a one-line meta row. A skeleton of the wrong height is worse than none:
- * the content lands, everything below jumps, and the fallback meant to smooth
- * loading is what damages the layout-shift score.
+ * Deliberately the same box as the real row — same padding, a two-line head, an
+ * eligibility line, a meta line. A skeleton of the wrong height is worse than
+ * none: the content lands, everything below jumps, and the fallback meant to
+ * smooth loading is what damages the layout-shift score.
  */
 export function JobCardSkeleton() {
   return (
-    <div className="rounded-lg border border-line bg-surface p-4 shadow-xs">
-      <div className="flex items-start justify-between gap-3">
+    <div className="border-b border-line bg-surface px-4 py-2 lg:px-5 lg:py-2.5">
+      <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <div className="skeleton h-3 w-24 rounded-xs" />
-          <div className="skeleton mt-2 h-5 w-4/5" />
+          <div className="skeleton h-4 w-4/5" />
+          <div className="skeleton mt-1 h-3 w-3/5" />
+          <div className="skeleton mt-1 h-3 w-2/5" />
         </div>
         <div className="skeleton h-5 w-20 rounded-full" />
-      </div>
-      <div className="mt-3 flex gap-4">
-        <div className="skeleton h-3 w-28" />
-        <div className="skeleton h-3 w-24" />
       </div>
     </div>
   );

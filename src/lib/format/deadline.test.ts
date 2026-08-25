@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   daysUntil,
   describeDeadline,
+  formatVacancies,
   formatCount,
   formatDate,
+  formatDeadlineText,
   formatSalary,
   todayInIndia,
 } from "./deadline";
@@ -110,5 +112,72 @@ describe("formatting", () => {
   it("returns null rather than 'Invalid Date'", () => {
     expect(formatDate("nonsense")).toBeNull();
     expect(formatCount(null)).toBeNull();
+  });
+});
+
+describe("formatVacancies", () => {
+  it("prints a scraped string that already carries its own noun, verbatim", () => {
+    // The bug this replaced rendered "10 Posts vacancies" on every such row.
+    expect(formatVacancies("10 Posts", 10)).toBe("10 Posts");
+    expect(formatVacancies("Various", null)).toBe("Various");
+    expect(formatVacancies("32,438 Posts", 32438)).toBe("32,438 Posts");
+  });
+
+  it("supplies a noun when the display value is only a number", () => {
+    expect(formatVacancies("1,200", 1200)).toBe("1,200 vacancies");
+    expect(formatVacancies("1", 1)).toBe("1 vacancy");
+  });
+
+  it("falls back to the typed count when there is no display value", () => {
+    expect(formatVacancies(null, 17727)).toBe("17,727 vacancies");
+    expect(formatVacancies("   ", 5)).toBe("5 vacancies");
+    expect(formatVacancies(null, 1)).toBe("1 vacancy");
+  });
+
+  it("treats feed placeholders as absent, not as a value", () => {
+    // The feed writes these instead of leaving the cell empty; rendering them
+    // put "Not Available" in the slot where a vacancy count belongs.
+    for (const junk of ["Not Available", "N/A", "n.a.", "TBD", "—", "Nil", "Not Specified"]) {
+      expect(formatVacancies(junk, null)).toBeNull();
+    }
+  });
+
+  it("falls back to the typed count when the display value is a placeholder", () => {
+    expect(formatVacancies("Not Available", 42)).toBe("42 vacancies");
+  });
+
+  it("keeps a real answer that merely contains a placeholder word", () => {
+    expect(formatVacancies("Various Posts", null)).toBe("Various Posts");
+  });
+
+  it("returns null when there is nothing to say", () => {
+    expect(formatVacancies(null, null)).toBeNull();
+  });
+});
+
+describe("formatDeadlineText", () => {
+  it("keeps wording a date column cannot hold", () => {
+    expect(formatDeadlineText("To be announced", "2026-03-10")).toBe("To be announced");
+    expect(formatDeadlineText("Walk-in", null)).toBe("Walk-in");
+  });
+
+  it("formats a display column that is really a machine date", () => {
+    // 4,884 of 6,003 production rows carry an ISO string here, and the page
+    // printed "2026-08-25" under a heading that said "Closes".
+    expect(formatDeadlineText("2026-08-25", "2026-08-25")).toBe("25 Aug 2026");
+    expect(formatDeadlineText("25-08-2026", "2026-08-25")).toBe("25 Aug 2026");
+  });
+
+  it("falls back to the display string when the typed column is empty", () => {
+    expect(formatDeadlineText("2026-08-25", null)).toBe("25 Aug 2026");
+  });
+
+  it("uses the typed date when there is no display string", () => {
+    expect(formatDeadlineText(null, "2026-08-25")).toBe("25 Aug 2026");
+    expect(formatDeadlineText("   ", "2026-08-25")).toBe("25 Aug 2026");
+  });
+
+  it("is null when neither says anything", () => {
+    expect(formatDeadlineText(null, null)).toBeNull();
   });
 });

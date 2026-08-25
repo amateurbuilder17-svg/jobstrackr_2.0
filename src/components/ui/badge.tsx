@@ -13,6 +13,11 @@ const TONE = {
   good: "bg-good-soft text-good border-transparent",
   warn: "bg-warn-soft text-warn border-transparent",
   critical: "bg-critical-soft text-critical border-transparent",
+  /* The last day of an application window, and nothing else. A solid fill is
+     the loudest thing this design system can do, so it is spent on the one
+     state where being missed costs someone a year — and it survives greyscale
+     and every form of colour blindness, which a tinted background does not. */
+  criticalSolid: "bg-critical text-white border-transparent dark:text-bg",
 } as const;
 
 export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {

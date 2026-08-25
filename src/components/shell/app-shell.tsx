@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { TodayProvider } from "@/components/jobs/today-provider";
 import { SavedProvider } from "@/components/saved/saved-provider";
 import { BottomNav } from "./bottom-nav";
 import { Sidebar } from "./sidebar";
@@ -25,7 +26,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar />
         <main id="content" className="flex-1 pb-16 lg:pb-0">
-          <SavedProvider>{children}</SavedProvider>
+          {/* Both providers sit above the router outlet so they survive client
+              navigation: the saved-ids fetch and the midnight timer each happen
+              once per full page load rather than once per route change. */}
+          <TodayProvider>
+            <SavedProvider>{children}</SavedProvider>
+          </TodayProvider>
         </main>
       </div>
       <BottomNav />

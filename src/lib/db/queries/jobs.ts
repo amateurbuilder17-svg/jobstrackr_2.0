@@ -28,7 +28,7 @@ import { SEARCH_CONFIG, tags } from "../tags";
 export const JOB_CARD_SELECT = `
   id, slug, title, location, state,
   last_date, last_date_display,
-  vacancies, vacancies_display,
+  vacancies, vacancies_display, qualification_summary,
   salary_min, salary_max, salary_display,
   application_fee, tags, is_featured, published_at,
   organization:organizations ( slug, name, short_name, logo_path )
@@ -46,6 +46,7 @@ const JOB_DETAIL_SELECT = `
   organization:organizations ( slug, name, short_name, logo_path, website ),
   detail:job_details (
     description, eligibility_text, experience_text,
+    salary_text, age_limit_text,
     apply_link, official_website, notification_pdf,
     important_dates, application_fees, vacancies_detail,
     selection_process, overview
@@ -58,24 +59,50 @@ const detailQuery = () => publicDb().from("jobs").select(JOB_DETAIL_SELECT);
 export type JobCard = QueryData<ReturnType<typeof cardQuery>>[number];
 export type JobDetail = QueryData<ReturnType<typeof detailQuery>>[number];
 
+/**
+ * How the list is ordered.
+ *
+ * `closing` is the default because the reader has a deadline: newest-first
+ * buries a job closing tomorrow beneath one posted this morning that closes in
+ * sixty days. It is only correct because `close_expired_jobs()` retires past
+ * deadlines every ingest run, so `status = 'published'` means "still open" —
+ * see migration 0016.
+ */
+export type JobSort = "closing" | "newest";
+
+export function toJobSort(value: string | undefined): JobSort {
+  return value === "newest" ? "newest" : "closing";
+}
+
 export interface JobListOptions {
   cursor?: string | undefined;
   limit?: number | undefined;
   organizationSlug?: string | undefined;
   tag?: string | undefined;
   state?: string | undefined;
+  sort?: JobSort | undefined;
   /** Full-text search term. Folded in here so search is paginated like any
    *  other filter, rather than being a separate, unpaginated code path. */
   query?: string | undefined;
 }
 
 /**
- * One page of published jobs, newest first.
+ * One page of open jobs.
  *
- * Ordered by `(published_at desc, id desc)` to match `jobs_feed_idx`, so the
- * planner walks the index and stops at `limit`. The tie-break on `id` is not
- * decorative: without it, rows sharing a timestamp can repeat or vanish across
- * page boundaries, which is the classic keyset pagination bug.
+ * Two orderings, each backed by its own index so the planner walks it and stops
+ * at `limit`:
+ *
+ *   `closing` — `(last_date asc, id asc)`, served by `jobs_closing_idx`.
+ *   `newest`  — `(published_at desc, id desc)`, served by `jobs_feed_idx`.
+ *
+ * The tie-break on `id` is not decorative in either: without it, rows sharing a
+ * sort key can repeat or vanish across page boundaries, which is the classic
+ * keyset pagination bug.
+ *
+ * Only `published` rows appear, and since migration 0016 that genuinely means
+ * "still open" — `close_expired_jobs()` retires past deadlines every ingest
+ * run. Which is what makes an ascending sort on `last_date` show the next
+ * deadline rather than the oldest expired one.
  */
 export async function listJobs(options: JobListOptions = {}): Promise<Page<JobCard>> {
   "use cache";
@@ -84,19 +111,25 @@ export async function listJobs(options: JobListOptions = {}): Promise<Page<JobCa
 
   const limit = options.limit ?? PAGE_SIZE.list;
   const cursor = decodeCursor(options.cursor);
+  const sort = options.sort ?? "closing";
+  const column = sort === "closing" ? "last_date" : "published_at";
+  const ascending = sort === "closing";
 
   // Fetch one extra row to answer "is there a next page?" without a count(*),
   // which on a filtered table means scanning every match to render a chevron.
   let query = cardQuery()
     .eq("status", "published")
-    .order("published_at", { ascending: false })
-    .order("id", { ascending: false })
+    .order(column, { ascending })
+    .order("id", { ascending })
     .limit(limit + 1);
 
   if (cursor) {
+    // The comparison follows the sort direction: resuming an ascending page
+    // with `lt` would page backwards through rows already shown.
+    const op = ascending ? "gt" : "lt";
     query = query.or(
-      `published_at.lt.${cursor.sortKey},` +
-        `and(published_at.eq.${cursor.sortKey},id.lt.${cursor.id})`,
+      `${column}.${op}.${cursor.sortKey},` +
+        `and(${column}.eq.${cursor.sortKey},id.${op}.${cursor.id})`,
     );
   }
   if (options.organizationSlug)
@@ -126,7 +159,7 @@ export async function listJobs(options: JobListOptions = {}): Promise<Page<JobCa
   const rows = unwrap("listJobs", await query);
 
   return toPage(rows, limit, (row) => ({
-    sortKey: row.published_at,
+    sortKey: sort === "closing" ? row.last_date : row.published_at,
     id: row.id,
   }));
 }
@@ -146,6 +179,55 @@ export async function getJobBySlug(slug: string): Promise<JobDetail | null> {
     "getJobBySlug",
     await detailQuery().eq("slug", slug).eq("status", "published").maybeSingle(),
   );
+}
+
+/**
+ * What has changed on one listing.
+ *
+ * Rendered into the statically generated job page, so this read happens when
+ * the job's tag is invalidated — not when someone visits. Tagged with the job
+ * rather than the list: ingestion invalidates both, and the changes belong to
+ * the page they appear on.
+ *
+ * Bounded at six. A listing that has been amended more times than that has a
+ * history worth summarising rather than printing, and an unbounded read on a
+ * page is the habit this codebase exists to break.
+ */
+export async function listJobChanges(jobId: string, limit = 6): Promise<JobChangeRow[]> {
+  "use cache";
+  cacheLife("content");
+  cacheTag(tags.jobList());
+
+  // Degrades rather than breaks, and the error is handled here rather than by
+  // the caller because a promise that rejects inside a `"use cache"` scope
+  // cannot be caught outside it — Next fails the build before the catch runs.
+  //
+  // This is a supplementary block on a page whose main job is the listing. A
+  // missing changelog costs a reader some history; a throw costs them the page,
+  // and at build time it costs every job page at once. That is not a
+  // hypothetical: the first build after this table was created failed on all of
+  // them, because PostgREST had not yet reloaded its schema cache and every
+  // query returned "Could not find the table in the schema cache".
+  const { data, error } = await publicDb()
+    .from("job_changes")
+    .select("id, field, old_value, new_value, changed_at")
+    .eq("job_id", jobId)
+    .order("changed_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.warn(`[listJobChanges] ${error.message}`);
+    return [];
+  }
+  return data;
+}
+
+export interface JobChangeRow {
+  id: number;
+  field: string;
+  old_value: string | null;
+  new_value: string | null;
+  changed_at: string;
 }
 
 /**
@@ -290,6 +372,31 @@ export async function listRelatedJobs(
       .eq("organizations.slug", organizationSlug)
       .neq("slug", excludeSlug)
       .order("published_at", { ascending: false })
+      .limit(limit),
+  );
+}
+
+/**
+ * The biggest recruitment drives currently open.
+ *
+ * A vacancy count is the one number that makes a listing worth a stranger's
+ * attention before they know anything else about it, which is why the old home
+ * page led with this row. Served by `jobs_vacancies_idx` — a partial index
+ * ordered `vacancies desc nulls last`, so the planner walks it and stops at the
+ * limit rather than sorting every published row to find six.
+ */
+export async function listHighestVacancy(limit: number = PAGE_SIZE.rail): Promise<JobCard[]> {
+  "use cache";
+  cacheLife("feed");
+  cacheTag(tags.jobList());
+
+  return unwrap(
+    "listHighestVacancy",
+    await cardQuery()
+      .eq("status", "published")
+      .not("vacancies", "is", null)
+      .order("vacancies", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: false })
       .limit(limit),
   );
 }

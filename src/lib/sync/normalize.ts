@@ -13,6 +13,8 @@
  * a person can type anything into.
  */
 
+import { decodeEntities } from "@/lib/format/text";
+
 /** Asia/Kolkata is UTC+5:30. */
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
@@ -36,7 +38,10 @@ function cellText(value: unknown): string | null {
   else if (typeof value === "bigint") text = value.toString();
   else return null;
 
-  const trimmed = text.trim();
+  // Decoded here, at the boundary, so what lands in the database is text
+  // rather than someone else's markup. See `format/text.ts` for why the
+  // renderer decodes as well.
+  const trimmed = decodeEntities(text).trim();
   return trimmed === "" ? null : trimmed;
 }
 
@@ -130,6 +135,49 @@ export function toStringArray(value: unknown): string[] {
     .split(",")
     .map((v) => v.trim())
     .filter(Boolean);
+}
+
+/**
+ * The lowest number that can plausibly be a monthly salary in rupees.
+ *
+ * Government notifications print pay in two registers — "₹35,400 – ₹1,12,400"
+ * and "Pay Matrix Level 7" — and the scrapers put both in the same column. A
+ * level read as a salary shows a job paying ₹7 a month, which is what the old
+ * app rendered until the renderer learned to second-guess its own data.
+ *
+ * 1,000 is deliberately far below any real government salary and far above any
+ * pay-matrix level or grade-pay band, so nothing genuine is discarded to catch
+ * them.
+ */
+export const MIN_PLAUSIBLE_SALARY = 1_000;
+
+/**
+ * A salary column, or null.
+ *
+ * Each end is judged on its own: a level in one column must not poison a
+ * genuine figure in the other, which happens when a notification writes
+ * "Level 7 – ₹1,12,400".
+ */
+export function toSalary(value: unknown): number | null {
+  const n = toInt(value);
+  if (n === null || n < MIN_PLAUSIBLE_SALARY) return null;
+  return n;
+}
+
+/**
+ * The largest vacancy count worth believing.
+ *
+ * The other half of the same trap: a stipend column read as vacancies, or a
+ * table whose amounts were summed. India's largest single recruitment
+ * notification in recent years was about 150,000 posts, so anything above a
+ * million is a parse artefact rather than a record-breaking drive.
+ */
+export const MAX_PLAUSIBLE_VACANCIES = 1_000_000;
+
+export function toVacancies(value: unknown): number | null {
+  const n = toInt(value);
+  if (n === null || n < 0 || n > MAX_PLAUSIBLE_VACANCIES) return null;
+  return n;
 }
 
 export const EMBEDDING_DIMS = 384;

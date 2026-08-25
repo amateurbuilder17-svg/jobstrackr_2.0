@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useActionState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -52,7 +54,12 @@ function AttemptRow({ attempt }: { attempt: ExamAttempt }) {
   const [, removeAction] = useActionState(deleteAttemptAction, EMPTY_FORM_STATE);
 
   const status = attempt.status as AttemptStatus;
-  const name = attempt.exam?.name ?? attempt.custom_name ?? "Untitled exam";
+  // A row tracked from a job page carries neither an exam nor a typed name —
+  // its subject is the notification, and the title lives there rather than
+  // being copied into `custom_name`, which is the field most likely to be
+  // corrected upstream.
+  const name =
+    attempt.exam?.name ?? attempt.custom_name ?? attempt.job?.title ?? "Untitled exam";
 
   // Formatted first, then tested. `formatDate` returns null for a date it
   // cannot parse, so testing the raw column would produce "Exam null".
@@ -72,6 +79,17 @@ function AttemptRow({ attempt }: { attempt: ExamAttempt }) {
           <p className="truncate text-sm font-semibold text-ink">{name}</p>
           {attempt.stage ? (
             <p className="truncate text-xs text-ink-3">{attempt.stage}</p>
+          ) : null}
+          {/* Back to the notification this was tracked from. Without it the
+              row is a dead end: someone checking their tracker for a deadline
+              then has to search for the listing by name. */}
+          {attempt.job ? (
+            <Link
+              href={`/jobs/${attempt.job.slug}`}
+              className="mt-0.5 inline-block text-xs font-medium text-accent hover:underline"
+            >
+              View the notification
+            </Link>
           ) : null}
         </div>
         <Badge tone={STATUS_TONE[status]}>{STATUS_LABELS[status]}</Badge>

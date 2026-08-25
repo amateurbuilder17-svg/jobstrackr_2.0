@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { ExamUpdateCard as UpdateData } from "@/lib/db/queries/exam-updates";
 import { formatDate } from "@/lib/format/deadline";
 import { CATEGORY_LABELS, CATEGORY_TONE } from "@/lib/updates/categories";
+import { FreshDot } from "./fresh-dot";
 
 /**
  * One update in a list.
@@ -45,7 +46,10 @@ export function UpdateCard({ update }: { update: UpdateData }) {
         <p className="mt-2 line-clamp-2 text-sm text-ink-2">{update.summary}</p>
       ) : null}
 
-      {date ? <p className="mt-2 text-xs text-ink-3">{date}</p> : null}
+      <p className="mt-2 flex items-center gap-2 text-xs text-ink-3">
+        {date}
+        <FreshDot date={update.published_date ?? update.published_at} />
+      </p>
     </CardInteractive>
   );
 }

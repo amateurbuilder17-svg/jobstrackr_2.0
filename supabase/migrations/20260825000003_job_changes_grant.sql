@@ -1,0 +1,23 @@
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 0018 · The grant 0017 forgot
+-- ═══════════════════════════════════════════════════════════════════════════
+-- `job_changes` shipped with RLS enabled and a read policy, and was still
+-- unreadable: every select returned "permission denied for table job_changes".
+--
+-- That is the design working. Migration 0010 revokes Supabase's default blanket
+-- grant and the default privileges behind it, precisely so that a table added
+-- later without an explicit grant fails closed rather than open. A policy alone
+-- is not access:
+--
+--   GRANT   decides whether the role may touch the table at all
+--   POLICY  decides which rows, once it may
+--
+-- 0017 wrote the policy and not the grant, so the answer to "may this role
+-- touch the table" stayed no. Adding it as its own migration rather than
+-- amending 0017, which is already applied — an edited migration leaves local
+-- and remote matching by version while differing by content, which is the one
+-- kind of drift the migration list cannot show you.
+--
+-- SELECT only. Change history is written by the sync worker using the secret
+-- key, which bypasses RLS; no API caller writes it.
+grant select on public.job_changes to anon, authenticated;

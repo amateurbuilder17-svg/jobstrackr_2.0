@@ -69,7 +69,7 @@ export function ThemeToggle() {
         isDark === null ? "Toggle theme" : isDark ? "Switch to light" : "Switch to dark"
       }
       className={
-        "inline-flex size-9 items-center justify-center rounded-md text-ink-2 " +
+        "inline-flex size-10 items-center justify-center rounded-md text-ink-2 " +
         "transition-colors duration-(--duration-fast) hover:bg-surface-2 hover:text-ink"
       }
     >

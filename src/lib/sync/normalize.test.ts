@@ -6,10 +6,12 @@ import {
   toDate,
   toDateText,
   toInt,
+  toSalary,
   toJson,
   toNum,
   toSlug,
   toStringArray,
+  toVacancies,
   toText,
   toVector,
 } from "./normalize";
@@ -174,5 +176,39 @@ describe("misc coercions", () => {
     expect(toJson("{not json", [])).toEqual([]);
     expect(toJson('{"a":1}', {})).toEqual({ a: 1 });
     expect(toJson("", [])).toEqual([]);
+  });
+});
+
+describe("toSalary", () => {
+  it("keeps a real salary", () => {
+    expect(toSalary("₹1,12,400")).toBe(112400);
+    expect(toSalary(35400)).toBe(35400);
+  });
+
+  it("discards a pay-matrix level read as money", () => {
+    // "Pay Matrix Level 7" and "₹1,12,400" arrive in the same column, and the
+    // old app rendered the first as a salary of ₹7 a month.
+    expect(toSalary(7)).toBeNull();
+    expect(toSalary("Level 4")).toBeNull();
+  });
+
+  it("judges each end on its own", () => {
+    // A level in one column must not poison a genuine figure in the other.
+    expect(toSalary(7)).toBeNull();
+    expect(toSalary(112400)).toBe(112400);
+  });
+});
+
+describe("toVacancies", () => {
+  it("keeps a plausible count", () => {
+    expect(toVacancies("17,727")).toBe(17727);
+  });
+
+  it("discards a summed stipend column", () => {
+    expect(toVacancies(45_000_000)).toBeNull();
+  });
+
+  it("rejects a negative count", () => {
+    expect(toVacancies(-3)).toBeNull();
   });
 });

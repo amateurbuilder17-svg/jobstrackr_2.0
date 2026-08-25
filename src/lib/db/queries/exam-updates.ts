@@ -48,6 +48,26 @@ export interface UpdateListOptions {
   limit?: number | undefined;
   category?: UpdateCategory | undefined;
   examSlug?: string | undefined;
+  /**
+   * Full-text search term. Folded in here rather than living in a separate
+   * `searchExamUpdates`, so search paginates through the same cursor path as
+   * every other filter.
+   *
+   * There *was* a separate function. It was written, indexed and
+   * contract-tested, and its only caller was the test — /updates had no search
+   * field at all. A second query path over one table is how the equivalent bug
+   * on /jobs survived four modules: the test asserted the query was bounded
+   * and named its columns, both of which stayed true of a query nothing used.
+   */
+  query?: string | undefined;
+  /** Newest first by default; `oldest` walks a story from its beginning. */
+  sort?: UpdateSort | undefined;
+}
+
+export type UpdateSort = "newest" | "oldest";
+
+export function toUpdateSort(value: string | undefined): UpdateSort {
+  return value === "oldest" ? "oldest" : "newest";
 }
 
 export async function listExamUpdates(
@@ -59,21 +79,36 @@ export async function listExamUpdates(
 
   const limit = options.limit ?? PAGE_SIZE.list;
   const cursor = decodeCursor(options.cursor);
+  const ascending = (options.sort ?? "newest") === "oldest";
 
   let query = cardQuery()
     .eq("is_published", true)
-    .order("published_at", { ascending: false })
-    .order("id", { ascending: false })
+    .order("published_at", { ascending })
+    .order("id", { ascending })
     .limit(limit + 1);
 
   if (cursor) {
+    // The comparison follows the sort direction: resuming a descending page
+    // with `gt` would page backwards through rows already shown.
+    const op = ascending ? "gt" : "lt";
     query = query.or(
-      `published_at.lt.${cursor.sortKey},` +
-        `and(published_at.eq.${cursor.sortKey},id.lt.${cursor.id})`,
+      `published_at.${op}.${cursor.sortKey},` +
+        `and(published_at.eq.${cursor.sortKey},id.${op}.${cursor.id})`,
     );
   }
   if (options.category) query = query.eq("category", options.category);
   if (options.examSlug) query = query.eq("exams.slug", options.examSlug);
+
+  // A single character is treated as no filter rather than as a search that
+  // matches nothing: it is almost always a keystroke on the way to a real
+  // term, and emptying the page mid-typing reads as breakage.
+  const term = options.query?.trim() ?? "";
+  if (term.length >= 2) {
+    query = query.textSearch("search_vector", term, {
+      config: SEARCH_CONFIG,
+      type: "websearch",
+    });
+  }
 
   const rows = unwrap("listExamUpdates", await query);
 
@@ -133,23 +168,62 @@ export async function listUpdatesForJob(
   );
 }
 
-export async function searchExamUpdates(
-  term: string,
-  limit: number = PAGE_SIZE.list,
-): Promise<ExamUpdateCard[]> {
+/**
+ * Download links from the updates attached to a job.
+ *
+ * The admit card, the answer key, the result — the documents somebody visiting
+ * a job page a month after applying is actually looking for. They live on the
+ * update rows, so the job page has no way to reach them without this.
+ *
+ * Two things keep it honest. It selects one column from the cold table rather
+ * than the whole detail row, and it is bounded at five updates — this runs on a
+ * statically generated page, so it costs nothing per view, but an unbounded
+ * read is the habit rather than the number.
+ */
+export interface UpdateLinks {
+  title: string;
+  category: UpdateCategory;
+  links: { label: string; url: string }[];
+}
+
+export async function listUpdateLinksForJob(
+  jobId: string,
+  limit: number = PAGE_SIZE.rail,
+): Promise<UpdateLinks[]> {
   "use cache";
-  cacheLife("feed");
+  cacheLife("content");
   cacheTag(tags.examUpdateList());
 
-  const trimmed = term.trim();
-  if (trimmed.length < 2) return [];
-
-  return unwrap(
-    "searchExamUpdates",
-    await cardQuery()
+  const rows = unwrap(
+    "listUpdateLinksForJob",
+    await publicDb()
+      .from("exam_updates")
+      .select("title, category, detail:exam_update_details ( download_links )")
       .eq("is_published", true)
-      .textSearch("search_vector", trimmed, { config: SEARCH_CONFIG, type: "websearch" })
+      .eq("job_id", jobId)
       .order("published_at", { ascending: false })
-      .limit(limit),
+      .limit(Math.min(limit, 5)),
   );
+
+  return rows.flatMap((row) => {
+    const links = toDownloadLinks(row.detail?.download_links);
+    return links.length === 0 ? [] : [{ title: row.title, category: row.category, links }];
+  });
+}
+
+/** Narrows the stored jsonb. Ingest writes `{label, url}`; anything older or
+ *  hand-edited is skipped rather than rendered as an empty row. */
+function toDownloadLinks(value: unknown): { label: string; url: string }[] {
+  if (!Array.isArray(value)) return [];
+
+  const out: { label: string; url: string }[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) continue;
+    const record = entry as Record<string, unknown>;
+    const url = record.url ?? record.href;
+    if (typeof url !== "string" || !/^https?:\/\//i.test(url)) continue;
+    const label = record.label ?? record.text ?? record.title;
+    out.push({ label: typeof label === "string" && label !== "" ? label : "Download", url });
+  }
+  return out.slice(0, 8);
 }

@@ -4,7 +4,8 @@ import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireUser } from "@/lib/auth/session";
 import { sessionDb } from "@/lib/db/clients";
-import { EDUCATION_COLUMNS, PROFILE_COLUMNS } from "@/lib/profile/columns";
+import { listEducation } from "@/lib/db/queries/education";
+import { PROFILE_COLUMNS } from "@/lib/profile/columns";
 import { EducationSection } from "./education-section";
 import { ProfileForm } from "./profile-form";
 import { SignOutButton } from "./sign-out-button";
@@ -42,17 +43,14 @@ async function PersonalDetails() {
 
   // One round trip each, in parallel. RLS scopes both to this user, and the
   // `.eq` is belt-and-braces for the same reason as in the write actions.
-  const [profileResult, educationResult] = await Promise.all([
+  const [profileResult, education] = await Promise.all([
     db.from("profiles").select(PROFILE_COLUMNS).eq("id", user.id).maybeSingle(),
-    db
-      .from("education_qualifications")
-      .select(EDUCATION_COLUMNS)
-      .eq("user_id", user.id)
-      .order("level", { ascending: true }),
+    // Shared with /for-you, and bounded — the inline version here had an
+    // `order` and no `limit`, which is the one unbounded read left in the app.
+    listEducation(),
   ]);
 
   const profile = profileResult.data;
-  const education = educationResult.data ?? [];
 
   return (
     <>

@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 
 import { type FormState } from "@/lib/auth/form-state";
-import { educationSchema, fieldErrors, profileSchema } from "@/lib/auth/schemas";
+import {
+  educationSchema,
+  fieldErrors,
+  matchProfileSchema,
+  profileSchema,
+} from "@/lib/auth/schemas";
 import { getUser } from "@/lib/auth/session";
 import { consume, LIMITS } from "@/lib/rate-limit";
 import { sessionDb } from "@/lib/db/clients";
@@ -157,4 +162,84 @@ export async function deleteEducationAction(
 /** `<select>` posts "" for its placeholder option; the columns want null. */
 function emptyToNull(value: FormDataEntryValue | null): string | null {
   return typeof value === "string" && value !== "" ? value : null;
+}
+
+/**
+ * The three fields the For You matcher cannot work without.
+ *
+ * `match_jobs` hard-filters on age, on qualification level and on discipline,
+ * and treats an unknown value as a non-match — so a profile missing any of them
+ * produces an empty feed no matter how many jobs are open. The old app asked
+ * for these through a six-step wizard on its own route; the current page links
+ * to /profile and hopes.
+ *
+ * This is the third option: the three fields, inline, on the page whose
+ * emptiness they explain. One round trip, and the feed below the form fills in.
+ *
+ * It writes to both tables because the answer lives in both: age and level on
+ * `profiles`, discipline on `education_qualifications` — which is where
+ * `stream_of` reads from, and why a level with no discipline still matches
+ * nothing but "any discipline" postings.
+ */
+export async function completeMatchProfileAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const user = await getUser();
+  if (!user) return { ok: false, errors: { form: "Your session has expired." } };
+
+  if (!consume(`form:${user.id}`, LIMITS.form)) {
+    return { ok: false, errors: { form: "Too many changes at once. Try again shortly." } };
+  }
+
+  const parsed = matchProfileSchema.safeParse({
+    dateOfBirth: formData.get("dateOfBirth"),
+    highestQualification: emptyToNull(formData.get("highestQualification")),
+    discipline: formData.get("discipline"),
+  });
+
+  if (!parsed.success) return { ok: false, errors: fieldErrors(parsed.error) };
+  const p = parsed.data;
+
+  const db = await sessionDb();
+
+  const { error } = await db
+    .from("profiles")
+    .update({
+      date_of_birth: p.dateOfBirth,
+      highest_qualification: p.highestQualification,
+    })
+    .eq("id", user.id);
+
+  if (error) return { ok: false, errors: { form: error.message } };
+
+  if (p.discipline) {
+    // Upserted against the level rather than blindly inserted: someone
+    // correcting "Histry" to "History" should end with one row, not two, and
+    // the matcher reads every row this user has.
+    const { data: existing } = await db
+      .from("education_qualifications")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("level", p.highestQualification)
+      .maybeSingle();
+
+    const { error: educationError } = existing
+      ? await db
+          .from("education_qualifications")
+          .update({ discipline: p.discipline })
+          .eq("id", existing.id)
+          .eq("user_id", user.id)
+      : await db.from("education_qualifications").insert({
+          user_id: user.id,
+          level: p.highestQualification,
+          discipline: p.discipline,
+        });
+
+    if (educationError) return { ok: false, errors: { form: educationError.message } };
+  }
+
+  revalidatePath("/for-you");
+  revalidatePath("/profile");
+  return { ok: true, message: "Saved. Your matches are below." };
 }

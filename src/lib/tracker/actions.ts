@@ -139,3 +139,80 @@ export async function deleteAttemptAction(
   revalidatePath("/tracker");
   return { ok: true, message: "Removed." };
 }
+
+/**
+ * Track a job from its detail page.
+ *
+ * Called with a typed argument rather than a FormData, because the caller is a
+ * button in a sticky action bar rather than a form — see `setJobSavedAction`,
+ * which is the same shape for the same reason, and validates its argument with
+ * the same suspicion.
+ *
+ * Idempotent by construction. `exam_attempts_user_job_idx` allows one attempt
+ * per person per job, and a violation of it is reported as success: pressing
+ * Track twice means what pressing it once meant. The alternative — an upsert —
+ * cannot be expressed here, because PostgREST's `onConflict` has no way to name
+ * the partial index's `where job_id is not null` predicate.
+ */
+export interface TrackResult {
+  ok: boolean;
+  tracking: boolean;
+  /** True when the row already existed, so the button can say so. */
+  already?: boolean;
+  reason?: "unauthenticated" | "invalid" | "error";
+}
+
+export async function trackJobAction(rawJobId: string): Promise<TrackResult> {
+  const parsed = z.uuid().safeParse(rawJobId);
+  if (!parsed.success) return { ok: false, tracking: false, reason: "invalid" };
+
+  const user = await getUser();
+  // Not an error worth shouting about — the button offers sign-in instead.
+  if (!user) return { ok: false, tracking: false, reason: "unauthenticated" };
+
+  if (!consume(`form:${user.id}`, LIMITS.form)) {
+    return { ok: false, tracking: false, reason: "error" };
+  }
+
+  const db = await sessionDb();
+
+  const { error } = await db.from("exam_attempts").insert({
+    user_id: user.id,
+    job_id: parsed.data,
+    status: "tracking",
+  });
+
+  if (error) {
+    // 23505 is the unique index doing its job.
+    if (error.code === "23505") return { ok: true, tracking: true, already: true };
+    return { ok: false, tracking: false, reason: "error" };
+  }
+
+  revalidatePath("/tracker");
+  return { ok: true, tracking: true };
+}
+
+/** Stop tracking, from the same button. */
+export async function untrackJobAction(rawJobId: string): Promise<TrackResult> {
+  const parsed = z.uuid().safeParse(rawJobId);
+  if (!parsed.success) return { ok: false, tracking: true, reason: "invalid" };
+
+  const user = await getUser();
+  if (!user) return { ok: false, tracking: true, reason: "unauthenticated" };
+
+  if (!consume(`form:${user.id}`, LIMITS.form)) {
+    return { ok: false, tracking: true, reason: "error" };
+  }
+
+  const db = await sessionDb();
+  const { error } = await db
+    .from("exam_attempts")
+    .delete()
+    .eq("user_id", user.id)
+    .eq("job_id", parsed.data);
+
+  if (error) return { ok: false, tracking: true, reason: "error" };
+
+  revalidatePath("/tracker");
+  return { ok: true, tracking: false };
+}

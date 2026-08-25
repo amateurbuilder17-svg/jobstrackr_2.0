@@ -13,6 +13,7 @@ import {
 } from "react";
 
 import { mergeGuestSavesAction, setJobSavedAction } from "@/lib/saved/actions";
+import { trackJobAction, untrackJobAction } from "@/lib/tracker/actions";
 import {
   clearGuestSaves,
   enqueue,
@@ -53,6 +54,23 @@ interface SavedContextValue {
   toggle: (jobId: string) => void;
   /** Jobs whose intent has not reached the server yet. */
   pending: ReadonlySet<string>;
+
+  /**
+   * Tracking rides along here rather than in a provider of its own.
+   *
+   * It is the same question asked of the same session — "what has this person
+   * already done with this job?" — and `/api/saved` answers both in one
+   * response. A second provider would mean a second request per session to
+   * light up a button sitting two pixels from the first one.
+   *
+   * Tracking has no offline queue, deliberately. Saving is a reflex people
+   * perform while scrolling, sometimes on a train; tracking is a considered
+   * act on a detail page, and a failure that silently succeeds later is worse
+   * there than one that rolls back and says so.
+   */
+  isTracked: (jobId: string) => boolean;
+  toggleTracked: (jobId: string) => void;
+  trackingPending: ReadonlySet<string>;
 }
 
 const SavedContext = createContext<SavedContextValue | null>(null);
@@ -60,6 +78,8 @@ const SavedContext = createContext<SavedContextValue | null>(null);
 export function SavedProvider({ children }: { children: ReactNode }) {
   const [ids, setIds] = useState<ReadonlySet<string>>(() => new Set());
   const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set());
+  const [trackedIds, setTrackedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [trackingPending, setTrackingPending] = useState<ReadonlySet<string>>(() => new Set());
   const [signedIn, setSignedIn] = useState(false);
   const [ready, setReady] = useState(false);
 
@@ -133,14 +153,20 @@ export function SavedProvider({ children }: { children: ReactNode }) {
       const guestSaves = readGuestSaves();
 
       let serverIds: string[] = [];
+      let tracked: string[] = [];
       let authed = false;
 
       try {
         const response = await fetch("/api/saved", { cache: "no-store", signal });
         if (response.ok) {
-          const data = (await response.json()) as { signedIn: boolean; ids: string[] };
+          const data = (await response.json()) as {
+            signedIn: boolean;
+            ids: string[];
+            trackedJobIds: string[];
+          };
           authed = data.signedIn;
           serverIds = data.ids;
+          tracked = data.trackedJobIds;
         }
       } catch {
         // Offline on first load. Fall through with whatever is local; a guest
@@ -167,6 +193,10 @@ export function SavedProvider({ children }: { children: ReactNode }) {
         // press made in that window is already in state and must survive the
         // server's answer arriving.
         if (!aborted()) setIds((prev) => new Set([...prev, ...serverIds]));
+        // Replace rather than union: unlike saves, there is no offline queue
+        // holding intents the server has not seen, so the server is simply
+        // right.
+        if (!aborted()) setTrackedIds(new Set(tracked));
 
         const queued = readQueue();
         if (queued.length > 0) {
@@ -256,11 +286,62 @@ export function SavedProvider({ children }: { children: ReactNode }) {
     [push],
   );
 
+  /* ── Track ────────────────────────────────────────────────────────────── */
+  const toggleTracked = useCallback((jobId: string) => {
+    setTrackedIds((prev) => {
+      const willTrack = !prev.has(jobId);
+      const next = new Set(prev);
+      if (willTrack) next.add(jobId);
+      else next.delete(jobId);
+
+      setTrackingPending((p) => new Set(p).add(jobId));
+
+      void (async () => {
+        const result = willTrack ? await trackJobAction(jobId) : await untrackJobAction(jobId);
+
+        setTrackingPending((p) => {
+          const cleared = new Set(p);
+          cleared.delete(jobId);
+          return cleared;
+        });
+
+        // Reconciled against the server's answer rather than assumed. A guest
+        // pressing Track gets `unauthenticated` back, and the button must
+        // return to its unpressed state rather than lying about a row that was
+        // never written.
+        if (!result.ok) {
+          setTrackedIds((current) => {
+            const rolledBack = new Set(current);
+            if (willTrack) rolledBack.delete(jobId);
+            else rolledBack.add(jobId);
+            return rolledBack;
+          });
+        }
+      })();
+
+      return next;
+    });
+  }, []);
+
+  const isTracked = useCallback((jobId: string) => trackedIds.has(jobId), [trackedIds]);
+
   const isSaved = useCallback((jobId: string) => ids.has(jobId), [ids]);
   const savedIds = useMemo(() => [...ids], [ids]);
 
   return (
-    <SavedContext.Provider value={{ ready, signedIn, isSaved, savedIds, toggle, pending }}>
+    <SavedContext.Provider
+      value={{
+        ready,
+        signedIn,
+        isSaved,
+        savedIds,
+        toggle,
+        pending,
+        isTracked,
+        toggleTracked,
+        trackingPending,
+      }}
+    >
       {children}
     </SavedContext.Provider>
   );
@@ -276,4 +357,12 @@ export function useSaved(): SavedContextValue {
   const context = useContext(SavedContext);
   if (!context) throw new Error("useSaved must be used inside <SavedProvider>.");
   return context;
+}
+
+/** The tracking half of the same store, named for what the caller wants. */
+export function useTracked(): Pick<
+  SavedContextValue,
+  "ready" | "signedIn" | "isTracked" | "toggleTracked" | "trackingPending"
+> {
+  return useSaved();
 }

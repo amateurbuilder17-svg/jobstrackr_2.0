@@ -46,11 +46,22 @@ export const CATEGORY_TONE: Record<UpdateCategory, "neutral" | "accent" | "good"
   news: "neutral",
 };
 
-/** The filter chips on /updates. A shortlist, not the whole enum. */
-export const CATEGORY_FILTERS = [
+/**
+ * The filter chips on /updates — the whole enum, in the order people look for
+ * them.
+ *
+ * It used to be a five-item shortlist, which meant three categories existed in
+ * the data, were rendered on cards, and could not be filtered to. The row
+ * scrolls sideways rather than wrapping, so the length costs nothing above the
+ * fold; see `FilterChips`.
+ */
+export const CATEGORY_FILTERS: { label: string; value: UpdateCategory }[] = [
   { label: "Admit cards", value: "admit_card" },
   { label: "Results", value: "result" },
   { label: "Answer keys", value: "answer_key" },
   { label: "Exam dates", value: "exam_date" },
   { label: "Notifications", value: "notification" },
+  { label: "Cut-offs", value: "cutoff" },
+  { label: "Syllabus", value: "syllabus" },
+  { label: "News", value: "news" },
 ];

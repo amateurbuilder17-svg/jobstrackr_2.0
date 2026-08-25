@@ -7,13 +7,12 @@ import { cn } from "@/lib/cn";
  * cost with nothing to show for it.
  */
 const VARIANT = {
-  primary:
-    "bg-accent text-on-accent hover:bg-accent-hover shadow-xs " + "active:translate-y-px",
+  primary: "bg-accent text-on-accent hover:bg-accent-hover active:translate-y-px",
   secondary:
     "bg-surface text-ink border border-line hover:bg-surface-2 " +
-    "hover:border-line-strong shadow-xs active:translate-y-px",
+    "hover:border-line-strong active:translate-y-px",
   ghost: "text-ink-2 hover:bg-surface-2 hover:text-ink",
-  danger: "bg-critical text-white hover:brightness-110 shadow-xs active:translate-y-px",
+  danger: "bg-critical text-white hover:brightness-110 active:translate-y-px",
 } as const;
 
 const SIZE = {
