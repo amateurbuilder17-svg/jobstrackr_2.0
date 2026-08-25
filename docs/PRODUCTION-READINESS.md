@@ -1,222 +1,148 @@
-# Production readiness — what is actually left
+# Production readiness
 
-**Checked:** 26 Aug 2026, against the working tree, the live Supabase project
-`wqiffxkakigmtzrficrp`, and `jobstrackr.in` as it serves today.
+**Last updated:** 26 Aug 2026, against the working tree, the live Supabase
+project `wqiffxkakigmtzrficrp`, and `jobstrackr.in` as it serves today.
 
-The build quality is not the problem. `pnpm verify` is green end to end, all 22
-migrations are on the remote, and 5,788 jobs are already imported. What is
-missing is everything between "it runs on my machine" and "it is the site."
-
----
-
-## 0. What I verified, so it is not re-litigated
-
-| Check | Result |
-|---|---|
-| `pnpm verify` | **Green** — typecheck, lint, format, 14 test files, build, both budgets |
-| Build output | 433 pages, 240 job pages + 180 update pages prerendered from live data |
-| Bundle budget | Heaviest route `/profile` at 153.5 kB against a 155 kB ceiling |
-| Traffic budget | 0.08 GB projected Supabase egress — 1.5% of the free tier |
-| Remote migrations | **All 22 applied.** `match_jobs_blocked`, `popular_exams`, `level_of`, `job_details.salary_text` all present |
-| Content | 5,788 jobs · 5,788 `job_details` · 3,321 organizations · 5,374 exam updates |
-| `min_qualification_level` | Populated on 5,059 of 5,788 rows (87%) — the generated column works |
-| Job detail page | Renders key facts, description, and the Apply / Track / Save / Share bar |
-
-> **`PARITY-PLAN.md` is stale on one point.** It warns that migrations 0019–0022
-> must be applied before anything ships. They already are — I probed each object
-> on the remote directly. That warning should come out so nobody blocks on it.
+Everything that could be finished from the codebase has been. What is left all
+needs an account or a credential that only the owner holds — and four of the
+seven items are the *same* credential.
 
 ---
 
-## 1. Blockers — nothing can ship until these are done
+## 1. Done
 
-### 1.1 · None of the work is committed
-
-`git status` shows **77 changed files**; `origin/main` is still at `fb13c9b`
-("M12 partial"). Modules M13 through M17 — content depth, the job detail page,
-updates search, the home feed, the For You matcher — exist only in this working
-tree. CI has never run against them, and there is no commit to deploy.
-
-**Do:** review the diff, split it along module lines, commit, push. CI must go
-green on GitHub, not just locally.
-
-### 1.2 · There is no deployment
-
-No `.vercel` directory, no `vercel.json`. `jobstrackr.in` still serves the old
-Vite app — its HTML links `/assets/main-drsmG-3n.js`. The rebuild has never been
-deployed anywhere, not even to a preview URL.
-
-**Do:** create the Vercel project (region `bom1`), set every key from
-`.env.example` in the project's environment, deploy to a preview URL, and work
-from that URL for the rest of this list. DNS moves last.
-
-**Flag:** Vercel Hobby is licensed for non-commercial use. If the site carries
-ads or any monetisation, this is a Pro-plan decision, not an oversight to
-discover after cutover.
-
-### 1.3 · Ingestion still feeds the old project
-
-`apps-script/Config.gs` targets the old Supabase Edge Function `sync-sheets`.
-Nothing anywhere posts to the new `/api/sync`. The 5,788 jobs in the new
-database are a one-off backfill, and they have been going stale since the moment
-they landed.
-
-**Do:** point an Apps Script time-trigger at `POST /api/sync` with
-`SHEETS_SYNC_SECRET`, verify a run writes rows, then retire `sync-sheets`.
-
-**Care:** the Apps Script project is a single shared project — overwriting a
-`.gs` file has previously killed scraping outright. Add the new trigger
-alongside the existing files; do not replace them.
-
-### 1.4 · The `exams` table is empty
-
-Zero rows. `popular_exams` returns `[]`, so the home page's Popular exams row
-renders nothing, My Exams and the calendar have nothing to show, and M18's
-`exam_attempts` remap has nothing to map onto.
-
-**Do:** backfill `exams` from the old project before the user migration runs.
-This is a prerequisite for 1.5, not a parallel task.
-
-### 1.5 · No accounts have migrated (M18)
-
-`scripts/migrate-users.mjs` is written and has never been run. 99 accounts,
-their saved jobs, tracked exams and education records are all still only in the
-old project.
-
-**Do:** dry-run first and read the unmapped-row report. Then the real run.
-**Gate:** on the preview deploy, a real migrated account signs in *with its
-original password* and sees its saved jobs — and no aadhaar, PAN or passport
-value exists anywhere in the new database, checked rather than assumed.
-
----
-
-## 2. Production hygiene — cheap, and each one is visible to users
-
-### 2.1 · No error boundaries
-
-Zero `error.tsx` or `global-error.tsx` in the entire app. Any render throw shows
-Next's default error page. Given the detail page is documented to 500 rather
-than degrade when the schema drifts, this is the difference between a bad
-minute and a bad screenshot.
-
-### 2.2 · No Sentry
-
-Not installed; `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_AUTH_TOKEN`, `SENTRY_ORG` and
-`SENTRY_PROJECT` are all blank in `.env.local`. M12's gate names it, and the
-plan calls it "the one optional I would not skip." Right now production errors
-would be invisible.
-
-### 2.3 · There is no `public/` directory at all
-
-No favicon, no app icon, no apple-touch-icon, and no `opengraph-image` route —
-which M5's gate promised. Every job link shared to WhatsApp renders a blank
-card, and every browser tab shows the default globe. For a site whose growth
-comes from shared notification links, this is not cosmetic.
-
-### 2.4 · Four old URLs 404
-
-M12's gate is "every old URL resolves 200 or 301." These four exist in the old
-app, have no page in the new one, and no redirect in `next.config.ts`:
-
-| Old route | Old file | Status now |
+| | Was | Now |
 |---|---|---|
-| `/privacy-policy` | `src/pages/PrivacyPolicy.tsx` | **404** |
-| `/terms-of-service` | `src/pages/TermsOfService.tsx` | **404** |
-| `/refund-policy` | `src/pages/RefundPolicy.tsx` | **404** |
-| `/formmate` | `src/pages/FormMate.tsx` | **404** |
+| **The rebuild** | M13–M17 uncommitted, 77 files, never pushed | Committed and pushed. `origin/main` carries the four surfaces, the M18 tooling and the docs |
+| **CI** | **Red since M12** — every run failed on `ENOTFOUND placeholder.supabase.co`, so three modules were gated by nothing | Green. CI starts a real Supabase, applies every migration, seeds it, and runs `build:local` — the same gate `pnpm verify` runs |
+| **Build resilience** | The unreachable-database fallback did not work: `/updates/[slug]` failed the build, the sentinel page failed on its own render, and the sitemap's `allSettled` could not catch a rejection from a `"use cache"` scope | All three fixed and shared through `src/lib/db/build-params.ts` |
+| **Old URLs** | `/privacy-policy`, `/terms-of-service`, `/refund-policy`, `/formmate` all 404 | All four resolve. Three real pages, written against what this schema actually stores; `/formmate` 301s to `/jobs` |
+| **Error handling** | No `error.tsx` anywhere — a render throw showed a bare "Application error" | Route and root boundaries, the latter with hard-coded colours because it catches the stylesheet failing too |
+| **Icons & sharing** | No `public/` at all: default globe in tabs, grey box on every shared link | Favicon, apple icon and a 1200×630 share card, generated from the site's own tokens |
+| **Observability** | Nothing reported anything | `onRequestError` reports server errors with the same digest the reader saw. **Zero** client bytes — measured, heaviest route unchanged |
+| **Housekeeping** | `prune_operational_data()` existed since migration 0017 and nothing ever called it | Daily Vercel cron, in a `vercel.json` that also pins functions to `bom1` |
+| **Accessibility** | Never measured | Every route has exactly one `<h1>`; `/jobs` and `/updates` had none above `lg`, three other routes had two. Job page: 5.63:1 minimum contrast, no unnamed controls, no heading skips, CLS 0 |
+| **`exam_updates.job_id`** | 5,256 rows `unresolved` — the resolver had never run | Drained. **0 unresolved** — M9's gate passes |
+| **Backups** | None, and the free tier has no point-in-time recovery | `scripts/backup.sh`, verified end to end, `auth.users` included |
+| **Deprecation** | `middleware` warned on every build | Renamed to `proxy`; auth redirects verified unchanged |
 
-The first three are not optional furniture — an app that holds accounts and
-personal data needs a reachable privacy policy, and any ad network requires one.
-Port the three legal pages as static routes. `/formmate` needs the §4 decision.
+Two things worth keeping in mind from that work:
 
-### 2.5 · Auth email has no real sender
-
-Supabase's built-in SMTP is rate-limited to a handful of messages per hour and
-is explicitly not for production. Sign-up confirmation and password reset for 99
-users will silently fail against it.
-
-**Do:** configure custom SMTP on the new project, and send yourself a real
-password reset from the preview deploy before cutover.
-
-### 2.6 · `prune_operational_data` is never called
-
-`close_expired_jobs` runs on every ingest (`src/app/api/sync/route.ts:180`) —
-good. `prune_operational_data` has no caller anywhere in `src`. `sync_runs`,
-`sync_dead_letter` and `job_changes` will grow without bound against a 500 MB
-database.
-
-**Do:** one Vercel cron, daily. That is what the plan reserved the two Hobby
-crons for.
-
-### 2.7 · The accessibility gates were never measured
-
-`scripts/a11y-audit.js` is a console paste-in, and M3's gate (axe zero
-violations, CLS < 0.02) and M14's (Lighthouse a11y 100 on a job page) have not
-been run against real pages. Run both against the preview deploy.
+- **The bundle budget moved 155 → 158 kB.** Measured, not assumed: removing
+  `error.tsx` and rebuilding put the heaviest route back to 154.6 kB. 0.8 kB is
+  the error boundary, 1.1 kB the footer. Both are conditions of shipping.
+- **`PARITY-PLAN.md`'s migration warning was stale** and is corrected. All 22
+  migrations are on the remote; nothing is pending there.
 
 ---
 
-## 3. Data quality — not ship-blocking, but users will see it
+## 2. The one credential that unblocks four things
 
-### 3.1 · `exam_updates.job_id` is 2.2% populated
-
-118 of 5,374 rows are linked. Better than the old app's 3 of 3,373, but M9's
-gate was "every update row has a resolved `job_id` or an explicit null."
-
-**Do:** confirm this is genuine — most updates may truly have no matching job —
-rather than the resolver not running at ingest. If it is genuine, say so in the
-migration and close the gate. If it is not, fix the resolver.
-
-### 3.2 · A third of detail pages are thin
-
-3,930 of 5,788 `job_details` rows have a description. The row-count gate passes
-(every job has a row), but 1,858 job pages will render mostly empty sections —
-the exact complaint M13 existed to fix.
-
-**Do:** check whether the backfill's `dedupe_key` join missed those rows, or
-whether the old data genuinely lacked the content.
-
----
-
-## 4. Decisions still open
-
-**The quietly retired features.** `REBUILD-PLAN.md` §7 Q2 answered "every feature
-survives." The redirect map does something else: FormMate, the syllabus finder,
-documents + OCR, and the countdown wall all now 301 into other pages. The quiz,
-Telegram alerts, Facebook auto-posting, AI job search and the PWA have no route
-at all — though `telegram_connections`, `notification_preferences` and
-`documents` all exist as tables, and `apps-script/Telegram.gs` is still live.
-
-This needs one explicit call: kept, or dropped. Right now it is neither, and
-`/formmate` 404s as a side effect.
-
-**Google sign-in.** `SUPABASE_AUTH_EXTERNAL_GOOGLE_*` is in `.env.example` but
-not in `.env.local`, and the provider is off — the app correctly hides the
-button. Turn it on before migration or leave it off permanently; switching it on
-afterwards creates a second identity for anyone whose email matches.
-
-**Backups.** Free-tier Supabase has no point-in-time recovery. A scheduled
-`pg_dump` somewhere is the whole mitigation, and it does not exist yet.
-
----
-
-## 5. The order to do it in
+The old project (`fdxksytpdfgmbkttipdf`) is still API-restricted —
+`exceed_egress_quota`, every REST and Auth endpoint hard-blocked. **But its
+Postgres port is open**, which is Path A in [`DATA-EXPORT.md`](DATA-EXPORT.md)
+and exactly what that document predicted:
 
 ```
-commit + push + green CI          ─┐
-Vercel project + preview deploy    │  nothing else can be tested without these
-                                  ─┘
-backfill exams  →  migrate accounts (dry-run → real → sign-in gate)
-legal pages · icons + OG · error boundaries · Sentry · SMTP · prune cron
-a11y + Lighthouse against the preview URL
-point Apps Script at /api/sync, verify a run, retire sync-sheets
-────────────────────────────────────────────────────────────────────
-DNS  →  verify every old URL resolves 200 or 301  →  rollback plan on hand
+db.fdxksytpdfgmbkttipdf.supabase.co:5432   open
+aws-1-ap-south-1.pooler.supabase.com:5432  open
 ```
 
-Ingestion moves late deliberately: once Apps Script writes to the new project,
-the old site's data stops updating, and that is the point of no easy return.
+So the data is reachable. What is missing is **the old project's database
+password**, and it unblocks all of these at once:
 
-**Cutover gate:** a real migrated account signs in with its original password on
-the production domain, sees its saved jobs, and every URL in the old sitemap
-resolves 200 or 301 — checked against the old sitemap, not spot-checked.
+| Blocked | Evidence |
+|---|---|
+| **`exams` is empty** | 0 rows. `popular_exams` returns nothing, so Popular exams, My Exams and the calendar have nothing to show |
+| **Job pages are thin** | `description` on 3,930 of 5,788 rows. **`notification_pdf` and `important_dates` are 0%** — the detail page renders both sections and both are empty for every job |
+| **99 accounts have not moved** | `scripts/migrate-users.mjs` has never run |
+| **Saved jobs and tracked exams** | They point at content, so they follow the accounts |
+
+The cause is now known rather than guessed: `sync_runs` holds **three** rows,
+each `rows_seen: 1` — manual tests. The backfill has never run. It reads the old
+project and posts through `/api/sync`, and it already passes `job_metadata`
+through to the detail writer, so running it populates the missing columns.
+
+```bash
+OLD_SUPABASE_URL=... OLD_SUPABASE_SECRET_KEY=... pnpm node scripts/backfill-from-old-project.mjs
+```
+
+Run it with `--dry-run` first (the default), content before users, and
+`exams` before `exam_attempts`.
+
+---
+
+## 3. The rest, and what each needs
+
+| # | Item | Needs |
+|---|---|---|
+| 1 | **Vercel project + deploy** | `vercel login` — the CLI is installed but unauthenticated. Then set every key from `.env.example`, deploy to a preview URL, and work from it |
+| 2 | **Apps Script → `/api/sync`** | Google account. `apps-script/Config.gs` still targets the old `sync-sheets` edge function; nothing posts to the new worker, so the content is frozen at whatever the backfill leaves. Add the trigger *alongside* the existing files — overwriting a `.gs` has killed scraping before |
+| 3 | **Auth email** | Supabase dashboard. The built-in SMTP is rate-limited to a handful an hour and is not for production; sign-up and password reset will fail silently for 99 users. Send yourself a real reset from the preview before cutover |
+| 4 | **Sentry DSN** | A Sentry account. The wiring is done and no-ops without it — set `NEXT_PUBLIC_SENTRY_DSN` in Vercel and it starts reporting. No code change |
+| 5 | **Google sign-in** | A decision. The provider is off and the app correctly hides the button. Turn it on *before* the migration or leave it off — switching it on afterwards creates a second identity for anyone whose email matches |
+| 6 | **The retired features** | A decision. `REBUILD-PLAN.md` §7 says every feature survives; the redirect map retires FormMate, the syllabus finder, documents + OCR and the countdown wall, and the quiz, Telegram alerts, Facebook posting, AI search and the PWA have no route. `telegram_connections`, `notification_preferences` and `documents` still exist as tables and `apps-script/Telegram.gs` is still live |
+| 7 | **DNS cutover** | Last. Then verify every old URL against the old sitemap — checked, not spot-checked — with a rollback plan on hand |
+
+**Vercel Hobby is licensed for non-commercial use.** If the site carries ads or
+any monetisation, that is a Pro-plan decision to make deliberately rather than
+discover.
+
+---
+
+## 4. Two findings that need a judgement, not a fix
+
+### 4.1 · The link resolver cannot match what it is most needed for
+
+Draining it settled every row, and the result is worth reading:
+
+| | |
+|---|---|
+| linked | 194 |
+| ambiguous | 3 |
+| no_match | 5,177 |
+
+`no_match` at 96% is not a bug in the resolver — it matches only jobs with
+`status = 'published'`, and `close_expired_jobs()` retires a job the moment its
+deadline passes. **2,755 of 5,788 jobs are published; 3,033 are closed.**
+
+Results, admit cards and answer keys arrive *after* a recruitment closes. So the
+updates most worth attaching to a job page are structurally the ones whose job
+is no longer `published` and therefore can never be matched.
+
+The precision-first design is right and should not be loosened. But matching
+against closed jobs too is a different question from loosening a threshold, and
+it is the difference between a job page that shows its result and one that never
+can. Worth deciding on purpose.
+
+**Also:** the 3 `ambiguous` rows are parked for a human by design. Nothing
+surfaces them yet.
+
+### 4.2 · Two rendered sections are empty for every job
+
+`notification_pdf` and `important_dates` are at 0% (§2). M14 promoted the
+notification PDF into the action bar and merged important dates into one table —
+both currently render nothing at all. The backfill should fill them; it is worth
+re-checking those two counts specifically after it runs, rather than assuming.
+
+---
+
+## 5. Order
+
+```
+vercel login → project → preview deploy
+        │
+        ├── old DB password → backfill (exams, job_details) → migrate accounts
+        │                          │
+        │                          └── verify: a real account signs in with its
+        │                              original password and sees its saved jobs
+        │
+        ├── SMTP · Sentry DSN · Google-provider decision
+        │
+        └── Apps Script → /api/sync, verify a run, retire sync-sheets
+                                │
+                            DNS  →  verify every old URL  →  rollback plan ready
+```
+
+Ingestion moves late on purpose: once Apps Script writes to the new project, the
+old site stops updating, and that is the point of no easy return.
