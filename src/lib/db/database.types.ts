@@ -187,6 +187,7 @@ export type Database = {
       exam_updates: {
         Row: {
           category: Database["public"]["Enums"]["update_category"]
+          content_hash: string | null
           created_at: string
           dedupe_key: string | null
           exam_id: string | null
@@ -208,6 +209,7 @@ export type Database = {
         }
         Insert: {
           category?: Database["public"]["Enums"]["update_category"]
+          content_hash?: string | null
           created_at?: string
           dedupe_key?: string | null
           exam_id?: string | null
@@ -229,6 +231,7 @@ export type Database = {
         }
         Update: {
           category?: Database["public"]["Enums"]["update_category"]
+          content_hash?: string | null
           created_at?: string
           dedupe_key?: string | null
           exam_id?: string | null
@@ -399,6 +402,7 @@ export type Database = {
           age_min: number | null
           application_fee: number | null
           application_start_date: string | null
+          content_hash: string | null
           created_at: string
           dedupe_key: string | null
           embedding: string | null
@@ -438,6 +442,7 @@ export type Database = {
           age_min?: number | null
           application_fee?: number | null
           application_start_date?: string | null
+          content_hash?: string | null
           created_at?: string
           dedupe_key?: string | null
           embedding?: string | null
@@ -477,6 +482,7 @@ export type Database = {
           age_min?: number | null
           application_fee?: number | null
           application_start_date?: string | null
+          content_hash?: string | null
           created_at?: string
           dedupe_key?: string | null
           embedding?: string | null
