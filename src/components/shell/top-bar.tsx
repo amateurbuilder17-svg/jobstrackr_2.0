@@ -76,9 +76,15 @@ export function TopBar() {
                 `<h1>` that repeats the tab you just tapped. */}
             <div className="min-w-0 shrink lg:hidden">
               {current && current.href !== "/" ? (
-                <h1 className="truncate text-base font-bold tracking-tight text-ink">
+                // A `<span>`, not an `<h1>`. This is `lg:hidden`, so on desktop
+                // it is display:none and cannot serve as anyone's page heading —
+                // while on mobile it sat *alongside* the real `<h1>` on every
+                // detail page, giving /jobs/[slug], /saved and /calendar two
+                // level-one headings each. The pages own their headings; this
+                // bar names the section you are in, which is navigation.
+                <span className="truncate text-base font-bold tracking-tight text-ink">
                   {current.label}
-                </h1>
+                </span>
               ) : (
                 <Link href="/" className="text-base font-bold tracking-tight text-ink">
                   JobsTrackr

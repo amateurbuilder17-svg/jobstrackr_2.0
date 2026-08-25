@@ -22,8 +22,27 @@
  *
  * Module 12 turns this into a Playwright + axe-core job that runs in CI. Until
  * then it is run by hand, and it is written to be read.
+ *
+ *   4. A hidden page freezes transitions mid-flight. `document.visibilityState
+ *      === "hidden"` — a background tab, or an automated browser whose window
+ *      is not fronted — pauses CSS transitions, so any element carrying
+ *      `transition-colors` reports whatever colour it was interpolating
+ *      through when the theme was applied. That is usually the *other* theme's
+ *      value, which reads as a catastrophic contrast failure on elements that
+ *      are perfectly fine. Three footer links measured 1.90:1 this way while
+ *      their real ratio was well past AA. Transitions are therefore disabled
+ *      before sampling and restored afterwards, which makes the result
+ *      independent of whether anyone is looking at the page.
  */
 (async () => {
+  // Trap 4: freeze out transitions so a hidden page cannot report a colour
+  // that is only passing through.
+  const freeze = document.createElement("style");
+  freeze.textContent =
+    "*,*::before,*::after{transition:none!important;animation:none!important}";
+  document.head.appendChild(freeze);
+  document.body.getBoundingClientRect(); // force the style to apply
+
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = 1;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
@@ -143,8 +162,12 @@
     }
   });
 
+  freeze.remove();
+
   return {
     theme: document.documentElement.classList.contains("dark") ? "dark" : "light",
+    // CLS and focus order still need a visible page; contrast no longer does.
+    visibility: document.visibilityState,
     contrast: { sampled, min: min.toFixed(2), failures },
     navLandmarks: navs,
     duplicateNavLabels: navs.filter((v, i) => navs.indexOf(v) !== i),

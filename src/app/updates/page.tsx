@@ -53,6 +53,11 @@ const UPDATE_SORTS = [
 export default function UpdatesPage({ searchParams }: { searchParams: SearchParams }) {
   return (
     <div className="mx-auto max-w-3xl px-4 py-2 lg:px-6 lg:py-6">
+      {/* Visually hidden, for the same reason as /jobs: the top bar's section
+          title is `lg:hidden`, so without this the route had no level-one
+          heading at all above `lg`. */}
+      <h1 className="sr-only">Exam updates</h1>
+
       {/* Search lives in the top bar on this route — see `TopBar`. Suspense
           because these read useSearchParams, which would otherwise opt the
           whole route out of static rendering. */}

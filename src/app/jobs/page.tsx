@@ -79,6 +79,12 @@ function one(value: string | string[] | undefined): string | undefined {
 export default function JobsPage({ searchParams }: { searchParams: SearchParams }) {
   return (
     <div className="mx-auto max-w-3xl px-4 py-2 lg:px-6 lg:py-6">
+      {/* Visually hidden, which keeps the ~230px saving described above while
+          still giving the page exactly one level-one heading. Without it this
+          route had none at all on desktop: the top bar's title is `lg:hidden`,
+          so above `lg` there was nothing for a screen reader to land on. */}
+      <h1 className="sr-only">Government jobs</h1>
+
       {/* Search lives in the top bar on this route — see `TopBar`; only the
           filter row is here. Suspense because it reads useSearchParams, which
           would otherwise opt the whole route out of static rendering. */}
