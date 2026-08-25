@@ -6,6 +6,11 @@ import { env } from "@/lib/env";
 /**
  * Session refresh and route protection.
  *
+ * Named `proxy`, in `src/proxy.ts`. Next 16 renamed this convention from
+ * `middleware`, which now logs a deprecation on every build and is scheduled
+ * for removal. The behaviour, the matcher and the reasoning below are all
+ * unchanged — only the file and the exported function name moved.
+ *
  * Two jobs, both of which have to happen before a page renders:
  *
  * 1. **Refresh the access token.** Supabase tokens are short-lived. Only a
@@ -49,7 +54,7 @@ const PROTECTED = ["/profile", "/tracker", "/for-you", "/admin"] as const;
  */
 const AUTH_ONLY = ["/sign-in", "/sign-up", "/forgot-password"] as const;
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   // Mutable because the Supabase client may rotate cookies mid-call, and the
   // response carrying them has to be rebuilt around the updated request.
   let response = NextResponse.next({ request });
