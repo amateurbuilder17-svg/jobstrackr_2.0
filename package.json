@@ -23,11 +23,12 @@
     "db:validate": "./scripts/validate-schema.sh",
     "db:prove": "./scripts/prove-schema.sh",
     "db:types": "./scripts/gen-types.sh",
-    "db:reset": "supabase db reset && psql postgresql://postgres:postgres@127.0.0.1:54422/postgres -q -c 'vacuum analyze' && echo '\u2713 reset, seeded, vacuumed'",
+    "db:reset": "supabase db reset && psql postgresql://postgres:postgres@127.0.0.1:54422/postgres -q -c 'vacuum analyze' && echo '✓ reset, seeded, vacuumed'",
     "build:local": "./scripts/build-local.sh",
     "traffic": "node scripts/check-traffic-budget.mjs"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.71.0",
     "@supabase/ssr": "0.12.4",
     "@supabase/supabase-js": "2.112.3",
     "clsx": "^2.1.1",
