@@ -37,3 +37,6 @@ tsconfig.tsbuildinfo
 # Schema validation scratch
 /tmp-schema/
 .env.development.local
+
+# Local database dumps — never commit these; they contain user PII.
+backups/
