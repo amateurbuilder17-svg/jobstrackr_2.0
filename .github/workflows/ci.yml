@@ -43,9 +43,15 @@ jobs:
       # `supabase start` applies every migration and runs `seed.sql`, so the
       # build renders real pages against the real schema — which is the only
       # way a build step can catch a query that does not match its table.
+      # Pinned, not `latest`. `latest` makes the action resolve the newest
+      # release through the GitHub API unauthenticated, which is rate-limited
+      # per runner IP — it failed with "rate limit exceeded" on a green commit,
+      # which is the worst kind of CI failure: real-looking and unrelated to the
+      # change. A pinned version skips the lookup and makes the toolchain
+      # reproducible, which is how every other version in this repo is treated.
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.115.0
 
       - name: Start Supabase
         run: supabase start
@@ -93,6 +99,7 @@ jobs:
       - name: Traffic budget
         run: pnpm traffic
 
-      - name: Stop Supabase
-        if: always()
-        run: supabase stop --no-backup
+      # No "stop Supabase" step. The runner is destroyed when the job ends, so
+      # stopping is ceremony — and with `if: always()` it ran even when the CLI
+      # had failed to install, reporting `supabase: command not found` and
+      # burying the actual error.
