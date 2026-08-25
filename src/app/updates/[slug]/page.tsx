@@ -3,7 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
-import { getExamUpdateBySlug, listExamUpdateSlugs } from "@/lib/db/queries/exam-updates";
+import {
+  getExamUpdateBySlug,
+  listExamUpdateSlugsForBuild,
+} from "@/lib/db/queries/exam-updates";
 import { getJobById } from "@/lib/db/queries/jobs";
 import { env } from "@/lib/env";
 import { formatDate } from "@/lib/format/deadline";
@@ -17,8 +20,7 @@ import { CATEGORY_LABELS, CATEGORY_TONE } from "@/lib/updates/categories";
  * hit rather than a function invocation, which was cause #6 of the rebuild.
  */
 export async function generateStaticParams() {
-  const slugs = await listExamUpdateSlugs();
-  return slugs.map(({ slug }) => ({ slug }));
+  return listExamUpdateSlugsForBuild();
 }
 
 export async function generateMetadata({

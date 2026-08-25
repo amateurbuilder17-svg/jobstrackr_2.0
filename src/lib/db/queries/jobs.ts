@@ -3,6 +3,7 @@ import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import type { QueryData } from "@supabase/supabase-js";
 
+import { BUILD_SENTINEL_SLUG, slugsForBuild } from "../build-params";
 import { publicDb } from "../clients";
 import { decodeCursor, toPage, type Page, PAGE_SIZE } from "../cursor";
 import { unwrap, unwrapMaybe } from "../errors";
@@ -175,6 +176,17 @@ export async function getJobBySlug(slug: string): Promise<JobDetail | null> {
   cacheLife("content");
   cacheTag(tags.job(slug));
 
+  // The build-time sentinel is not a row and never will be, so it resolves to
+  // null without a query. This is what makes the sentinel work: it is emitted
+  // precisely when the database is unreachable, and querying for it would
+  // throw for the same reason `generateStaticParams` just failed — turning the
+  // fallback into the very build failure it exists to prevent.
+  //
+  // Deliberately a slug check and not a catch around the query: a real slug
+  // hitting a real database error must still throw. Degrading that to null
+  // would render a 404 and cache it, telling crawlers a live job page is gone.
+  if (slug === BUILD_SENTINEL_SLUG) return null;
+
   return unwrapMaybe(
     "getJobBySlug",
     await detailQuery().eq("slug", slug).eq("status", "published").maybeSingle(),
@@ -294,39 +306,38 @@ export async function listJobSlugs(): Promise<{ slug: string; updated_at: string
   cacheLife("feed");
   cacheTag(tags.jobList(), tags.sitemap());
 
-  return unwrap(
-    "listJobSlugs",
-    await publicDb()
-      .from("jobs")
-      .select("slug, updated_at")
-      .eq("status", "published")
-      .order("updated_at", { ascending: false })
-      .limit(20000),
-  );
+  // Caught here rather than by the caller. The sitemap is generated at build
+  // time, and a rejection escaping a `"use cache"` scope fails the build
+  // outright — the caller's try/catch never runs. Degrading to an empty list
+  // costs one cache window of a four-URL sitemap, which self-heals on the next
+  // revalidation; the alternative costs the whole deploy.
+  try {
+    return unwrap(
+      "listJobSlugs",
+      await publicDb()
+        .from("jobs")
+        .select("slug, updated_at")
+        .eq("status", "published")
+        .order("updated_at", { ascending: false })
+        .limit(20000),
+    );
+  } catch (error) {
+    console.warn(
+      "[listJobSlugs] Unreachable; sitemap omits job pages this cache window.",
+      error instanceof Error ? error.message : error,
+    );
+    return [];
+  }
 }
 
 /**
  * Slugs for `generateStaticParams`, uncached and failure-tolerant.
  *
- * Deliberately separate from `listJobSlugs`. Three reasons:
- *
- *   1. It runs exactly once per build, so caching it buys nothing.
- *   2. A promise that rejects *inside* a `"use cache"` scope cannot be caught
- *      by the caller — Next fails the build before the catch runs.
- *   3. Cache Components requires this to return at least one entry, so it can
- *      validate at build time that the route has no unguarded dynamic access.
- *      Returning an empty array is a hard build error, not a soft fallback.
- *
- * Hence the sentinel. If the database is unreachable — a blip, a paused
- * project — the build still succeeds with one placeholder slug that renders a
- * 404, and every real page renders on first request and caches from then on.
- * The alternative is a failed deploy because Supabase was briefly slow, which
- * trades a self-healing performance dip for a complete outage.
+ * Deliberately separate from `listJobSlugs`; the reasoning lives in
+ * `src/lib/db/build-params.ts`, next to the sentinel it returns.
  */
-export const BUILD_SENTINEL_SLUG = "unavailable-at-build-time";
-
 export async function listJobSlugsForBuild(): Promise<{ slug: string }[]> {
-  try {
+  return slugsForBuild("listJobSlugsForBuild", async () => {
     const { data, error } = await publicDb()
       .from("jobs")
       .select("slug")
@@ -335,18 +346,8 @@ export async function listJobSlugsForBuild(): Promise<{ slug: string }[]> {
       .limit(20000);
 
     if (error) throw error;
-    if (data.length > 0) return data;
-
-    console.warn("[listJobSlugsForBuild] No published jobs found; prerendering none.");
-  } catch (error) {
-    console.warn(
-      "[listJobSlugsForBuild] Database unreachable; prerendering no job pages. " +
-        "They will render on first request and cache from then on.",
-      error instanceof Error ? error.message : error,
-    );
-  }
-
-  return [{ slug: BUILD_SENTINEL_SLUG }];
+    return data;
+  });
 }
 
 /**

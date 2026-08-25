@@ -19,21 +19,17 @@ import { listExamUpdateSlugs } from "@/lib/db/queries/exam-updates";
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const site = env.NEXT_PUBLIC_SITE_URL;
 
-  // Degrades to the static routes if the database is unreachable, for the same
-  // reason generateStaticParams does: a sitemap listing four URLs for one cache
-  // window is a small, self-healing problem, whereas a failed build is an
-  // outage. `allSettled` also means one failing query does not lose the other.
-  const [jobsResult, updatesResult] = await Promise.allSettled([
-    listJobSlugs(),
-    listExamUpdateSlugs(),
-  ]);
-
-  if (jobsResult.status === "rejected" || updatesResult.status === "rejected") {
-    console.warn("[sitemap] Content query failed; emitting static routes only.");
-  }
-
-  const jobs = jobsResult.status === "fulfilled" ? jobsResult.value : [];
-  const updates = updatesResult.status === "fulfilled" ? updatesResult.value : [];
+  // Degrades to the static routes if the database is unreachable: a sitemap
+  // listing four URLs for one cache window is a small, self-healing problem,
+  // whereas a failed build is an outage.
+  //
+  // The degrading happens *inside* each query, not here. This used to be a
+  // `Promise.allSettled` with a rejected-branch fallback, which reads as
+  // correct and cannot work: both queries are `"use cache"`, and a promise
+  // rejecting inside a cache scope fails the build before any caller's handler
+  // runs. Each query now returns an empty array on failure, so there is
+  // nothing left to settle.
+  const [jobs, updates] = await Promise.all([listJobSlugs(), listExamUpdateSlugs()]);
 
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: site, changeFrequency: "daily", priority: 1 },

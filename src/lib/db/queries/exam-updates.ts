@@ -3,6 +3,7 @@ import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import type { QueryData } from "@supabase/supabase-js";
 
+import { BUILD_SENTINEL_SLUG, slugsForBuild } from "../build-params";
 import { publicDb } from "../clients";
 import { decodeCursor, toPage, type Page, PAGE_SIZE } from "../cursor";
 import { unwrap, unwrapMaybe } from "../errors";
@@ -120,10 +121,36 @@ export async function getExamUpdateBySlug(slug: string): Promise<ExamUpdateDetai
   cacheLife("content");
   cacheTag(tags.examUpdate(slug));
 
+  // See `getJobBySlug` — the build-time sentinel resolves to null without a
+  // query, so the placeholder page renders a 404 instead of failing the build.
+  if (slug === BUILD_SENTINEL_SLUG) return null;
+
   return unwrapMaybe(
     "getExamUpdateBySlug",
     await detailQuery().eq("slug", slug).eq("is_published", true).maybeSingle(),
   );
+}
+
+/**
+ * Slugs for `generateStaticParams`, uncached and failure-tolerant.
+ *
+ * Deliberately separate from `listExamUpdateSlugs`; the reasoning lives in
+ * `src/lib/db/build-params.ts`, next to the sentinel it returns. `/updates/[slug]`
+ * previously called the cached query directly, which is what turned an
+ * unreachable database into a failed build rather than a degraded one.
+ */
+export async function listExamUpdateSlugsForBuild(): Promise<{ slug: string }[]> {
+  return slugsForBuild("listExamUpdateSlugsForBuild", async () => {
+    const { data, error } = await publicDb()
+      .from("exam_updates")
+      .select("slug")
+      .eq("is_published", true)
+      .order("updated_at", { ascending: false })
+      .limit(20000);
+
+    if (error) throw error;
+    return data;
+  });
 }
 
 export async function listExamUpdateSlugs(): Promise<{ slug: string; updated_at: string }[]> {
@@ -131,15 +158,25 @@ export async function listExamUpdateSlugs(): Promise<{ slug: string; updated_at:
   cacheLife("feed");
   cacheTag(tags.examUpdateList(), tags.sitemap());
 
-  return unwrap(
-    "listExamUpdateSlugs",
-    await publicDb()
-      .from("exam_updates")
-      .select("slug, updated_at")
-      .eq("is_published", true)
-      .order("updated_at", { ascending: false })
-      .limit(20000),
-  );
+  // Caught here, not by the caller — see `listJobSlugs` for why a rejection
+  // inside a `"use cache"` scope cannot be handled from outside it.
+  try {
+    return unwrap(
+      "listExamUpdateSlugs",
+      await publicDb()
+        .from("exam_updates")
+        .select("slug, updated_at")
+        .eq("is_published", true)
+        .order("updated_at", { ascending: false })
+        .limit(20000),
+    );
+  } catch (error) {
+    console.warn(
+      "[listExamUpdateSlugs] Unreachable; sitemap omits update pages this cache window.",
+      error instanceof Error ? error.message : error,
+    );
+    return [];
+  }
 }
 
 /**

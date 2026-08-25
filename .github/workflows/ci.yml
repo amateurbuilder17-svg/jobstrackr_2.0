@@ -12,7 +12,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +25,49 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      # ── Why CI runs a real database ────────────────────────────────────
+      #
+      # This job used to build against `https://placeholder.supabase.co` on the
+      # stated principle that "the build must succeed without a reachable
+      # database". That principle is sound for a *blip* — and the sentinel in
+      # `src/lib/db/build-params.ts` is what delivers it — but as a CI strategy
+      # it was neither true nor useful: every build failed with ENOTFOUND, and
+      # had done since M12, so nothing had actually been gated in weeks.
+      #
+      # It also meant CI and `pnpm verify` were different gates. `verify` runs
+      # `build:local` against the local stack; CI ran `next build` against a
+      # host that does not resolve. The README tells developers `verify` is
+      # "the same gate CI applies". Now it is.
+      #
+      # `supabase start` applies every migration and runs `seed.sql`, so the
+      # build renders real pages against the real schema — which is the only
+      # way a build step can catch a query that does not match its table.
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start Supabase
+        run: supabase start
+
+      # Read back from the CLI rather than hardcoded. These are the fixed local
+      # demo credentials for a database that exists only inside this runner,
+      # but committing the literal `sb_secret_…` trips GitHub's push protection
+      # — and a workflow that teaches people to click "allow this secret" is
+      # worse than one extra command. Asking the CLI also survives the day it
+      # rotates its defaults.
+      - name: Write local environment
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          cat > .env.development.local <<ENV
+          NEXT_PUBLIC_SUPABASE_URL=${API_URL}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${PUBLISHABLE_KEY}
+          SUPABASE_SECRET_KEY=${SECRET_KEY}
+          NEXT_PUBLIC_SITE_URL=http://localhost:3100
+          REVALIDATE_SECRET=ci00000000000000000000000000000000000000000000000000000000000
+          CRON_SECRET=ci00000000000000000000000000000000000000000000000000000000000
+          ENV
 
       - name: Typecheck
         run: pnpm typecheck
@@ -39,18 +82,7 @@ jobs:
         run: pnpm test
 
       - name: Build
-        run: pnpm build
-        env:
-          # Placeholder values. The build must succeed without a reachable
-          # database: generateStaticParams degrades to prerendering nothing and
-          # pages render on demand instead. A deploy should never fail because
-          # Supabase was briefly slow.
-          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder
-          NEXT_PUBLIC_SITE_URL: https://jobstrackr.in
-          SUPABASE_SECRET_KEY: sb_secret_placeholder
-          REVALIDATE_SECRET: ci000000000000000000000000000000000000000000000000000000000000
-          CRON_SECRET: ci000000000000000000000000000000000000000000000000000000000000
+        run: pnpm build:local
 
       - name: Bundle budget
         run: pnpm budget
@@ -60,3 +92,7 @@ jobs:
       # projection that only just fits is one good week from an outage.
       - name: Traffic budget
         run: pnpm traffic
+
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop --no-backup
