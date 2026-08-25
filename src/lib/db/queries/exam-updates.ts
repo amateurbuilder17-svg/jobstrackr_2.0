@@ -6,7 +6,7 @@ import type { QueryData } from "@supabase/supabase-js";
 import { publicDb } from "../clients";
 import { decodeCursor, toPage, type Page, PAGE_SIZE } from "../cursor";
 import { unwrap, unwrapMaybe } from "../errors";
-import { tags } from "../tags";
+import { SEARCH_CONFIG, tags } from "../tags";
 import type { Database } from "../database.types";
 
 type UpdateCategory = Database["public"]["Enums"]["update_category"];
@@ -148,7 +148,7 @@ export async function searchExamUpdates(
     "searchExamUpdates",
     await cardQuery()
       .eq("is_published", true)
-      .textSearch("search_vector", trimmed, { config: "public.jt_search", type: "websearch" })
+      .textSearch("search_vector", trimmed, { config: SEARCH_CONFIG, type: "websearch" })
       .order("published_at", { ascending: false })
       .limit(limit),
   );

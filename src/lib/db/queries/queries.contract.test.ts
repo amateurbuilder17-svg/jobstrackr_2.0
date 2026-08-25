@@ -169,3 +169,35 @@ describe("card selects stay narrow", () => {
     }
   });
 });
+
+/**
+ * The contract above checks that every query is bounded and names its columns.
+ * It cannot tell whether a filter was *applied* — a query that ignores its
+ * search term satisfies both properties perfectly, which is exactly how
+ * `listJobs` shipped for several modules with a search box that filtered
+ * nothing. This asserts the term reaches the wire.
+ */
+describe("filters actually reach the query", () => {
+  it("listJobs sends the search term to Postgres", async () => {
+    await (await jobs()).listJobs({ query: "nurse" });
+
+    const search = requests.find((u) => u.searchParams.has("search_vector"));
+    expect(search, "no full-text filter was sent").toBeDefined();
+    expect(search?.searchParams.get("search_vector")).toContain("nurse");
+  });
+
+  it("a single character sends no filter, rather than an empty result", async () => {
+    // Mid-typing should not blank the page, so one character is treated as no
+    // filter at all — the query must go out without a search predicate.
+    await (await jobs()).listJobs({ query: "n" });
+
+    const search = requests.find((u) => u.searchParams.has("search_vector"));
+    expect(search, "a one-character term should not filter").toBeUndefined();
+  });
+
+  it("listJobs sends the tag filter", async () => {
+    await (await jobs()).listJobs({ tag: "banking" });
+    const tagged = requests.find((u) => u.searchParams.has("tags"));
+    expect(tagged, "no tag filter was sent").toBeDefined();
+  });
+});

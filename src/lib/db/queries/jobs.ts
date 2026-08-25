@@ -6,7 +6,7 @@ import type { QueryData } from "@supabase/supabase-js";
 import { publicDb } from "../clients";
 import { decodeCursor, toPage, type Page, PAGE_SIZE } from "../cursor";
 import { unwrap, unwrapMaybe } from "../errors";
-import { tags } from "../tags";
+import { SEARCH_CONFIG, tags } from "../tags";
 
 /**
  * Job reads.
@@ -103,6 +103,25 @@ export async function listJobs(options: JobListOptions = {}): Promise<Page<JobCa
     query = query.eq("organizations.slug", options.organizationSlug);
   if (options.tag) query = query.contains("tags", [options.tag]);
   if (options.state) query = query.eq("state", options.state);
+
+  // Full-text search, against the generated `search_vector` and its GIN index.
+  //
+  // This was declared in JobListOptions and passed in by /jobs from the first
+  // version of this file, and never applied — the search box filtered nothing
+  // for anyone. The contract test covering it asserted only that the query was
+  // bounded and named its columns, both of which were true of a query that
+  // ignored the term entirely, so it passed throughout.
+  //
+  // A single character is treated as no filter rather than as a search that
+  // matches nothing: it is almost always a keystroke on the way to a real
+  // term, and emptying the page mid-typing reads as breakage.
+  const term = options.query?.trim() ?? "";
+  if (term.length >= 2) {
+    query = query.textSearch("search_vector", term, {
+      config: SEARCH_CONFIG,
+      type: "websearch",
+    });
+  }
 
   const rows = unwrap("listJobs", await query);
 

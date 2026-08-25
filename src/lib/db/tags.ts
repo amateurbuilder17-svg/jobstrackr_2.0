@@ -59,3 +59,17 @@ export function isKnownTag(tag: string): boolean {
   const prefix = tag.includes(":") ? tag.slice(0, tag.indexOf(":")) : tag;
   return (TAG_PREFIXES as readonly string[]).includes(prefix);
 }
+
+/**
+ * The text-search configuration name, as PostgREST will accept it.
+ *
+ * Bare, not schema-qualified. `public.jt_search` is the correct SQL name and
+ * the obvious thing to write, but PostgREST parses the dot as part of its own
+ * filter grammar and rejects the whole query with PGRST100 — "unexpected '.'
+ * expecting operator". The unqualified name resolves through search_path to
+ * the same configuration.
+ *
+ * Shared because both search paths had the qualified form and both were broken
+ * by it; one of them silently, because nothing called it yet.
+ */
+export const SEARCH_CONFIG = "jt_search";
