@@ -4,6 +4,7 @@ import { TodayProvider } from "@/components/jobs/today-provider";
 import { SavedProvider } from "@/components/saved/saved-provider";
 import { BottomNav } from "./bottom-nav";
 import { Sidebar } from "./sidebar";
+import { SiteFooter } from "./site-footer";
 import { TopBar } from "./top-bar";
 
 /**
@@ -33,6 +34,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <SavedProvider>{children}</SavedProvider>
           </TodayProvider>
         </main>
+        <SiteFooter />
       </div>
       <BottomNav />
     </div>

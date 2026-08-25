@@ -141,6 +141,12 @@ const nextConfig: NextConfig = {
       // this app — a 301 into a 404, which satisfies "resolves 301" while
       // being worse for the visitor than no redirect at all. Both now land
       // somewhere real.
+      // FormMate was the old app's form-filling assistant. It is not rebuilt —
+      // it depended on the document upload and OCR that this schema deliberately
+      // dropped. The jobs list is where someone looking for it actually wants to
+      // end up; a 404 was the previous answer and told them nothing.
+      { source: "/formmate", destination: "/jobs", permanent: true },
+
       { source: "/user-manual", destination: "/", permanent: true },
       { source: "/faq", destination: "/", permanent: true },
       { source: "/help", destination: "/", permanent: true },

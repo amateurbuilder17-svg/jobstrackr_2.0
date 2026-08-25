@@ -1,8 +1,9 @@
 {
-  "_comment": "First-load JS per route, gzipped, in kilobytes \u2014 what a modern browser actually downloads. Legacy noModule polyfills are excluded. Raising a number here is a deliberate, reviewable act; see docs/REBUILD-PLAN.md M0.",
+  "_comment": "First-load JS per route, gzipped, in kilobytes — what a modern browser actually downloads. Legacy noModule polyfills are excluded. Raising a number here is a deliberate, reviewable act; see docs/REBUILD-PLAN.md M0.",
   "_baselineKb": 134,
-  "_baselineNote": "Measured framework floor: React 19 + Next 16 App Router shared runtime, on an empty page. Every route pays this. The default below leaves ~21 kB for route-specific code before CI complains.",
-  "defaultRouteKb": 155,
+  "_baselineNote": "Measured framework floor: React 19 + Next 16 App Router shared runtime, on an empty page. Every route pays this. The default below leaves ~24 kB for route-specific code before CI complains.",
+  "defaultRouteKb": 158,
+  "_raisedNote": "155 → 158 when the production hygiene batch landed. Every route rose by the same 1.9 kB, so this is a shift in the floor rather than one page getting fat, and it was measured rather than assumed: removing error.tsx and rebuilding put the heaviest route back to 154.6 kB. The 1.9 kB is 0.8 kB of root error boundary — a Client Component by requirement, since a boundary has to run in the browser to catch a client render — and 1.1 kB of footer payload, which is what makes the legal pages reachable. Both are conditions of shipping, not features. The remaining headroom against the 134 kB floor is unchanged in spirit; this is not permission to drift.",
   "routes": {},
   "_unmeasuredNote": "Routes that emit no prerendered scripts because they are blocking (`export const instant = false`). They are never CDN-served, so first-load JS is not the figure that matters for them. Listing one here is a deliberate act: an unlisted route with no scripts still fails the build, so a route cannot drift out of measurement by accident.",
   "unmeasured": ["/admin", "/admin/jobs", "/admin/updates", "/admin/egress"]
