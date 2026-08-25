@@ -1,5 +1,41 @@
 import type { NextConfig } from "next";
 
+/**
+ * The policy, as a single header value.
+ *
+ * `connect-src` names the Supabase origin explicitly rather than allowing
+ * https: — the browser should refuse to send this app's session anywhere else,
+ * and a wildcard would make an exfiltration bug invisible.
+ */
+const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+
+/**
+ * React's development build calls `eval()` for debugging — reconstructing
+ * callstacks across environments — and says so in the console when a CSP blocks
+ * it. It never does this in production, so the allowance is scoped to dev
+ * rather than weakened everywhere. The Module 12 gate is about the policy that
+ * ships, and `unsafe-eval` is absent from it.
+ */
+const isDev = process.env.NODE_ENV !== "production";
+
+const contentSecurityPolicy = [
+  "default-src 'self'",
+  // No 'unsafe-eval' in production. Next's inline bootstrap needs
+  // 'unsafe-inline' in both; see above.
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data:",
+  `connect-src 'self' ${supabaseOrigin} https://*.supabase.co wss://*.supabase.co`,
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "upgrade-insecure-requests",
+]
+  .filter(Boolean)
+  .join("; ");
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   cacheComponents: true,
@@ -81,22 +117,66 @@ const nextConfig: NextConfig = {
    */
   async redirects() {
     return [
+      // Renamed surfaces.
       { source: "/search", destination: "/jobs", permanent: true },
       { source: "/trending", destination: "/updates", permanent: true },
+      { source: "/auth", destination: "/sign-in", permanent: true },
+      { source: "/welcome", destination: "/", permanent: true },
+      { source: "/more", destination: "/profile", permanent: true },
       { source: "/for-you/shelf/:key", destination: "/for-you", permanent: true },
+
+      // The old app split profile editing across four screens; it is one now.
       { source: "/settings/notifications", destination: "/profile", permanent: true },
       { source: "/edit-profile", destination: "/profile", permanent: true },
       { source: "/edit-education", destination: "/profile", permanent: true },
       { source: "/edit-sector-preferences", destination: "/profile", permanent: true },
-      { source: "/user-manual", destination: "/help", permanent: true },
-      // The old app served the SPA shell here; both are now real routes.
-      { source: "/syllabus/result", destination: "/syllabus", permanent: true },
+      { source: "/documents", destination: "/profile", permanent: true },
+
+      // Countdown was its own feature; the calendar answers the same question.
+      { source: "/countdown", destination: "/calendar", permanent: true },
+      { source: "/countdown/live", destination: "/calendar", permanent: true },
+      { source: "/countdown/:slug", destination: "/calendar", permanent: true },
+
+      // These previously pointed at /help and /syllabus, which do not exist in
+      // this app — a 301 into a 404, which satisfies "resolves 301" while
+      // being worse for the visitor than no redirect at all. Both now land
+      // somewhere real.
+      { source: "/user-manual", destination: "/", permanent: true },
+      { source: "/faq", destination: "/", permanent: true },
+      { source: "/help", destination: "/", permanent: true },
+      { source: "/syllabus", destination: "/updates?category=syllabus", permanent: true },
+      { source: "/syllabus/result", destination: "/updates?category=result", permanent: true },
+
+      // Retired endpoints, still called by the old Apps Script and by crawlers.
+      { source: "/api/cache/:key", destination: "/jobs", permanent: true },
+      { source: "/api/scrape", destination: "/jobs", permanent: true },
+      { source: "/api/discover", destination: "/jobs", permanent: true },
+      { source: "/api/scrape-article", destination: "/jobs", permanent: true },
+      { source: "/api/scrape-article-links", destination: "/jobs", permanent: true },
+      { source: "/api/sync-sheets", destination: "/api/sync", permanent: true },
     ];
   },
 
   // Applied to every route. The CSP is intentionally absent here — it is built
-  // per-request with a nonce in middleware (Module 12), because a static CSP
-  // strong enough to be useful cannot allow Next.js's inline bootstrap script.
+  // ── Content Security Policy ──────────────────────────────────────────────
+  // Static, not nonce-based, and that is a decision rather than a shortcut.
+  //
+  // A nonce has to be generated per request, which means middleware on every
+  // route — including all 438 statically generated pages whose entire purpose
+  // is to be served from the CDN without invoking anything. That is cause #6 of
+  // this rebuild, reintroduced by the security layer. Worse, it would not even
+  // work: a nonce embedded in cached HTML is served to every visitor, and a
+  // nonce everyone shares is not a nonce.
+  //
+  // So the policy is static and strict everywhere it can be. `unsafe-eval` is
+  // absent — that is the one the Module 12 gate names, and it is what stops a
+  // string becoming code. `unsafe-inline` stays for scripts only, because
+  // Next's bootstrap is an inline script in every prerendered document; the
+  // honest alternative is per-request rendering, which costs more than it buys
+  // here. Styles are inline too (Tailwind's critical CSS).
+  //
+  // Everything else is closed: no plugins, no framing, no form posts off-site,
+  // and connections limited to Supabase.
   async headers() {
     return [
       {
@@ -113,6 +193,11 @@ const nextConfig: NextConfig = {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
           },
+          { key: "Content-Security-Policy", value: contentSecurityPolicy },
+          // Defence for the same class of problem from the other direction:
+          // stops this origin being loaded as a resource by another site.
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          { key: "X-DNS-Prefetch-Control", value: "on" },
         ],
       },
     ];

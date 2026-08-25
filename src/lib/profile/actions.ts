@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { type FormState } from "@/lib/auth/form-state";
 import { educationSchema, fieldErrors, profileSchema } from "@/lib/auth/schemas";
 import { getUser } from "@/lib/auth/session";
+import { consume, LIMITS } from "@/lib/rate-limit";
 import { sessionDb } from "@/lib/db/clients";
 
 /**
@@ -25,6 +26,10 @@ export async function updateProfileAction(
 ): Promise<FormState> {
   const user = await getUser();
   if (!user) return { ok: false, errors: { form: "Your session has expired." } };
+
+  if (!consume(`form:${user.id}`, LIMITS.form)) {
+    return { ok: false, errors: { form: "Too many changes at once. Try again shortly." } };
+  }
 
   const parsed = profileSchema.safeParse({
     fullName: formData.get("fullName"),
@@ -79,6 +84,10 @@ export async function upsertEducationAction(
   const user = await getUser();
   if (!user) return { ok: false, errors: { form: "Your session has expired." } };
 
+  if (!consume(`form:${user.id}`, LIMITS.form)) {
+    return { ok: false, errors: { form: "Too many changes at once. Try again shortly." } };
+  }
+
   const parsed = educationSchema.safeParse({
     level: formData.get("level"),
     discipline: formData.get("discipline"),
@@ -119,6 +128,10 @@ export async function deleteEducationAction(
 ): Promise<FormState> {
   const user = await getUser();
   if (!user) return { ok: false, errors: { form: "Your session has expired." } };
+
+  if (!consume(`form:${user.id}`, LIMITS.form)) {
+    return { ok: false, errors: { form: "Too many changes at once. Try again shortly." } };
+  }
 
   const id = formData.get("id");
   if (typeof id !== "string" || id === "") {

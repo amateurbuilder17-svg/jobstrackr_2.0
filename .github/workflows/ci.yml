@@ -54,3 +54,9 @@ jobs:
 
       - name: Bundle budget
         run: pnpm budget
+
+      # The arithmetic the old project never did: a month of modelled traffic
+      # against every free-tier ceiling. Fails at 50% of any limit, because a
+      # projection that only just fits is one good week from an outage.
+      - name: Traffic budget
+        run: pnpm traffic

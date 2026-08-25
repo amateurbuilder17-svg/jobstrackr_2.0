@@ -19,12 +19,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "budget": "node scripts/check-budget.mjs",
-    "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm build:local && pnpm budget",
+    "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm build:local && pnpm budget && pnpm traffic",
     "db:validate": "./scripts/validate-schema.sh",
     "db:prove": "./scripts/prove-schema.sh",
     "db:types": "./scripts/gen-types.sh",
     "db:reset": "supabase db reset && psql postgresql://postgres:postgres@127.0.0.1:54422/postgres -q -c 'vacuum analyze' && echo '\u2713 reset, seeded, vacuumed'",
-    "build:local": "./scripts/build-local.sh"
+    "build:local": "./scripts/build-local.sh",
+    "traffic": "node scripts/check-traffic-budget.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.4",

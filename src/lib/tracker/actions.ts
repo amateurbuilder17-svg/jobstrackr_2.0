@@ -6,6 +6,7 @@ import { z } from "zod";
 import { type FormState } from "@/lib/auth/form-state";
 import { fieldErrors } from "@/lib/auth/schemas";
 import { getUser } from "@/lib/auth/session";
+import { consume, LIMITS } from "@/lib/rate-limit";
 import { sessionDb } from "@/lib/db/clients";
 import { ATTEMPT_STATUSES } from "./enums";
 import { attemptSchema } from "./schema";
@@ -25,6 +26,10 @@ export async function saveAttemptAction(
 ): Promise<FormState> {
   const user = await getUser();
   if (!user) return { ok: false, errors: { form: "Your session has expired." } };
+
+  if (!consume(`form:${user.id}`, LIMITS.form)) {
+    return { ok: false, errors: { form: "Too many changes at once. Try again shortly." } };
+  }
 
   const parsed = attemptSchema.safeParse({
     examId: formData.get("examId"),
@@ -87,6 +92,10 @@ export async function setAttemptStatusAction(
   const user = await getUser();
   if (!user) return { ok: false, errors: { form: "Your session has expired." } };
 
+  if (!consume(`form:${user.id}`, LIMITS.form)) {
+    return { ok: false, errors: { form: "Too many changes at once. Try again shortly." } };
+  }
+
   const parsed = z
     .object({ id: z.uuid(), status: z.enum(ATTEMPT_STATUSES) })
     .safeParse({ id: formData.get("id"), status: formData.get("status") });
@@ -112,6 +121,10 @@ export async function deleteAttemptAction(
 ): Promise<FormState> {
   const user = await getUser();
   if (!user) return { ok: false, errors: { form: "Your session has expired." } };
+
+  if (!consume(`form:${user.id}`, LIMITS.form)) {
+    return { ok: false, errors: { form: "Too many changes at once. Try again shortly." } };
+  }
 
   const id = formData.get("id");
   if (typeof id !== "string" || id === "") {

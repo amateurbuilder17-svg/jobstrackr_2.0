@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { sessionDb } from "@/lib/db/clients";
+import { consume, LIMITS } from "@/lib/rate-limit";
 import { env } from "@/lib/env";
 import { safeNext, type FormState } from "./form-state";
 import {
@@ -127,6 +128,16 @@ export async function requestPasswordResetAction(
 ): Promise<FormState> {
   const parsed = requestPasswordResetSchema.safeParse({ email: formData.get("email") });
   if (!parsed.success) return { ok: false, errors: fieldErrors(parsed.error) };
+
+  // Keyed by address rather than user: there is no session here, and the cost
+  // of abuse falls on whoever owns that inbox. Refusal returns the same message
+  // as success, for the same enumeration reason as everything else on this form.
+  if (!consume(`reset:${parsed.data.email}`, LIMITS.email)) {
+    return {
+      ok: true,
+      message: "If that address has an account, a reset link is on its way.",
+    };
+  }
 
   const db = await sessionDb();
   await db.auth.resetPasswordForEmail(parsed.data.email, {
