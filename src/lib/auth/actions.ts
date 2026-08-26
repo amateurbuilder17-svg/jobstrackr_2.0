@@ -25,6 +25,16 @@ export async function signInAction(_prev: FormState, formData: FormData): Promis
 
   if (!parsed.success) return { ok: false, errors: fieldErrors(parsed.error) };
 
+  // Keyed by the submitted address, so guesses spread across hosts still
+  // converge on one bucket. This leaks nothing about whether the account
+  // exists — an unregistered address is limited exactly the same way.
+  if (!consume(`signin:${parsed.data.email}`, LIMITS.signIn)) {
+    return {
+      ok: false,
+      errors: { form: "Too many sign-in attempts. Wait a minute and try again." },
+    };
+  }
+
   const db = await sessionDb();
   const { error } = await db.auth.signInWithPassword(parsed.data);
 
@@ -53,6 +63,17 @@ export async function signUpAction(_prev: FormState, formData: FormData): Promis
   });
 
   if (!parsed.success) return { ok: false, errors: fieldErrors(parsed.error) };
+
+  // Signup sends a confirmation mail, so an unthrottled form is a way to bill
+  // someone else's inbox — and, since the switch to Resend, our own quota.
+  // Refusal returns the same wording as success for the enumeration reason
+  // described below.
+  if (!consume(`signup:${parsed.data.email}`, LIMITS.email)) {
+    return {
+      ok: true,
+      message: "Check your email for a link to confirm your account.",
+    };
+  }
 
   const db = await sessionDb();
   const { data, error } = await db.auth.signUp({

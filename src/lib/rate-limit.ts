@@ -41,6 +41,16 @@ export const LIMITS = {
   form: { limit: 30, windowMs: 60_000 },
   /** Anything that sends mail, where the cost is someone else's inbox. */
   email: { limit: 5, windowMs: 60_000 },
+  /**
+   * Sign-in attempts against one address.
+   *
+   * Keyed by the address rather than the caller, because the attack this is
+   * for — working a password list against one known account — arrives from
+   * many hosts and a per-IP limit never sees it accumulate. Ten in five
+   * minutes is far more than someone mistyping their own password will ever
+   * need, and slow enough that a list of any length is not worth starting.
+   */
+  signIn: { limit: 10, windowMs: 300_000 },
 } as const satisfies Record<string, RateLimit>;
 
 /**

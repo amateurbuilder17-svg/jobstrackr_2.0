@@ -2,10 +2,11 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "jobstrackr",
+      "name": "jobstrackr-new",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev"],
-      "port": 3000
+      "runtimeArgs": ["dev", "-p", "3100"],
+      "port": 3100,
+      "autoPort": false
     }
   ]
 }
