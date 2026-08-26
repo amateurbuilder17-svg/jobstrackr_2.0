@@ -22,12 +22,28 @@
  *
  * Environment (in .env.local, or exported):
  *
- *   OLD_SUPABASE_URL          the restricted project's URL
- *   OLD_SUPABASE_SECRET_KEY   its service-role key
+ *   OLD_DB_URL                the old project's Postgres URL (preferred)
+ *   OLD_SUPABASE_URL          the restricted project's URL   } only needed
+ *   OLD_SUPABASE_SECRET_KEY   its service-role key           } without OLD_DB_URL
+ *
+ * ## Read over Postgres, not REST
+ *
+ * The old project is restricted with `exceed_egress_quota`, which hard-blocks
+ * every REST and Auth endpoint — so the original read path here could never
+ * have run against it. The restriction is applied at the API gateway and the
+ * database itself still accepts connections, which is Path A in
+ * `docs/DATA-EXPORT.md`. Set `OLD_DB_URL` and the reader goes straight to
+ * Postgres through `psql`; the REST path stays for a project that is not
+ * restricted.
+ *
+ * `psql` rather than a Postgres driver on purpose: this repo already depends on
+ * it (`db:reset`, `db:prove`), and a one-off backfill should not add a runtime
+ * dependency to `package.json` for the rest of the project's life.
  *   SYNC_ENDPOINT             defaults to http://localhost:3100/api/sync
  *   SHEETS_SYNC_SECRET        the same secret the Apps Script trigger sends
  */
 
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -48,8 +64,43 @@ const POST_CHUNK = 100;
 
 loadEnvLocal();
 
-const OLD_URL = required("OLD_SUPABASE_URL");
-const OLD_KEY = required("OLD_SUPABASE_SECRET_KEY");
+/**
+ * `--kind jobs` is disabled, and this is not caution — it is an incident.
+ *
+ * `/api/sync` deduplicates on `sha256(source_url + "\n" + title)`. The old
+ * `jobs` table has **no `source_url` column**, so `toJobFeedRow` falls back to
+ * `apply_link`, then to a `legacy:<slug>` sentinel. Neither reproduces the
+ * source URL the existing rows were imported with, so every row hashes to a key
+ * that matches nothing and the worker does the correct thing with an unknown
+ * key: it inserts.
+ *
+ * Run against production on 26 Aug 2026 this created 98 duplicate listings with
+ * `-2` slugs before a `jobs_dates_ordered` violation stopped the batch. The old
+ * `dedupe_key` column cannot rescue it either — it is a different scheme
+ * entirely (`normalised title || normalised organisation`, not a hash).
+ *
+ * The join that does work is `slug`: 40 of 40 sampled old slugs resolve to
+ * exactly one row in the new project. So enriching the cold half means matching
+ * on slug and writing `job_details` for rows that already exist — an update
+ * path, not an ingest path. That belongs in its own script; replaying through
+ * `/api/sync` cannot express "enrich this existing row".
+ *
+ * `--kind exam_updates` is untouched: it was never run, and its own column list
+ * has the same never-validated problem, so treat it as unproven too.
+ */
+if (KIND === "jobs" && APPLY) {
+  console.error(
+    "refusing --kind jobs: /api/sync cannot match the old rows and inserts\n" +
+      "duplicates instead. See the comment above this check. Use a slug-joined\n" +
+      "job_details update instead.",
+  );
+  process.exit(1);
+}
+
+// Postgres if we have it, REST otherwise. Exactly one of the two is required.
+const OLD_DB_URL = process.env.OLD_DB_URL ?? "";
+const OLD_URL = OLD_DB_URL ? "" : required("OLD_SUPABASE_URL");
+const OLD_KEY = OLD_DB_URL ? "" : required("OLD_SUPABASE_SECRET_KEY");
 const ENDPOINT = process.env.SYNC_ENDPOINT ?? "http://localhost:3100/api/sync";
 const SECRET = required("SHEETS_SYNC_SECRET");
 
@@ -62,7 +113,11 @@ const JOB_COLUMNS = [
   "title",
   "department",
   "location",
-  "state",
+  // No `state` and no `source_url`: neither column exists on the old `jobs`
+  // table. Selecting them failed the read outright — over REST as well as over
+  // Postgres — which is how this script had never actually run. `state` is
+  // derived from `location` by the normaliser, and `toJobFeedRow` already falls
+  // back to `apply_link` then a `legacy:` sentinel for the source URL.
   "vacancies",
   "qualification",
   "salary_min",
@@ -72,12 +127,14 @@ const JOB_COLUMNS = [
   "application_fee",
   "last_date",
   "last_date_display",
+  "vacancies_display",
+  "application_start_date",
+  "tags",
   "apply_link",
   "official_website",
   "description",
   "eligibility",
   "experience",
-  "source_url",
   "slug",
   "created_at",
   "job_metadata",
@@ -95,8 +152,11 @@ const UPDATE_COLUMNS = [
   "download_links",
   "sections",
   "overview",
-  "exam_name",
-  "conducting_body",
+  // `exam_name` and `conducting_body` are not columns on the old
+  // `exam_updates` either — they were denormalised values this script expected
+  // to find and never could. The new project already holds all 5,374 update
+  // rows, so nothing is lost by reading what exists.
+  "tags",
 ].join(",");
 
 /**
@@ -112,7 +172,20 @@ function toJobFeedRow(row) {
     source_url: row.source_url ?? row.apply_link ?? `legacy:${row.slug ?? row.id}`,
     organization: row.department,
     location: row.location,
-    state: row.state,
+    // `state` is not a column on the old table, and ingest writes whatever the
+    // feed says — so sending nothing would null it on all 5,788 rows and take
+    // the state filter with it.
+    //
+    // Mapping it from `location` is not a guess: `state` in the new project is
+    // already a verbatim copy of `location` on every row sampled (1,000/1,000,
+    // 258 distinct values including "New Delhi, Delhi" and "Not Available").
+    // This reproduces exactly what is there, so the backfill cannot lose it.
+    // Making `state` mean an actual state is real work and a separate change —
+    // see PRODUCTION-READINESS.md.
+    state: row.location,
+    vacancies_display: row.vacancies_display,
+    application_start_date: row.application_start_date,
+    tags: row.tags,
     vacancies: row.vacancies,
     qualification_summary: row.qualification,
     salary_min: row.salary_min,
@@ -140,8 +213,6 @@ function toUpdateFeedRow(row) {
     category: row.category,
     summary: row.summary,
     published_date: row.published_date,
-    organization: row.conducting_body,
-    exam_name: row.exam_name,
     important_dates: row.important_dates,
     download_links: row.download_links,
     sections: row.sections,
@@ -151,6 +222,46 @@ function toUpdateFeedRow(row) {
 
 /* ── Read ──────────────────────────────────────────────────────────────── */
 
+/**
+ * One page of rows, straight out of Postgres.
+ *
+ * `psql` emits the whole page as a single JSON document, so there is no
+ * row-splitting or type-guessing to get wrong — `json_agg` gives real JSON
+ * types, including the `job_metadata` object this backfill exists to carry.
+ *
+ * The connection string is passed as an argument rather than through the
+ * environment because `execFileSync` does not go through a shell, so the
+ * password cannot be split, globbed or logged by one.
+ */
+function readPageViaPg(table, columns, after, limit) {
+  const selectList = columns
+    .split(",")
+    .map((c) => `"${c.trim()}"`)
+    .join(", ");
+
+  // `after` is a uuid this script read from the previous page, never user
+  // input — but it is still concatenated into SQL, so it is checked rather
+  // than trusted.
+  if (after && !/^[0-9a-fA-F-]{1,64}$/.test(after)) {
+    throw new Error(`refusing to page from a non-uuid cursor: ${after}`);
+  }
+
+  // Keyset on id::text, matching the REST path's ordering exactly so the two
+  // readers page identically.
+  const where = after ? `where "id"::text > '${after}'` : "";
+  const sql =
+    `select coalesce(json_agg(t), '[]'::json) from (` +
+    `select ${selectList} from public."${table}" ${where} ` +
+    `order by "id"::text asc limit ${Number(limit)}) t`;
+
+  const out = execFileSync("psql", [OLD_DB_URL, "-t", "-A", "-X", "-q", "-c", sql], {
+    encoding: "utf8",
+    maxBuffer: 512 * 1024 * 1024,
+  });
+
+  return JSON.parse(out.trim() || "[]");
+}
+
 async function* readOldRows() {
   const table = KIND === "jobs" ? "jobs" : "exam_updates";
   const columns = KIND === "jobs" ? JOB_COLUMNS : UPDATE_COLUMNS;
@@ -159,6 +270,16 @@ async function* readOldRows() {
   let total = 0;
 
   for (;;) {
+    if (OLD_DB_URL) {
+      const rows = readPageViaPg(table, columns, after, READ_CHUNK);
+      if (rows.length === 0) return;
+      yield rows;
+      total += rows.length;
+      after = rows[rows.length - 1].id;
+      if (total >= LIMIT) return;
+      continue;
+    }
+
     // Keyset pagination on id::text, not OFFSET. Offset gets slower every page
     // and is exactly what times out on this database.
     const url =
