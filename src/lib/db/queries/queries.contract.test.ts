@@ -205,3 +205,54 @@ describe("filters actually reach the query", () => {
     expect(tagged, "no tag filter was sent").toBeDefined();
   });
 });
+
+/**
+ * "Published" does not mean "open" on its own.
+ *
+ * The invariant that makes an ascending sort on `last_date` mean "closing
+ * soon" is maintained by `close_expired_jobs()`, which the ingest worker calls
+ * — so it is true only for as long as ingestion keeps running. When it lapses,
+ * the ascending sort surfaces the *most* expired listings first, and the home
+ * page leads with a row of jobs whose badges all read "Closed". That is how it
+ * was found: 14 of 240 seeded rows were past their date and six of them owned
+ * the top of the page.
+ *
+ * These assert the query refuses expired rows itself, so the feed degrades to
+ * "slightly stale" rather than "confidently wrong" when the worker stops.
+ */
+describe("open-job lists exclude expired rows without help from the worker", () => {
+  /** The `last_date=gte.YYYY-MM-DD` predicate PostgREST receives, if any. */
+  function deadlineFloor(): string | undefined {
+    const url = requests.find((u) =>
+      (u.searchParams.get("last_date") ?? "").startsWith("gte."),
+    );
+    return url?.searchParams.get("last_date")?.slice("gte.".length);
+  }
+
+  it("listJobs filters out deadlines that have already passed", async () => {
+    await (await jobs()).listJobs({ sort: "closing" });
+    expect(deadlineFloor(), "no deadline floor was sent").toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("applies to the newest sort too — a closed job is closed either way", async () => {
+    await (await jobs()).listJobs({ sort: "newest" });
+    expect(deadlineFloor(), "no deadline floor was sent").toBeDefined();
+  });
+
+  it("listHighestVacancy filters out deadlines that have already passed", async () => {
+    await (await jobs()).listHighestVacancy(8);
+    expect(deadlineFloor(), "no deadline floor was sent").toBeDefined();
+  });
+
+  /**
+   * IST, matching `close_expired_jobs()`. A UTC date retires a listing five and
+   * a half hours early for the people it is written for — between 18:30 and
+   * midnight IST the two would disagree about what "today" is.
+   */
+  it("uses the Indian date, not the UTC one", async () => {
+    vi.setSystemTime(new Date("2026-03-09T20:00:00Z")); // 01:30 on the 10th, IST
+    await (await jobs()).listJobs({ sort: "closing" });
+    expect(deadlineFloor()).toBe("2026-03-10");
+    vi.useRealTimers();
+  });
+});

@@ -9,6 +9,7 @@ import { decodeCursor, toPage, type Page, PAGE_SIZE } from "../cursor";
 import { unwrap, unwrapMaybe } from "../errors";
 import { SEARCH_CONFIG, tags } from "../tags";
 import type { Database } from "../database.types";
+import { todayInIndia } from "@/lib/format/deadline";
 
 /**
  * Job reads.
@@ -126,6 +127,31 @@ export async function listJobs(options: JobListOptions = {}): Promise<Page<JobCa
   // which on a filtered table means scanning every match to render a chevron.
   let query = cardQuery()
     .eq("status", "published")
+    // ── Why the date is filtered here as well as by `close_expired_jobs()` ──
+    //
+    // The ordering above is only meaningful if `status = 'published'` really
+    // does mean "still open", and nothing in the schema enforces that — it is
+    // maintained by a function the ingest worker calls. So in the window
+    // between a deadline passing and the next ingest run, an ascending sort on
+    // `last_date` puts *expired* listings at the very top of "Closing soon",
+    // which is the one row where being wrong is most visible.
+    //
+    // Not hypothetical: seeded locally, 14 of 240 published rows were already
+    // past their date, and the home page led with six of them, every badge
+    // reading "Closed". A row promising the next deadline was showing the
+    // oldest dead one.
+    //
+    // `todayInIndia()` rather than a UTC date, so this and the SQL function
+    // agree on the boundary instead of disagreeing for five and a half hours —
+    // a closing date of the 10th means end of the 10th for someone in India.
+    // `jobs_published_has_essentials` guarantees a published row has a
+    // `last_date`, so this cannot silently drop a listing that simply has no
+    // stated deadline.
+    //
+    // The date is captured when the cache entry renders, so the boundary can
+    // lag by up to one `feed` revalidation. That bounds the error at hours
+    // instead of "until someone notices ingestion stopped".
+    .gte("last_date", todayInIndia())
     .order(column, { ascending })
     .order("id", { ascending })
     .limit(limit + 1);
@@ -268,16 +294,28 @@ export interface JobChangeRow {
  * that is what the link renders — pulling a full card to draw one line of text
  * is the habit this codebase's column lists exist to break.
  */
-export async function getJobById(id: string): Promise<{ slug: string; title: string } | null> {
+export async function getJobById(id: string): Promise<{
+  slug: string;
+  title: string;
+  vacancies: number | null;
+  vacancies_display: string | null;
+  last_date: string | null;
+  last_date_display: string | null;
+} | null> {
   "use cache";
   cacheLife("content");
   cacheTag(tags.jobList());
 
+  // Four columns beyond the link itself, because the update page's job card was
+  // a bare title — and the two facts that decide whether someone clicks it are
+  // how many posts there are and how long they have left. The old app's
+  // equivalent banner carried both. This runs on a statically generated page
+  // and only for the 194 updates that have a resolved `job_id`.
   return unwrapMaybe(
     "getJobById",
     await publicDb()
       .from("jobs")
-      .select("slug, title")
+      .select("slug, title, vacancies, vacancies_display, last_date, last_date_display")
       .eq("id", id)
       .eq("status", "published")
       .maybeSingle(),
@@ -414,6 +452,11 @@ export async function listHighestVacancy(limit: number = PAGE_SIZE.rail): Promis
     "listHighestVacancy",
     await cardQuery()
       .eq("status", "published")
+      // "Currently open" is this row's whole claim — see the note in
+      // `listJobs`. Without the date filter it is a claim the query does not
+      // actually check, it just happens to be true whenever ingestion is
+      // healthy.
+      .gte("last_date", todayInIndia())
       .not("vacancies", "is", null)
       .order("vacancies", { ascending: false, nullsFirst: false })
       .order("id", { ascending: false })
