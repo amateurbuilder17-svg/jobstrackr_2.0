@@ -30,3 +30,30 @@ grant usage on schema auth to anon, authenticated, service_role;
 grant select on auth.users to anon, authenticated, service_role;
 grant execute on function auth.uid() to anon, authenticated, service_role;
 grant execute on function auth.role() to anon, authenticated, service_role;
+
+-- ── Vault ──────────────────────────────────────────────────────────────────
+-- Supabase provides this; migration 0024 stores the API-key encryption secret
+-- in it. The stub is deliberately NOT encrypted — it exists so the migration's
+-- DDL, trigger and view can be applied and proved on a vanilla container, not
+-- to reproduce Vault's own guarantees.
+create schema if not exists vault;
+
+create table if not exists vault.secrets (
+  id          uuid primary key default gen_random_uuid(),
+  name        text unique,
+  secret      text not null,
+  description text default '',
+  created_at  timestamptz default now()
+);
+
+create or replace view vault.decrypted_secrets as
+  select id, name, description, created_at, secret as decrypted_secret from vault.secrets;
+
+create or replace function vault.create_secret(
+  new_secret text, new_name text default null, new_description text default ''
+) returns uuid language sql as $$
+  insert into vault.secrets (name, secret, description)
+  values (new_name, new_secret, new_description)
+  on conflict (name) do update set secret = excluded.secret
+  returning id
+$$;

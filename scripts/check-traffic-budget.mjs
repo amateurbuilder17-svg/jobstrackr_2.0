@@ -38,6 +38,12 @@ const TRAFFIC = {
   personalisedSessionsPerMonth: 30 * 30,
   adminSessionsPerMonth: 60,
   syncRunsPerMonth: 30 * 24, // hourly Apps Script trigger
+  // Exam-status refreshes. The per-user ceiling is 10/day, but the cache is
+  // shared by subject and most looks are answered from it, so this models the
+  // ones that reach the route at all: roughly one per personalised session.
+  // The nightly cron adds its own fixed batch.
+  statusRefreshesPerMonth: 30 * 30,
+  statusCronCallsPerMonth: 30 * 6,
 };
 
 /* ── Measured payloads, in kilobytes ───────────────────────────────────── */
@@ -55,6 +61,12 @@ const PAYLOAD = {
   // A sync run reads the feed and writes only what changed; the read is the
   // Apps Script side, so what counts here is the diff query plus writes.
   syncRunKb: 60,
+  // One exam-status refresh against Supabase: the attempt with its joins, the
+  // cached report, the quota claim, the upsert. The model call itself is
+  // Google's bandwidth, not Vercel's or Supabase's.
+  statusRefreshKb: 12,
+  // The tracker's own read: one page of attempts plus their cached reports.
+  trackerPageKb: 18,
 };
 
 const KB_PER_GB = 1024 * 1024;
@@ -76,7 +88,9 @@ const vercelKb =
 const supabaseKb =
   TRAFFIC.personalisedSessionsPerMonth * (PAYLOAD.forYouRpcKb + PAYLOAD.savedIdsKb) +
   TRAFFIC.adminSessionsPerMonth * PAYLOAD.adminSessionKb +
-  TRAFFIC.syncRunsPerMonth * PAYLOAD.syncRunKb;
+  TRAFFIC.syncRunsPerMonth * PAYLOAD.syncRunKb +
+  TRAFFIC.personalisedSessionsPerMonth * PAYLOAD.trackerPageKb +
+  (TRAFFIC.statusRefreshesPerMonth + TRAFFIC.statusCronCallsPerMonth) * PAYLOAD.statusRefreshKb;
 
 // Invocations: static pages do not invoke. Personalised routes, API routes and
 // sync runs do.
@@ -84,6 +98,8 @@ const invocations =
   TRAFFIC.personalisedSessionsPerMonth * 6 +
   TRAFFIC.adminSessionsPerMonth * 8 +
   TRAFFIC.syncRunsPerMonth +
+  TRAFFIC.statusRefreshesPerMonth +
+  TRAFFIC.statusCronCallsPerMonth +
   humanPageViews * 0.1; // server actions: saves, form posts
 
 const projection = {

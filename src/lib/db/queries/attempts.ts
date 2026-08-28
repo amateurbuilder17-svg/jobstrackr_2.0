@@ -4,7 +4,7 @@ import { cacheLife, cacheTag } from "next/cache";
 
 import { publicDb, sessionDb } from "../clients";
 import { PAGE_SIZE } from "../cursor";
-import { unwrap } from "../errors";
+import { DbError, unwrap } from "../errors";
 import { tags } from "../tags";
 import type { Database } from "../database.types";
 
@@ -57,6 +57,59 @@ export async function listExamAttempts(): Promise<ExamAttempt[]> {
   );
 
   return rows;
+}
+
+/**
+ * One attempt, with everything the status prompt needs to name its subject.
+ *
+ * A separate query from `listExamAttempts` rather than widening it: the
+ * conducting body and the official website are two extra joins that the list
+ * never renders, and this is fetched once per refresh rather than once per row.
+ */
+export interface AttemptSubject {
+  id: string;
+  exam_id: string | null;
+  job_id: string | null;
+  custom_name: string | null;
+  stage: string | null;
+  status: string;
+  exam_date: string | null;
+  result_date: string | null;
+  exam: {
+    name: string;
+    official_website: string | null;
+    organization: { name: string } | null;
+  } | null;
+  job: {
+    title: string;
+    source_url: string | null;
+    organization: { name: string } | null;
+  } | null;
+}
+
+const SUBJECT_COLUMNS =
+  "id, exam_id, job_id, custom_name, stage, status, exam_date, result_date, " +
+  "exam:exams ( name, official_website, organization:organizations ( name ) ), " +
+  "job:jobs ( title, source_url, organization:organizations ( name ) )";
+
+/**
+ * Returns null for an id that is not this user's, rather than throwing.
+ *
+ * RLS is what enforces that — the filter below is belt to its braces — and a
+ * forged id therefore reads as "no such attempt", which is both true from the
+ * caller's perspective and the answer that leaks least.
+ */
+export async function getAttemptSubject(id: string): Promise<AttemptSubject | null> {
+  const db = await sessionDb();
+
+  const { data, error } = await db
+    .from("exam_attempts")
+    .select(SUBJECT_COLUMNS)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw new DbError("getAttemptSubject", error);
+  return data as AttemptSubject | null;
 }
 
 export interface ExamOption {

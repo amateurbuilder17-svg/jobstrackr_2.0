@@ -62,6 +62,37 @@ const serverSchema = z.object({
   APPS_SCRIPT_WEBAPP_URL: url.optional().or(z.literal("")),
   SHEETS_SYNC_SECRET: z.string().optional(),
 
+  // Gemini, for the tracker's exam-status refresh. Optional, and deliberately:
+  // an environment without a key still boots and still serves every page — the
+  // refresh button reports that the feature is not configured rather than the
+  // app refusing to start over something only one panel uses.
+  GEMINI_API_KEY: z.string().optional(),
+  // A comma-separated pool, for spreading free-tier per-key rate limits. Empty
+  // in most environments; `GEMINI_API_KEY` alone is a pool of one.
+  GEMINI_API_KEYS: z.string().optional(),
+  // The numbered pool, written out longhand because that is the naming the old
+  // project used and the naming these keys are already stored under. Nine
+  // optional lines is a fair price for making an existing setup paste across
+  // without being renamed first.
+  //
+  // The database pool (`api_keys_config`) still wins over all of these — it is
+  // the only one that can count errors, cool a key down for 65 seconds, and
+  // switch a dead one off. These are the fallback.
+  GEMINI_API_KEY_2: z.string().optional(),
+  GEMINI_API_KEY_3: z.string().optional(),
+  GEMINI_API_KEY_4: z.string().optional(),
+  GEMINI_API_KEY_5: z.string().optional(),
+  GEMINI_API_KEY_6: z.string().optional(),
+  GEMINI_API_KEY_7: z.string().optional(),
+  GEMINI_API_KEY_8: z.string().optional(),
+  GEMINI_API_KEY_9: z.string().optional(),
+  GEMINI_API_KEY_10: z.string().optional(),
+  // Overridable because model names are the part of this that ages fastest, and
+  // a rename should be an environment variable rather than a deploy. Google
+  // Search grounding is a hard requirement of the feature, so a model chosen
+  // here must support the `google_search` tool.
+  GEMINI_MODEL: nonEmpty.default("gemini-2.5-flash"),
+
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 

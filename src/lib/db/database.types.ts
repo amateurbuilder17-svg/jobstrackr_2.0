@@ -9,6 +9,78 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      ai_usage: {
+        Row: {
+          day: string
+          kind: string
+          last_at: string
+          used: number
+          user_id: string
+        }
+        Insert: {
+          day: string
+          kind: string
+          last_at?: string
+          used?: number
+          user_id: string
+        }
+        Update: {
+          day?: string
+          kind?: string
+          last_at?: string
+          used?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      api_keys_config: {
+        Row: {
+          api_key: string
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string | null
+          last_error: string | null
+          last_used_at: string | null
+          model_name: string
+          priority: number
+          provider: string
+          total_calls: number
+          total_errors: number
+          updated_at: string
+        }
+        Insert: {
+          api_key: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          last_error?: string | null
+          last_used_at?: string | null
+          model_name?: string
+          priority?: number
+          provider?: string
+          total_calls?: number
+          total_errors?: number
+          updated_at?: string
+        }
+        Update: {
+          api_key?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          last_error?: string | null
+          last_used_at?: string | null
+          model_name?: string
+          priority?: number
+          provider?: string
+          total_calls?: number
+          total_errors?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       documents: {
         Row: {
           created_at: string
@@ -143,6 +215,66 @@ export type Database = {
           },
           {
             foreignKeyName: "exam_attempts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exam_status_reports: {
+        Row: {
+          confidence: number | null
+          created_at: string
+          exam_id: string | null
+          grounded: boolean
+          job_id: string | null
+          model: string
+          refresh_count: number
+          refreshed_at: string
+          report: Json
+          sources: Json
+          subject_key: string
+          subject_label: string
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string
+          exam_id?: string | null
+          grounded?: boolean
+          job_id?: string | null
+          model: string
+          refresh_count?: number
+          refreshed_at?: string
+          report: Json
+          sources?: Json
+          subject_key: string
+          subject_label: string
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string
+          exam_id?: string | null
+          grounded?: boolean
+          job_id?: string | null
+          model?: string
+          refresh_count?: number
+          refreshed_at?: string
+          report?: Json
+          sources?: Json
+          subject_key?: string
+          subject_label?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exam_status_reports_exam_id_fkey"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exam_status_reports_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
@@ -1040,7 +1172,54 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      decrypted_api_keys_config: {
+        Row: {
+          api_key: string | null
+          created_at: string | null
+          id: string | null
+          is_active: boolean | null
+          label: string | null
+          last_error: string | null
+          last_used_at: string | null
+          model_name: string | null
+          priority: number | null
+          provider: string | null
+          total_calls: number | null
+          total_errors: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          api_key?: never
+          created_at?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          label?: string | null
+          last_error?: string | null
+          last_used_at?: string | null
+          model_name?: string | null
+          priority?: number | null
+          provider?: string | null
+          total_calls?: number | null
+          total_errors?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          api_key?: never
+          created_at?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          label?: string | null
+          last_error?: string | null
+          last_used_at?: string | null
+          model_name?: string | null
+          priority?: number | null
+          provider?: string | null
+          total_calls?: number | null
+          total_errors?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       admin_table_stats: {
@@ -1052,7 +1231,21 @@ export type Database = {
           total_bytes: number
         }[]
       }
+      claim_ai_quota: {
+        Args: {
+          p_cooldown_seconds: number
+          p_daily_limit: number
+          p_kind: string
+        }
+        Returns: {
+          allowed: boolean
+          resets_at: string
+          retry_after: number
+          used: number
+        }[]
+      }
       close_expired_jobs: { Args: never; Returns: number }
+      decrypt_api_key: { Args: { encrypted_key: string }; Returns: string }
       has_role: { Args: { check_role: string }; Returns: boolean }
       level_of: {
         Args: { subject: string }
@@ -1134,6 +1327,19 @@ export type Database = {
         }[]
       }
       slugify: { Args: { input: string }; Returns: string }
+      stale_status_subjects: {
+        Args: { p_limit?: number; p_stale_after?: unknown }
+        Returns: {
+          exam_id: string
+          job_id: string
+          official_website: string
+          organization: string
+          refreshed_at: string
+          subject_key: string
+          subject_label: string
+          trackers: number
+        }[]
+      }
       stream_of: {
         Args: { subject: string }
         Returns: Database["public"]["Enums"]["qualification_stream"]

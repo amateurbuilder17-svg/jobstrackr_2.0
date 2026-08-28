@@ -481,14 +481,93 @@ database — checked, not assumed.
 
 ---
 
+## M19 · Exam status on the tracker
+
+The old app's tracker had one control people actually used: **Refresh Status**.
+It asked Gemini, with Google Search grounding, where an exam had got to, and
+rendered admit card / exam date / result per stage. The new tracker shipped
+without it, which left `/tracker` as a form you type into rather than a page
+that tells you anything.
+
+### What came across
+
+| Old | Here |
+|---|---|
+| Refresh Status, per exam | Same button, same cooldown, on every attempt including free-text and job-tracked ones |
+| Google Search grounding | Same, and the sources are now shown; an ungrounded fallback answer is labelled as one |
+| `exams.ai_cached_response` | `exam_status_reports`, keyed by **subject** — one refresh answers everyone tracking that exam |
+| Two-phase display (Prelims/Mains) | Same, as `phases[]`, with the stage names the conducting body uses |
+| Key rotation from an encrypted DB table | The same table, same shape — `api_keys_config` + `decrypted_api_keys_config`, Vault-encrypted at rest, ordered by priority then error count, 429'd keys cooled for 65s and sorted to the back rather than dropped |
+| 10 calls/day, checked in Postgres | Same ceiling, same place — `claim_ai_quota`, atomic, plus a 30s cooldown that a refusal does not spend |
+
+### What changed, and why
+
+**The report is normalised on the way in.** The old cache stored whatever the
+model emitted; four historical shapes accumulated, and the card that read them
+grew to 1,321 lines — eleven helpers guessing which era a row came from, and a
+forty-entry keyword list (`"admit card link activated"`, `"hall ticket out"`)
+used to second-guess a boolean the model had already answered wrongly.
+`parseStatusReport` folds every shape into one canonical form, so the panel is
+display and nothing else.
+
+**The checks that stop a fluent answer being a wrong one moved into the
+writer.** An admit card claimed for an exam three months away is refused; a
+result "declared" on a future date is refused; a download link is stripped when
+its document is not out; aggregator, WhatsApp and Telegram links never enter the
+store. An ambiguous numeric date (`03/04/2026`) becomes no date rather than a
+guess — accurate-or-absent, the same rule the matcher works to.
+
+**Status advances by itself, narrowly.** A confident report showing a live admit
+card moves a `tracking` or `applied` row to "Admit card out", and fills a blank
+exam or result date. It never writes "Appeared" — that is a claim about the
+person, not the exam, and a tracker that quietly asserts untrue things about you
+is worse than one that waits to be told. Nothing a low-confidence answer says is
+ever written.
+
+**Refresh never spends quota on an answer fifteen minutes old.** Two people
+tracking the same exam a minute apart is the case a per-subject cache exists
+for; the second one is handed the first one's answer and told so, rather than
+paying for the same sentences. Beyond that floor, Refresh means refresh.
+
+**One thing the old rotation got wrong is fixed.** Google answers a mistyped or
+revoked key with `400 API_KEY_INVALID`, not a 401 — so the old loader, which
+only disabled keys on 401/403, retried a dead key on every single request
+forever. The only symptom was every call being one round trip slower than it
+needed to be. A 400 whose body names the key is now a dead key.
+
+**A daily cron warms the most-tracked subjects.** The button is only pressed by
+someone already worried; the exam whose admit card came out this morning is the
+one nobody has opened. Six subjects a night, most-tracked first, bounded by a
+45-second wall clock.
+
+### Not brought across
+
+Application number, roll number and the encrypted password locker. Dropped in
+M18 for the same reason they are dropped here: storing candidates' portal
+passwords is a liability this project should not carry.
+
+### Gate
+
+`scripts/prove-schema.sh` proves the quota is a real ceiling, that a refusal
+does not spend it, that it resets at IST midnight, that reports are readable by
+every signed-in user and writable by none, and that the cron queue is
+unreachable from an API caller. `exam-status.test.ts` covers the malformed
+answers that actually arrive. `/tracker` has an explicit 162 kB budget entry
+saying what the extra kilobytes buy.
+
+---
+
 ## Sequence
 
 ```
 §0.1 (today)  →  M13  →  M14  →  M15  →  M16  →  M17  →  M18  →  cutover
-                  │       │       │       │       │
-                  │       └───────┴───────┴───────┘
+                  │       │       │       │       │        │
+                  │       └───────┴───────┴───────┘        └── M19 (independent)
                   └── unblocks all four surfaces
 ```
+
+M19 depends on nothing but the tracker, which already exists. It is sequenced
+last because it is the only surface that spends money per use.
 
 M15 and M16 are independent of each other and of M14 once M13 lands; they are
 ordered by user-visible value, not by dependency.

@@ -42,6 +42,16 @@ export const LIMITS = {
   /** Anything that sends mail, where the cost is someone else's inbox. */
   email: { limit: 5, windowMs: 60_000 },
   /**
+   * A model call.
+   *
+   * Tighter than the rest because this is the only write whose cost is money
+   * and a third party's quota rather than a row. It is deliberately *not* the
+   * real ceiling — that is `claim_ai_quota`, in the database, where every
+   * instance sees the same counter. This one is the cheap first refusal, so a
+   * double-tap never reaches Postgres, let alone Google.
+   */
+  ai: { limit: 6, windowMs: 60_000 },
+  /**
    * Sign-in attempts against one address.
    *
    * Keyed by the address rather than the caller, because the attack this is

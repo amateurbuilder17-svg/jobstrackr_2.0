@@ -9,6 +9,8 @@ import { Select } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { EMPTY_FORM_STATE } from "@/lib/auth/form-state";
 import type { ExamAttempt } from "@/lib/db/queries/attempts";
+import type { ExamStatusReport } from "@/lib/exams/report";
+import { subjectKeyFor } from "@/lib/exams/subject";
 import { formatDate } from "@/lib/format/deadline";
 import {
   ATTEMPT_STATUSES,
@@ -18,13 +20,25 @@ import {
   type AttemptStatus,
 } from "@/lib/tracker/enums";
 import { deleteAttemptAction, setAttemptStatusAction } from "@/lib/tracker/actions";
+import { StatusPanel } from "./status-panel";
 
 const STATUS_OPTIONS = ATTEMPT_STATUSES.map((s) => ({
   value: s,
   label: STATUS_LABELS[s],
 }));
 
-export function AttemptList({ attempts }: { attempts: ExamAttempt[] }) {
+/**
+ * `reports` is keyed by subject rather than by attempt, because the cache is:
+ * two attempts at the same exam in different years read the same answer, and
+ * the page fetched them in one query rather than one per row.
+ */
+export function AttemptList({
+  attempts,
+  reports,
+}: {
+  attempts: ExamAttempt[];
+  reports: Record<string, ExamStatusReport>;
+}) {
   if (attempts.length === 0) {
     return (
       <p className="mt-6 rounded-lg border border-dashed border-line px-4 py-10 text-center text-sm text-ink-2">
@@ -42,14 +56,27 @@ export function AttemptList({ attempts }: { attempts: ExamAttempt[] }) {
 
   return (
     <ul className="mt-6 flex flex-col gap-3">
-      {sorted.map((attempt) => (
-        <AttemptRow key={attempt.id} attempt={attempt} />
-      ))}
+      {sorted.map((attempt) => {
+        const key = subjectKeyFor(attempt);
+        return (
+          <AttemptRow
+            key={attempt.id}
+            attempt={attempt}
+            report={(key === null ? undefined : reports[key]) ?? null}
+          />
+        );
+      })}
     </ul>
   );
 }
 
-function AttemptRow({ attempt }: { attempt: ExamAttempt }) {
+function AttemptRow({
+  attempt,
+  report,
+}: {
+  attempt: ExamAttempt;
+  report: ExamStatusReport | null;
+}) {
   const [, statusAction] = useActionState(setAttemptStatusAction, EMPTY_FORM_STATE);
   const [, removeAction] = useActionState(deleteAttemptAction, EMPTY_FORM_STATE);
 
@@ -125,6 +152,11 @@ function AttemptRow({ attempt }: { attempt: ExamAttempt }) {
           </SubmitButton>
         </form>
       </div>
+
+      {/* Below the controls rather than above them. The row's own fields are
+          what its owner came to change; the researched answer is what they came
+          to read, and reading happens after the row has identified itself. */}
+      <StatusPanel attemptId={attempt.id} name={name} initial={report} />
     </li>
   );
 }

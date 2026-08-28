@@ -42,6 +42,11 @@ q 2>&1 < "$ROOT/supabase/.validate/04_link_proof.sql" \
   | grep -E "ok|FAIL|ERROR" | sed 's/^NOTICE: */ /'
 
 echo
+echo "── AI exam status: quota, isolation, cron queue ──"
+q 2>&1 < "$ROOT/supabase/.validate/05_status_proof.sql" \
+  | grep -E "ok|FAIL|ERROR" | sed 's/^NOTICE: */ /'
+
+echo
 echo "── Index usage at production volume ──"
 q -q < "$ROOT/supabase/.validate/01_seed_proof.sql"
 
