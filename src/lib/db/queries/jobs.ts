@@ -8,6 +8,7 @@ import { publicDb } from "../clients";
 import { decodeCursor, toPage, type Page, PAGE_SIZE } from "../cursor";
 import { unwrap, unwrapMaybe } from "../errors";
 import { SEARCH_CONFIG, tags } from "../tags";
+import type { Database } from "../database.types";
 
 /**
  * Job reads.
@@ -80,7 +81,12 @@ export interface JobListOptions {
   limit?: number | undefined;
   organizationSlug?: string | undefined;
   tag?: string | undefined;
+  /** Canonical state or union territory, matched against `location_state`. */
   state?: string | undefined;
+  /** The post's stated minimum qualification, exactly. */
+  level?: Database["public"]["Enums"]["qualification_level"] | undefined;
+  /** The discipline the post requires. */
+  stream?: Database["public"]["Enums"]["qualification_stream"] | undefined;
   sort?: JobSort | undefined;
   /** Full-text search term. Folded in here so search is paginated like any
    *  other filter, rather than being a separate, unpaginated code path. */
@@ -136,7 +142,20 @@ export async function listJobs(options: JobListOptions = {}): Promise<Page<JobCa
   if (options.organizationSlug)
     query = query.eq("organizations.slug", options.organizationSlug);
   if (options.tag) query = query.contains("tags", [options.tag]);
-  if (options.state) query = query.eq("state", options.state);
+
+  // `location_state`, not `state`. `state` is raw scraped text and is a
+  // verbatim copy of `location` on every row — "New Delhi, Delhi", "Chennai,
+  // Tamil Nadu", "Not Available" — so comparing it with `=` to a state name
+  // matched almost nothing: the Tamil Nadu chip found 1 job where 20 named the
+  // state. `location_state` is the generated, normalised answer; see migration
+  // 0023.
+  if (options.state) query = query.eq("location_state", options.state);
+
+  // Both are typed enums the ingest path already derives, so these filter on
+  // real data rather than on `tags`, which is populated on 129 rows out of
+  // 6,101 and left three of the six original chips returning nothing at all.
+  if (options.level) query = query.eq("min_qualification_level", options.level);
+  if (options.stream) query = query.eq("required_stream", options.stream);
 
   // Full-text search, against the generated `search_vector` and its GIN index.
   //

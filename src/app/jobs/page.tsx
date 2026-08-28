@@ -3,7 +3,7 @@ import { Suspense } from "react";
 
 import { FilterBar, SortToggle, type FilterGroup } from "@/components/filters/filter-bar";
 import { JobCard, JobCardSkeleton } from "@/components/jobs/job-card";
-import { listJobs, toJobSort } from "@/lib/db/queries/jobs";
+import { listJobs, toJobSort, type JobListOptions } from "@/lib/db/queries/jobs";
 import { PAGE_SIZE } from "@/lib/db/cursor";
 
 export const metadata = {
@@ -18,29 +18,77 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
  * Grouped, so the row can say what a chip *is*. Rendered as one scrolling line
  * rather than one wrapped block per group — see `FilterBar`.
  */
+/**
+ * The filter bar.
+ *
+ * Rebuilt on columns that hold data. The previous version filtered `tags`, which
+ * is populated on 129 rows out of 6,101, so three of its six chips — Class 10,
+ * Banking, Central govt — returned nothing at all, and the best of them found 21
+ * jobs out of 2,755 published. Its state chips compared against `jobs.state`,
+ * which is a verbatim copy of `location`, so "Tamil Nadu" matched 1 job where 20
+ * named the state and "Maharashtra" matched 6 of 38.
+ *
+ * All three groups now filter typed columns the ingest path derives:
+ * `min_qualification_level`, `required_stream` and the generated
+ * `location_state`. Counts below are published rows at the time of writing, and
+ * they are here so the next person can tell a chip that found nothing from a
+ * chip that is broken.
+ *
+ * Banking, Railway and Central govt are gone rather than reimplemented. They are
+ * sector, no column records sector, and deriving one from the organisation's
+ * name would be guessing in a filter — which is the one place this codebase does
+ * not guess. Search covers them well: the FTS index spans title and organisation,
+ * so "railway" finds the railway postings.
+ */
 const FILTER_GROUPS: FilterGroup[] = [
   {
-    param: "tag",
-    label: "Qualification or sector",
+    param: "level",
+    label: "Minimum qualification",
     options: [
-      { label: "Graduate", value: "graduate" },
-      { label: "Class 10", value: "class-10" },
-      { label: "Engineering", value: "engineering" },
-      { label: "Banking", value: "banking" },
-      { label: "Railway", value: "railway" },
-      { label: "Central govt", value: "central-govt" },
+      { label: "Class 10", value: "class_10" }, //   244
+      { label: "Class 12", value: "class_12" }, //   159
+      { label: "ITI", value: "iti" }, //              44
+      { label: "Diploma", value: "diploma" }, //     370
+      { label: "Graduate", value: "bachelor" }, //  1358
+      { label: "Postgraduate", value: "master" }, //  186
+      { label: "Doctorate", value: "doctorate" }, //   68
+    ],
+  },
+  {
+    param: "stream",
+    label: "Field",
+    options: [
+      { label: "Engineering", value: "engineering" }, // 964
+      { label: "Medical", value: "medical" }, //         284
+      { label: "Computer", value: "computer" }, //       114
+      { label: "Law", value: "law" }, //                  87
+      { label: "Nursing", value: "nursing" }, //          70
+      { label: "Teaching", value: "teaching" }, //        59
+      { label: "Commerce", value: "commerce" }, //        47
+      // 'any' is excluded on purpose. It means "the notification says any
+      // discipline", which is not a field somebody browses for.
     ],
   },
   {
     param: "state",
     label: "State",
     options: [
+      // "All India" first because it is the single largest answer — 2,367 rows
+      // are pan-India postings, and they are a real value rather than a gap.
       { label: "All India", value: "All India" },
       { label: "Delhi", value: "Delhi" },
-      { label: "Odisha", value: "Odisha" },
       { label: "Maharashtra", value: "Maharashtra" },
-      { label: "Bihar", value: "Bihar" },
+      { label: "Uttar Pradesh", value: "Uttar Pradesh" },
       { label: "Tamil Nadu", value: "Tamil Nadu" },
+      { label: "Karnataka", value: "Karnataka" },
+      { label: "West Bengal", value: "West Bengal" },
+      { label: "Gujarat", value: "Gujarat" },
+      { label: "Kerala", value: "Kerala" },
+      { label: "Odisha", value: "Odisha" },
+      { label: "Rajasthan", value: "Rajasthan" },
+      { label: "Bihar", value: "Bihar" },
+      { label: "Assam", value: "Assam" },
+      { label: "Telangana", value: "Telangana" },
     ],
   },
 ];
@@ -51,8 +99,29 @@ const JOB_SORTS = [
   { value: "newest", label: "Newest" },
 ] as const;
 
+type JobLevel = NonNullable<JobListOptions["level"]>;
+type JobStream = NonNullable<JobListOptions["stream"]>;
+
 function one(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
+}
+
+/**
+ * A URL value, but only if it is one this page offers.
+ *
+ * `?level=` and `?stream=` land in `eq()` against Postgres enum columns, where
+ * an unrecognised value is not an empty result — it is `invalid input value for
+ * enum`, which surfaces as a 500. Anyone can type a query string, and a crawler
+ * will. Narrowing here means a bad one reads as "no filter".
+ */
+function optionOf(group: FilterGroup | undefined, value: string | undefined) {
+  if (!group || !value) return undefined;
+  return group.options.some((o) => o.value === value) ? value : undefined;
+}
+
+/** The chip's label for a value, for the empty state's "you searched for" line. */
+function labelOf(group: FilterGroup | undefined, value: string | undefined) {
+  return group?.options.find((o) => o.value === value)?.label;
 }
 
 /**
@@ -103,17 +172,36 @@ async function Results({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
 
   const query = one(params.q);
-  const tag = one(params.tag);
   const state = one(params.state);
+  // Narrowed against the chip lists rather than passed through, so a
+  // hand-edited `?level=nonsense` is treated as no filter instead of reaching
+  // Postgres as an invalid enum and 500ing the page.
+  const level = optionOf(FILTER_GROUPS[0], one(params.level)) as JobLevel | undefined;
+  const stream = optionOf(FILTER_GROUPS[1], one(params.stream)) as JobStream | undefined;
   const cursor = one(params.after);
   const sort = toJobSort(one(params.sort));
 
-  const page = await listJobs({ query, tag, state, sort, cursor, limit: PAGE_SIZE.list });
+  const page = await listJobs({
+    query,
+    state,
+    level,
+    stream,
+    sort,
+    cursor,
+    limit: PAGE_SIZE.list,
+  });
 
   if (page.items.length === 0) {
     // Names what was searched rather than shrugging. "No jobs match those
     // filters" tells someone nothing they did not already know.
-    const applied = [query ? `“${query}”` : null, tag, state].filter(Boolean).join(" · ");
+    const applied = [
+      query ? `“${query}”` : null,
+      labelOf(FILTER_GROUPS[0], level),
+      labelOf(FILTER_GROUPS[1], stream),
+      state,
+    ]
+      .filter(Boolean)
+      .join(" · ");
 
     return (
       <div className="mt-6 rounded-lg border border-dashed border-line px-6 py-12 text-center">
@@ -135,7 +223,8 @@ async function Results({ searchParams }: { searchParams: SearchParams }) {
   // them and pages through an entirely different result set.
   const nextParams = new URLSearchParams();
   if (query) nextParams.set("q", query);
-  if (tag) nextParams.set("tag", tag);
+  if (level) nextParams.set("level", level);
+  if (stream) nextParams.set("stream", stream);
   if (state) nextParams.set("state", state);
   if (sort === "newest") nextParams.set("sort", "newest");
   if (page.nextCursor) nextParams.set("after", page.nextCursor);

@@ -606,6 +606,7 @@ export type Database = {
           last_date: string | null
           last_date_display: string | null
           location: string | null
+          location_state: string | null
           min_qualification_level:
             | Database["public"]["Enums"]["qualification_level"]
             | null
@@ -646,6 +647,7 @@ export type Database = {
           last_date?: string | null
           last_date_display?: string | null
           location?: string | null
+          location_state?: string | null
           min_qualification_level?:
             | Database["public"]["Enums"]["qualification_level"]
             | null
@@ -686,6 +688,7 @@ export type Database = {
           last_date?: string | null
           last_date_display?: string | null
           location?: string | null
+          location_state?: string | null
           min_qualification_level?:
             | Database["public"]["Enums"]["qualification_level"]
             | null
@@ -1340,6 +1343,7 @@ export type Database = {
           trackers: number
         }[]
       }
+      state_of: { Args: { p_location: string }; Returns: string }
       stream_of: {
         Args: { subject: string }
         Returns: Database["public"]["Enums"]["qualification_stream"]
