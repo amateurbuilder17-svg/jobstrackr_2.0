@@ -6,6 +6,7 @@ import { cache } from "react";
 
 import { sessionDb } from "@/lib/db/clients";
 import { PROFILE_COLUMNS, type ProfileRow } from "@/lib/profile/columns";
+import { initialsFrom } from "@/lib/profile/initials";
 
 export type Profile = ProfileRow;
 
@@ -72,6 +73,52 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
   if (error) return null;
   return data;
 });
+
+/**
+ * Who the top bar is drawing, and nothing else.
+ *
+ * Deliberately not `getProfile()`. That selects thirteen columns to render the
+ * profile form; this needs one, and it runs on every page load of every
+ * session. Selecting the other twelve to draw two letters in a circle is the
+ * whole-row habit this codebase is a reaction to.
+ *
+ * `profiles.full_name`, not `user_metadata.full_name`, and the distinction is
+ * load-bearing: the signup trigger seeds the profile *from* the metadata, but
+ * `updateProfileAction` writes only the profile afterwards. Reading metadata
+ * would show the name someone signed up with forever, ignoring the one they
+ * corrected.
+ *
+ * The two reads run in parallel. They are independent questions about the same
+ * user, and asking them in sequence would make every session wait for both
+ * round trips rather than the slower one.
+ */
+export interface Identity {
+  name: string | null;
+  email: string | null;
+  /** Null when there is no name and no address to derive one from. */
+  initials: string | null;
+  isAdmin: boolean;
+}
+
+export async function getIdentity(): Promise<Identity | null> {
+  const user = await getUser();
+  if (!user) return null;
+
+  const db = await sessionDb();
+
+  const [nameResult, admin] = await Promise.all([
+    db.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
+    hasRole("admin"),
+  ]);
+
+  // A missing profile row is not an error worth failing the top bar over — the
+  // address is enough to draw an avatar, and the trigger guarantees the row
+  // exists for anyone who signed up normally.
+  const name = nameResult.data?.full_name ?? null;
+  const email = user.email ?? null;
+
+  return { name, email, initials: initialsFrom(name, email), isAdmin: admin };
+}
 
 /**
  * Whether the current user holds a role.

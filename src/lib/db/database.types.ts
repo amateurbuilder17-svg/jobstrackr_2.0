@@ -960,6 +960,7 @@ export type Database = {
           created_at: string
           email: string | null
           id: string
+          kind: string
           message: string
           status: string
           user_id: string | null
@@ -968,6 +969,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          kind?: string
           message: string
           status?: string
           user_id?: string | null
@@ -976,6 +978,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          kind?: string
           message?: string
           status?: string
           user_id?: string | null

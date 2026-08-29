@@ -11,7 +11,7 @@ import {
   ExternalLinkIcon,
   ShareIcon,
 } from "@/components/icons";
-import { useSaved } from "@/components/saved/saved-provider";
+import { useSaved } from "@/components/session/session-provider";
 import { cn } from "@/lib/cn";
 import { daysUntilFrom } from "@/lib/format/deadline";
 

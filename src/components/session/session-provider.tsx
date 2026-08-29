@@ -24,12 +24,18 @@ import {
 } from "@/lib/saved/storage";
 
 /**
- * One source of truth for "which jobs are saved", shared by every save button
- * on the page.
+ * One source of truth for "who is this, and what have they done with these
+ * jobs" — shared by every save button on the page and by the shell above them.
  *
  * Per-user state is fetched here, once, after hydration — not rendered into the
- * HTML. That is what lets /jobs and all 240 job pages stay static: the cached
- * document paints, then the buttons fill in.
+ * HTML. That is what lets /jobs and all 2,700 job pages stay static: the cached
+ * document paints, then the buttons and the avatar fill in.
+ *
+ * This provider sits above `TopBar` in the shell, which is why it is a session
+ * provider rather than a saved-jobs one. The alternative — a second provider
+ * with a second fetch, so the top bar could learn a name the first request was
+ * already authenticated to read — would double the dynamic requests a session
+ * makes, which is the exact cost this whole pattern exists to avoid.
  *
  * Three states have to coexist, and keeping them straight is most of this file:
  *
@@ -40,10 +46,25 @@ import {
  *     to be replayed when the network returns.
  */
 
-interface SavedContextValue {
+/** Who the shell is drawing. Null for a guest, and null until `ready`. */
+export interface Identity {
+  name: string | null;
+  email: string | null;
+  /** Null when there is no name and no address to derive one from. */
+  initials: string | null;
+  isAdmin: boolean;
+}
+
+interface SessionContextValue {
   /** True once hydrated. Buttons render inert until then rather than guessing. */
   ready: boolean;
   signedIn: boolean;
+  /**
+   * Null for a guest, and null before `ready` — the shell must draw a
+   * same-sized placeholder in that window rather than guess at a name, or the
+   * top bar reflows the moment the session resolves.
+   */
+  identity: Identity | null;
   isSaved: (jobId: string) => boolean;
   /**
    * The saved ids. Exposed because the guest saved list has to exchange them
@@ -59,7 +80,7 @@ interface SavedContextValue {
    * Tracking rides along here rather than in a provider of its own.
    *
    * It is the same question asked of the same session — "what has this person
-   * already done with this job?" — and `/api/saved` answers both in one
+   * already done with this job?" — and `/api/session` answers both in one
    * response. A second provider would mean a second request per session to
    * light up a button sitting two pixels from the first one.
    *
@@ -73,14 +94,15 @@ interface SavedContextValue {
   trackingPending: ReadonlySet<string>;
 }
 
-const SavedContext = createContext<SavedContextValue | null>(null);
+const SessionContext = createContext<SessionContextValue | null>(null);
 
-export function SavedProvider({ children }: { children: ReactNode }) {
+export function SessionProvider({ children }: { children: ReactNode }) {
   const [ids, setIds] = useState<ReadonlySet<string>>(() => new Set());
   const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set());
   const [trackedIds, setTrackedIds] = useState<ReadonlySet<string>>(() => new Set());
   const [trackingPending, setTrackingPending] = useState<ReadonlySet<string>>(() => new Set());
   const [signedIn, setSignedIn] = useState(false);
+  const [identity, setIdentity] = useState<Identity | null>(null);
   const [ready, setReady] = useState(false);
 
   // Read inside callbacks without making them depend on it, so a re-render does
@@ -155,18 +177,21 @@ export function SavedProvider({ children }: { children: ReactNode }) {
       let serverIds: string[] = [];
       let tracked: string[] = [];
       let authed = false;
+      let who: Identity | null = null;
 
       try {
-        const response = await fetch("/api/saved", { cache: "no-store", signal });
+        const response = await fetch("/api/session", { cache: "no-store", signal });
         if (response.ok) {
           const data = (await response.json()) as {
             signedIn: boolean;
             ids: string[];
             trackedJobIds: string[];
+            identity: Identity | null;
           };
           authed = data.signedIn;
           serverIds = data.ids;
           tracked = data.trackedJobIds;
+          who = data.identity;
         }
       } catch {
         // Offline on first load. Fall through with whatever is local; a guest
@@ -178,6 +203,7 @@ export function SavedProvider({ children }: { children: ReactNode }) {
 
       signedInRef.current = authed;
       setSignedIn(authed);
+      setIdentity(who);
 
       if (authed) {
         // First sign-in with a guest shortlist: fold it in, then let go of the
@@ -239,7 +265,7 @@ export function SavedProvider({ children }: { children: ReactNode }) {
    * The check is the auth cookie rather than another request. `@supabase/ssr`
    * writes it without `httpOnly` precisely so the browser can read it, which
    * makes this a string comparison per navigation instead of a fetch. Its
-   * presence is only a hint that something changed — `/api/saved` remains the
+   * presence is only a hint that something changed — `/api/session` remains the
    * authority, and is what actually re-runs.
    */
   const pathname = usePathname();
@@ -329,10 +355,11 @@ export function SavedProvider({ children }: { children: ReactNode }) {
   const savedIds = useMemo(() => [...ids], [ids]);
 
   return (
-    <SavedContext.Provider
+    <SessionContext.Provider
       value={{
         ready,
         signedIn,
+        identity,
         isSaved,
         savedIds,
         toggle,
@@ -343,7 +370,7 @@ export function SavedProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
-    </SavedContext.Provider>
+    </SessionContext.Provider>
   );
 }
 
@@ -353,15 +380,31 @@ function hasAuthCookie(): boolean {
   return document.cookie.split("; ").some((c) => c.startsWith("sb-"));
 }
 
-export function useSaved(): SavedContextValue {
-  const context = useContext(SavedContext);
-  if (!context) throw new Error("useSaved must be used inside <SavedProvider>.");
+function useSessionContext(): SessionContextValue {
+  const context = useContext(SessionContext);
+  if (!context) throw new Error("This hook must be used inside <SessionProvider>.");
   return context;
+}
+
+/**
+ * Who is signed in. The shell's view of the store.
+ *
+ * `ready` is what separates "nobody is signed in" from "we have not asked yet",
+ * and the top bar has to tell them apart: the second is a placeholder, the
+ * first is a sign-in link.
+ */
+export function useSession(): Pick<SessionContextValue, "ready" | "signedIn" | "identity"> {
+  return useSessionContext();
+}
+
+/** The saved-jobs view of the same store, named for what the caller wants. */
+export function useSaved(): SessionContextValue {
+  return useSessionContext();
 }
 
 /** The tracking half of the same store, named for what the caller wants. */
 export function useTracked(): Pick<
-  SavedContextValue,
+  SessionContextValue,
   "ready" | "signedIn" | "isTracked" | "toggleTracked" | "trackingPending"
 > {
   return useSaved();

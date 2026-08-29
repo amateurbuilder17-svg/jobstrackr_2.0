@@ -174,6 +174,47 @@ export async function requestPasswordResetAction(
   };
 }
 
+/**
+ * Send a reset link to the signed-in user's own address.
+ *
+ * The menu needs this because `/forgot-password` is unreachable for anyone
+ * signed in — it is in `AUTH_ONLY`, so middleware bounces them to `/profile`.
+ * That rule is right: the page exists to help someone who cannot get in.
+ * Someone who *is* in and wants a new password is a different flow, and this is
+ * it.
+ *
+ * The address comes from the session, never from the form. A hidden email field
+ * would turn a signed-in control into an unauthenticated mailer — anyone could
+ * post any address to it and this site would send the mail.
+ *
+ * Unlike the signed-out version there is no enumeration concern here, so this
+ * can say plainly what happened and to which address.
+ */
+export async function resetOwnPasswordAction(_prev: FormState): Promise<FormState> {
+  const db = await sessionDb();
+  const {
+    data: { user },
+  } = await db.auth.getUser();
+
+  if (!user?.email) {
+    return { ok: false, message: "Sign in first to change your password." };
+  }
+
+  if (!consume(`reset:${user.email}`, LIMITS.email)) {
+    return { ok: false, message: "A link was just sent. Check your inbox, then try again." };
+  }
+
+  const { error } = await db.auth.resetPasswordForEmail(user.email, {
+    redirectTo: `${await callbackOrigin()}/auth/callback?next=/reset-password`,
+  });
+
+  if (error) {
+    return { ok: false, message: "Could not send the link. Try again in a moment." };
+  }
+
+  return { ok: true, message: `Reset link sent to ${user.email}.` };
+}
+
 export async function updatePasswordAction(
   _prev: FormState,
   formData: FormData,
