@@ -9,6 +9,8 @@ import { decodeCursor, toPage, type Page, PAGE_SIZE } from "../cursor";
 import { unwrap, unwrapMaybe } from "../errors";
 import { SEARCH_CONFIG, tags } from "../tags";
 import type { Database } from "../database.types";
+import { linkLabel } from "@/lib/updates/detail-shape";
+import { toUrl } from "@/lib/sync/links";
 
 type UpdateCategory = Database["public"]["Enums"]["update_category"];
 
@@ -243,24 +245,87 @@ export async function listUpdateLinksForJob(
   );
 
   return rows.flatMap((row) => {
-    const links = toDownloadLinks(row.detail?.download_links);
+    const links = toDownloadLinks(row.detail?.download_links, row.category);
     return links.length === 0 ? [] : [{ title: row.title, category: row.category, links }];
   });
 }
 
-/** Narrows the stored jsonb. Ingest writes `{label, url}`; anything older or
- *  hand-edited is skipped rather than rendered as an empty row. */
-function toDownloadLinks(value: unknown): { label: string; url: string }[] {
+/**
+ * Narrows the stored jsonb. Ingest writes `{label, url}`; anything older or
+ * hand-edited is skipped rather than rendered as an empty row.
+ *
+ * This was the one surface that rendered a stored URL without putting it
+ * through `toUrl` — it tested only for an `http` prefix, so a WhatsApp invite
+ * or a `t.me` channel stored on an update would have appeared on the job page
+ * of the job that update is attached to, under the heading "Documents". No such
+ * row exists in production today (0 of 5,374 detail rows carry a blocked host),
+ * which is exactly why the gap survived: nothing was there to reveal it until
+ * the seed grew a row that had one.
+ *
+ * `linkLabel` for the same reason `/updates/[slug]` uses it — sources label
+ * nearly every link "Click here", and the job page has no other text nearby to
+ * tell one document from the next.
+ */
+function toDownloadLinks(
+  value: unknown,
+  category: UpdateCategory,
+): { label: string; url: string }[] {
   if (!Array.isArray(value)) return [];
 
   const out: { label: string; url: string }[] = [];
+  const seen = new Set<string>();
   for (const entry of value) {
     if (typeof entry !== "object" || entry === null || Array.isArray(entry)) continue;
     const record = entry as Record<string, unknown>;
-    const url = record.url ?? record.href;
-    if (typeof url !== "string" || !/^https?:\/\//i.test(url)) continue;
-    const label = record.label ?? record.text ?? record.title;
-    out.push({ label: typeof label === "string" && label !== "" ? label : "Download", url });
+    const url = toUrl(record.url ?? record.href);
+    if (!url) continue;
+
+    const key = url.replace(/\/+$/, "").toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const raw = record.label ?? record.text ?? record.title;
+    out.push({ label: linkLabel(typeof raw === "string" ? raw : "", url, category), url });
   }
   return out.slice(0, 8);
+}
+
+/**
+ * Other updates about the same exam.
+ *
+ * The old app had three rails here — Results, Admit Cards, Similar Jobs — and
+ * they were the page's main way out: someone reading an admit-card notice
+ * usually wants that exam's exam-date notice next, and there is no other link
+ * to it anywhere on the page.
+ *
+ * ── Why the search term rather than a foreign key ─────────────────────────
+ * `exam_id` and `organization_id` are NULL on all 5,374 rows, so there is no
+ * key to join on. The old rails did not use one either; they matched titles in
+ * the browser over the newest 100 rows it had downloaded.
+ *
+ * This does the matching in Postgres against the existing GIN index, on the
+ * organisation acronym the title leads with — see `relationTerm`. That is a
+ * heuristic, and it is the right place for one: a wrong *navigation* link costs
+ * a reader one back-press, which is why `job_link_state` refuses a guess for
+ * the job link and this does not. Nothing here is presented as a fact about the
+ * exam.
+ */
+export async function listRelatedUpdates(
+  term: string,
+  excludeSlug: string,
+  limit = 6,
+): Promise<ExamUpdateCard[]> {
+  "use cache";
+  cacheLife("content");
+  cacheTag(tags.examUpdateList());
+
+  return unwrap(
+    "listRelatedUpdates",
+    await cardQuery()
+      .eq("is_published", true)
+      .neq("slug", excludeSlug)
+      .textSearch("search_vector", term, { config: SEARCH_CONFIG, type: "websearch" })
+      .order("published_at", { ascending: false })
+      .limit(limit),
+  );
 }

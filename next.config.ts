@@ -31,7 +31,25 @@ const contentSecurityPolicy = [
   "form-action 'self'",
   "base-uri 'self'",
   "object-src 'none'",
-  "upgrade-insecure-requests",
+  /**
+   * Production only, and that is a Safari bug rather than a preference.
+   *
+   * This directive tells the browser to rewrite every `http://` request as
+   * `https://`. In production that is free — Vercel serves nothing over plain
+   * http — but in development the app is served from `http://localhost`, and
+   * the two engines disagree about what to do with that.
+   *
+   * Chrome follows the carve-out for potentially-trustworthy origins and
+   * leaves localhost alone. WebKit upgrades it anyway, so in Safari every
+   * stylesheet, script, font and Supabase call this app makes is reissued to
+   * `https://localhost:<port>` — where no TLS listener exists. The page
+   * arrives unstyled and inert, which is the whole of "it does not open
+   * correctly in Safari".
+   *
+   * Dropping it in dev costs nothing: there is no mixed content to upgrade on
+   * a loopback origin, which is precisely why the carve-out exists.
+   */
+  isDev ? "" : "upgrade-insecure-requests",
 ]
   .filter(Boolean)
   .join("; ");
@@ -75,12 +93,13 @@ const nextConfig: NextConfig = {
     },
     // Project configuration that changes when someone edits a dashboard
     // setting — which external auth providers are enabled, and little else.
-    // Long-lived because the answer is stable for months, but not permanent:
-    // enabling Google should light up its button without a redeploy.
+    // Short, despite the answer being stable for months, because of what it
+    // controls: a stale "Google is off" takes the fastest way to sign in off
+    // the page, and one probe every few minutes is nothing next to that.
     config: {
-      stale: 60 * 15, // 15 minutes
-      revalidate: 60 * 60, // 1 hour
-      expire: 60 * 60 * 24, // 1 day
+      stale: 60, // 1 minute
+      revalidate: 60 * 5, // 5 minutes
+      expire: 60 * 30, // 30 minutes
     },
   },
 
@@ -191,10 +210,20 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "X-Frame-Options", value: "DENY" },
-          {
-            key: "Strict-Transport-Security",
-            value: "max-age=63072000; includeSubDomains; preload",
-          },
+          // Also production only. A browser is required to ignore HSTS
+          // received over plain http, so sending it from a localhost dev
+          // server is at best a no-op — and it is the second header that,
+          // taken at face value, says "never speak http to this host again".
+          // There is no reason to ship an instruction to dev that only makes
+          // sense in production.
+          ...(isDev
+            ? []
+            : [
+                {
+                  key: "Strict-Transport-Security",
+                  value: "max-age=63072000; includeSubDomains; preload",
+                },
+              ]),
           {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",

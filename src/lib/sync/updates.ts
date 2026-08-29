@@ -3,9 +3,10 @@ import "server-only";
 import { createHash } from "node:crypto";
 
 import { adminDb } from "@/lib/db/clients";
-import type { Database } from "@/lib/db/database.types";
+import type { Database, Json } from "@/lib/db/database.types";
 import { toDateLinks, toImportantDates, toOverview } from "@/lib/jobs/detail-shape";
 import { UPDATE_CATEGORIES, type UpdateCategory } from "@/lib/updates/categories";
+import { toUpdateSections } from "@/lib/updates/detail-shape";
 import { toUrl } from "./links";
 import { toDate, toSlug, toStringArray, toText } from "./normalize";
 import { resolveOrganizations } from "./organizations";
@@ -113,13 +114,20 @@ export function toUpdatePayload(
   // Download links and the links hiding in "Click here" date rows are one list
   // to a reader. The old page fetched them from two columns and merged them at
   // render; merging at write means the page reads one field.
+  //
+  // `official_links` is folded in for the same reason: the ExamUpdates tab
+  // keeps the board's own result/admit-card page in a separate column from the
+  // PDFs, and a reader wants both under one heading.
   const downloads = mergeLinks(
-    toDownloadLinks(row.download_links),
+    [...toDownloadLinks(row.download_links), ...toDownloadLinks(row.official_links)],
     toDateLinks(row.important_dates),
   );
 
   const detail: DetailPayload = {
-    body: toText(row.body) ?? toText(row.content),
+    // `full_text` is the sheet's name for it (UPDATE_COLUMNS in Config.gs).
+    // Without it the article body is NULL on every row the live feed sends,
+    // and the update page renders a heading with nothing under it.
+    body: toText(row.body) ?? toText(row.content) ?? toText(row.full_text),
     sections: sections.length > 0 ? sections : null,
     overview: overview.length > 0 ? overview : null,
     important_dates: importantDates.length > 0 ? importantDates : null,
@@ -149,22 +157,30 @@ export function toUpdatePayload(
 // Type aliases rather than interfaces, so they are assignable to `Json`. See
 // the note at the top of `jobs/detail-shape.ts`.
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
-type Section = { heading: string; body: string };
+type Section = { heading: string; content: string[] };
 
+/**
+ * The article, as headings and their lines.
+ *
+ * This used to read `record.content` through `toText`, which returns null for
+ * an array — and an array of lines is the shape the scraper actually sends, and
+ * the shape all 5,336 backfilled rows are stored in. Every section therefore
+ * arrived here as `{heading, body: ""}`, and the page rendered a column of bare
+ * headings.
+ *
+ * `toUpdateSections` is the renderer's own normaliser, so ingest and render
+ * agree on the shape by construction rather than by two lists staying in step.
+ * It also strips the source site's advert lines and decodes the entities, which
+ * means a row written from now on needs no cleaning on the way out — the
+ * renderer runs the same pass again over the old rows, and running it twice is
+ * a no-op.
+ */
 function toSections(value: unknown): Section[] {
   const source = typeof value === "string" ? safeParse(value) : value;
-  if (!Array.isArray(source)) return [];
-
-  const out: Section[] = [];
-  for (const entry of source) {
-    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) continue;
-    const record = entry as Record<string, unknown>;
-    const heading = toText(record.heading) ?? toText(record.title) ?? "";
-    const body = toText(record.body) ?? toText(record.content) ?? toText(record.text) ?? "";
-    if (body === "" && heading === "") continue;
-    out.push({ heading, body });
-  }
-  return out.slice(0, 40);
+  return toUpdateSections((source ?? null) as Json).map((section) => ({
+    heading: section.heading,
+    content: section.lines,
+  }));
 }
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions

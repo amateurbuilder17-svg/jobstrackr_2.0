@@ -22,7 +22,7 @@ insert into public.organizations (slug, name, short_name, aliases, website) valu
 -- ── Jobs ───────────────────────────────────────────────────────────────────
 -- 240 rows: enough for 12 pages at the default page size, so deep-page
 -- pagination is genuinely exercised rather than assumed.
-with orgs as (select id, slug, short_name, row_number() over (order by slug) - 1 as n from public.organizations),
+with orgs as (select id, slug, short_name, website, row_number() over (order by slug) - 1 as n from public.organizations),
      -- `level` is gone from this list on purpose: min_qualification_level is a
      -- generated column since 0019, derived from the qualification line to its
      -- left. The ten strings below produce bachelor / class_10 / diploma /
@@ -57,6 +57,9 @@ with orgs as (select id, slug, short_name, row_number() over (order by slug) - 1
          (array(select st from places))[1 + (i % 6)]    as st,
          (select id from orgs where n = i % 12)         as org_id,
          (select lower(short_name) from orgs where n = i % 12) as org_slug,
+         -- The body's genuine site, so no row on a job page points at a
+         -- placeholder domain. See the note above `exam_updates`.
+         (select website from orgs where n = i % 12)    as org_site,
          2024 + (i % 3)                                  as yr
        from generate_series(1, 240) i
      )
@@ -91,7 +94,7 @@ select
   current_date + ((case when i % 11 = 0 then (i % 3) else (i % 95) + 4 end)::int),
   now() - ((i || ' hours')::interval),
   'seed-job-' || i,
-  'https://example.gov.in/notification/' || i
+  org_site
 from rows;
 
 -- ── Job details — the cold half ────────────────────────────────────────────
@@ -118,9 +121,16 @@ select
     || ', plus Dearness Allowance, House Rent Allowance and Transport Allowance as admissible.',
   'Minimum ' || j.age_min || ' years and maximum ' || j.age_max || ' years as on the closing date. '
     || 'Upper age relaxation: OBC 3 years, SC/ST 5 years, PwD 10 years, ex-servicemen as per rules.',
-  'https://example.gov.in/apply/' || j.slug,
-  'https://example.gov.in',
-  'https://example.gov.in/notice/' || j.slug || '.pdf',
+  -- All three are the department's real site. A fabricated path on a real
+  -- domain ("aiims.edu/notice/x.pdf") would be worse than the placeholder it
+  -- replaces: it looks genuine and 404s, so nobody reviewing a page can tell
+  -- a seeded link from a scraped one that has rotted.
+  o.website,
+  o.website,
+  -- Left null on about a quarter of rows. `notification_pdf` is null on plenty
+  -- of production rows, and with it set on every row the job page's "no
+  -- documents" branch never renders in development.
+  case when j.id::text < 'c' then o.website end,
   jsonb_build_array(
     jsonb_build_object('event', 'Application Start', 'date', to_char(j.application_start_date, 'DD Mon YYYY')),
     jsonb_build_object('event', 'Last Date to Apply', 'date', to_char(j.last_date, 'DD Mon YYYY')),
@@ -153,7 +163,11 @@ select
     'conducting_body', coalesce(o.name, 'Government of India'),
     'mode_of_application', 'Online',
     'job_location', coalesce(j.location, 'All India'),
-    'official_website', 'https://example.gov.in'
+    -- Null when a job has no organisation, which renders as no row at all.
+    -- Substituting a generic portal here would assert it as *this* recruitment's
+    -- official site, which is the kind of plausible-but-wrong link this seed is
+    -- being cleaned of.
+    'official_website', o.website
   )
 from public.jobs j
 left join public.organizations o on o.id = j.organization_id;
@@ -171,7 +185,22 @@ from public.organizations o;
 -- ── Exam updates ───────────────────────────────────────────────────────────
 -- Roughly a third link to a job, which is what makes the job_link_state
 -- constraint and the unlinked-backlog index worth having.
-with j as (select id, slug, title, organization_id, row_number() over (order by slug) - 1 as n from public.jobs limit 180)
+--
+-- Every URL on an update page comes from `organizations.website`, which holds
+-- the body's genuine official site — ssc.gov.in, upsc.gov.in, aiims.edu. These
+-- rows used to point at `example.gov.in`, and a placeholder domain is the one
+-- thing a link on this page must never be: the page's whole purpose is to hand
+-- the reader an official address, so a fake one there is indistinguishable from
+-- the aggregator spam `links.ts` exists to strip.
+with j as (
+  select
+    job.id, job.slug, job.title, job.organization_id,
+    org.website,
+    row_number() over (order by job.slug) - 1 as n
+  from public.jobs job
+  join public.organizations org on org.id = job.organization_id
+  limit 180
+)
 insert into public.exam_updates (
   slug, title, category, exam_id, organization_id, job_id, job_link_state,
   summary, tags, published_date, published_at, source_url, dedupe_key, is_published
@@ -195,18 +224,114 @@ select
   array['update','official'],
   (current_date - ((j.n % 60)::int))::date,
   now() - ((j.n * 3 || ' hours')::interval),
-  'https://example.gov.in/update/' || j.n,
+  j.website,
   'seed-update-' || j.n,
   true
 from j;
 
-insert into public.exam_update_details (exam_update_id, body, sections, download_links)
+-- The detail blobs, in the shapes production actually stores.
+--
+-- This used to be one section, one link, and nothing else — no `important_dates`,
+-- no `overview`. So every update page in local dev rendered a title, a summary
+-- and one collapsed panel, which is a fair description of a broken page and no
+-- description at all of the real one. Worse, the three shapes that make
+-- `detail-shape.ts` necessary were all absent, so a change that broke them
+-- looked fine here and only failed against the real table:
+--
+--   • `sections` store `content: string[]`, not `body: string` (998 of 1,000
+--     sampled rows), and carry the source site's own adverts inline;
+--   • `important_dates` is a scraped table with its header row still in it, and
+--     on ~28% of rows it is a *links* table wearing a date table's clothes;
+--   • the dates those rows are missing live in `overview` instead.
+--
+-- Every third seeded row therefore gets the link-table shape rather than a real
+-- date table, which is what exercises the promotion path in `datesFromOverview`.
+insert into public.exam_update_details
+  (exam_update_id, body, sections, overview, important_dates, download_links, related_articles)
 select
   u.id,
   'Full text of the update. ' || repeat('Candidates should verify their details carefully. ', 20),
-  jsonb_build_array(jsonb_build_object('heading','How to download','body','Visit the official portal and log in.')),
-  jsonb_build_array(jsonb_build_object('label','Official notification','url','https://example.gov.in/pdf'))
-from public.exam_updates u;
+  jsonb_build_array(
+    jsonb_build_object(
+      'heading', u.title || ' - Overview',
+      'type', 'paragraph',
+      'content', jsonb_build_array(
+        'The board has released this notice on its official portal.',
+        -- The advert `toUpdateSections` has to drop. Without one in the seed,
+        -- a regression in that filter is invisible locally.
+        '⚡ Get Custom Govt Job Alerts by Your Qualification (10TH | 12TH | Diploma)'
+      )
+    ),
+    jsonb_build_object(
+      'heading', 'How to download',
+      'type', 'list',
+      'content', jsonb_build_array(
+        'Visit the official portal and log in.',
+        'Enter your registration number and date of birth.',
+        'Download the PDF and take a printout for the exam hall.'
+      )
+    ),
+    -- A heading whose lines are all adverts: dropped entirely, rather than
+    -- rendered as an empty panel.
+    jsonb_build_object(
+      'heading', 'Stay updated',
+      'type', 'paragraph',
+      'content', jsonb_build_array('Join our WhatsApp channel for instant alerts')
+    )
+  ),
+  jsonb_build_array(
+    -- The header row the scraper takes for data, on the largest source.
+    jsonb_build_object('field','Detail','value','Information'),
+    jsonb_build_object('field','Recruiting Body','value', o.name),
+    jsonb_build_object('field','Post Name','value', u.title),
+    jsonb_build_object('field','Total Vacancies','value','120'),
+    jsonb_build_object('field','Qualification','value','Graduate in any discipline'),
+    jsonb_build_object('field','Apply Mode','value','Online'),
+    -- Present on 3,539 production rows, and the reason a bare domain has to be
+    -- readable as a value here while `inferLinkLabel` refuses it as a *label*.
+    jsonb_build_object('field','Official Website','value', o.website),
+    -- A date hiding in the overview table. On rows with no date table of their
+    -- own this is the only schedule the page can show.
+    jsonb_build_object('field','Exam Date','value', to_char(current_date + 21, 'DD Month YYYY'))
+  ),
+  case when u.id::text < '5'
+    then jsonb_build_array(
+      -- A links table stored in the dates column: every row is dropped from the
+      -- schedule, and the URLs are rescued into Important links instead.
+      jsonb_build_object('event','Link Description','date','Link','status','','link',''),
+      jsonb_build_object('event','Official Website','date','Click here','status','',
+                         'link', o.website)
+    )
+    else jsonb_build_array(
+      jsonb_build_object('event','Event','date','Date','status','','link',''),
+      jsonb_build_object('event','Application Start Date',
+                         'date', to_char(current_date - 30, 'DD-MM-YYYY'), 'status','Closed','link',''),
+      jsonb_build_object('event','Last Date to Apply',
+                         'date', to_char(current_date + 7, 'DD-MM-YYYY'), 'status','Active','link',''),
+      -- An over-long cell, so the note split in `splitDateNote` is exercised.
+      jsonb_build_object('event','Admit Card Release Date',
+                         'date', to_char(current_date + 14, 'DD-MM-YYYY')
+                                 || ' (tentative; subject to change as per the board notice)',
+                         'status','','link','')
+    )
+  end,
+  jsonb_build_array(
+    -- Labelled "Click here" by the source, as most stored links are. On the
+    -- link-table rows above, the date table names this same URL "Official
+    -- Website", so the two merge and the label that says something wins; on the
+    -- rest it falls through to `inferLinkLabel`, which reads a URL with no path
+    -- as "Official website".
+    jsonb_build_object('label','Click here','url', o.website),
+    -- A blocked destination that predates the ingest blocklist. It must never
+    -- reach the page.
+    jsonb_build_object('label','Join our channel','url','https://t.me/examalerts')
+  ),
+  -- Empty on every production row sampled. Seeding a second fabricated address
+  -- to fill the section would put the one thing on this page that must be real
+  -- — an official link — behind a domain that is not.
+  '[]'::jsonb
+from public.exam_updates u
+join public.organizations o on o.id = u.organization_id;
 
 -- ── Operational rows, so the admin monitor has something to show ─────────
 -- Module 11 writes these for real. Seeded here because an ingest monitor with

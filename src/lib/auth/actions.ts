@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 
 import { sessionDb } from "@/lib/db/clients";
 import { consume, LIMITS } from "@/lib/rate-limit";
-import { env } from "@/lib/env";
+import { callbackOrigin } from "./callback-origin";
 import { safeNext, type FormState } from "./form-state";
 import {
   fieldErrors,
@@ -83,7 +83,7 @@ export async function signUpAction(_prev: FormState, formData: FormData): Promis
       // Read by the `handle_new_user` trigger to seed profiles.full_name, so a
       // new account arrives with a name already on it.
       data: { full_name: parsed.data.fullName },
-      emailRedirectTo: `${env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+      emailRedirectTo: `${await callbackOrigin()}/auth/callback`,
     },
   });
 
@@ -118,7 +118,7 @@ export async function signInWithGoogleAction(formData: FormData): Promise<void> 
       // Supabase sends the browser back here with a code; the callback route
       // trades it for a session. `next` rides along so the round trip still
       // ends where the user was going.
-      redirectTo: `${env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=${encodeURIComponent(next)}`,
+      redirectTo: `${await callbackOrigin()}/auth/callback?next=${encodeURIComponent(next)}`,
     },
   });
 
@@ -162,7 +162,7 @@ export async function requestPasswordResetAction(
 
   const db = await sessionDb();
   await db.auth.resetPasswordForEmail(parsed.data.email, {
-    redirectTo: `${env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/reset-password`,
+    redirectTo: `${await callbackOrigin()}/auth/callback?next=/reset-password`,
   });
 
   // The result is ignored on purpose, and the message is the same either way.

@@ -276,7 +276,10 @@ function formatAgeLimit(min: number | null, max: number | null): string | null {
 
 function formatFallbackFee(value: unknown): string | null {
   const highest = maxFee(toFeeRows(value));
-  return highest === null ? null : `Up to ₹${String(highest)}`;
+  if (highest === null) return null;
+  // `maxFee` returns 0 for a table whose every line is "Nil" — an answer, and
+  // one that must not be rendered as "Up to ₹0".
+  return highest === 0 ? "No fee" : `Up to ₹${String(highest)}`;
 }
 
 /**

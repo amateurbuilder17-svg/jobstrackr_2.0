@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -60,10 +61,22 @@ async function PersonalDetails() {
       </div>
 
       {!profile?.onboarding_completed ? (
-        <p className="mt-6 rounded-md border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-ink">
-          Fill this in once and the For You feed can tell you what you are actually eligible
-          for. Every field is optional.
-        </p>
+        <div className="mt-6 rounded-md border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-ink">
+          <p>
+            Fill this in once and the For You feed can tell you what you are actually eligible
+            for. Every field is optional.
+          </p>
+          {/* Every field here is optional, so the page should not read as a gate
+              on the way in from sign-up. Skipping writes nothing, which is the
+              point: `onboarding_completed` stays false and this notice — and
+              this way out — is here again next visit. */}
+          <Link
+            href="/"
+            className="mt-1 inline-block font-medium text-accent underline underline-offset-4"
+          >
+            Skip for now
+          </Link>
+        </div>
       ) : null}
 
       <section className="mt-8">

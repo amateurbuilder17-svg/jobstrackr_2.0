@@ -47,6 +47,27 @@ export const CATEGORY_TONE: Record<UpdateCategory, "neutral" | "accent" | "good"
 };
 
 /**
+ * What the page's primary button says.
+ *
+ * Named for the category rather than for the link, which is how the old app
+ * labelled it and is the reason that button worked: the reader arrived wanting
+ * "the admit card", and the scraped link is called "Click here" or, once a
+ * label has been inferred for it, "drive.google.com". The link's own label
+ * still names it in the list further down, where there is room for six of them
+ * and telling them apart is the whole point.
+ */
+export const CATEGORY_CTA: Record<UpdateCategory, string> = {
+  admit_card: "Download admit card",
+  result: "Check result",
+  answer_key: "View answer key",
+  syllabus: "View syllabus",
+  notification: "Download notification",
+  exam_date: "View exam date notice",
+  cutoff: "View cut-off",
+  news: "Read the notice",
+};
+
+/**
  * The filter chips on /updates — the whole enum, in the order people look for
  * them.
  *

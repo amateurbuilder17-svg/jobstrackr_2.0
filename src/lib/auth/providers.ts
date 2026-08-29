@@ -17,29 +17,42 @@ import { env } from "@/lib/env";
  * `/auth/v1/settings` is public, unauthenticated project metadata — it lists
  * which providers are on, and nothing about any user.
  *
- * Cached, so this is one request per revalidation window rather than one per
- * visitor to the sign-in page, and the page keeps its static shell.
+ * Two things this got wrong at first, both of which showed up as "the Google
+ * button is gone":
+ *
+ *   • It failed closed. Any hiccup — the auth server slow, a local Supabase
+ *     not up yet — hid the fastest way in, and hid it silently. A button that
+ *     might error is better than a sign-in page missing its main path, so an
+ *     unreadable probe now assumes the provider is on.
+ *
+ *   • The answer was cached for a day. Whatever it says, it decides whether a
+ *     sign-in button exists, so the `config` cache profile is now measured in
+ *     minutes: toggling a provider in the dashboard shows up on the next
+ *     revalidation rather than tomorrow.
  */
 export async function enabledOAuthProviders(): Promise<{ google: boolean }> {
   "use cache";
   cacheLife("config");
 
-  const none = { google: false };
+  const settings = await fetchAuthSettings();
 
+  // Only a settings response that explicitly says the provider is off takes
+  // the button away — `undefined` here means "could not tell", not "no".
+  return { google: settings?.google !== false };
+}
+
+async function fetchAuthSettings(): Promise<Record<string, unknown> | undefined> {
   try {
     const response = await fetch(`${env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/settings`, {
       headers: { apikey: env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY },
     });
-    if (!response.ok) return none;
+    if (!response.ok) return undefined;
 
     const settings: unknown = await response.json();
-    const external = (settings as { external?: Record<string, unknown> }).external;
-
-    return { google: external?.google === true };
+    return (settings as { external?: Record<string, unknown> }).external;
   } catch {
     // A sign-in page that renders is worth more than one that 500s because a
-    // metadata probe failed. Falling back to "no providers" degrades to
-    // email and password, which always works.
-    return none;
+    // metadata probe failed.
+    return undefined;
   }
 }

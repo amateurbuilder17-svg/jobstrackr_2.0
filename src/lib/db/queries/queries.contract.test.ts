@@ -90,6 +90,7 @@ describe("every query is bounded", () => {
     ["getExamUpdateBySlug", true, async () => (await updates()).getExamUpdateBySlug("s")],
     ["listExamUpdateSlugs", false, async () => (await updates()).listExamUpdateSlugs()],
     ["listUpdatesForJob", false, async () => (await updates()).listUpdatesForJob("id")],
+    ["listRelatedUpdates", false, async () => (await updates()).listRelatedUpdates("SSC", "x")],
     [
       "listExamUpdates (search)",
       false,
@@ -128,6 +129,7 @@ describe("every query names its columns", () => {
     ["listExamUpdates", async () => (await updates()).listExamUpdates()],
     ["getExamUpdateBySlug", async () => (await updates()).getExamUpdateBySlug("s")],
     ["listUpdatesForJob", async () => (await updates()).listUpdatesForJob("id")],
+    ["listRelatedUpdates", async () => (await updates()).listRelatedUpdates("SSC", "x")],
   ])("%s does not select *", async (_name, run) => {
     await run();
 
@@ -254,5 +256,74 @@ describe("open-job lists exclude expired rows without help from the worker", () 
     await (await jobs()).listJobs({ sort: "closing" });
     expect(deadlineFloor()).toBe("2026-03-10");
     vi.useRealTimers();
+  });
+});
+
+/**
+ * The job page's "Documents" rail reads `download_links` off the updates
+ * attached to that job. It was the one render path that accepted a stored URL
+ * on an `http` prefix alone, without `toUrl` — so a WhatsApp invite or a `t.me`
+ * channel on an update would have been published on the job page, under a
+ * heading that presents it as an official document.
+ *
+ * No production row carries one today, which is why nothing caught it. The
+ * guarantee has to come from a test rather than from the current contents of
+ * the table, because a scraper rewrites that column on every ingest.
+ */
+describe("listUpdateLinksForJob", () => {
+  function respondWith(rows: unknown) {
+    vi.stubGlobal("fetch", () =>
+      Promise.resolve(
+        new Response(JSON.stringify(rows), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+  }
+
+  it("never publishes a blocked destination as a document", async () => {
+    respondWith([
+      {
+        title: "SSC CGL Admit Card 2026",
+        category: "admit_card",
+        detail: {
+          download_links: [
+            { label: "Download admit card", url: "https://ssc.gov.in/admit.pdf" },
+            { label: "Join our channel", url: "https://t.me/examalerts" },
+            { label: "Updates group", url: "https://chat.whatsapp.com/abc" },
+            { label: "Read more", url: "https://www.freejobalert.com/ssc/" },
+          ],
+        },
+      },
+    ]);
+
+    const [group] = await (await updates()).listUpdateLinksForJob("job-id");
+    expect(group?.links.map((l) => l.url)).toEqual(["https://ssc.gov.in/admit.pdf"]);
+  });
+
+  it("names a link the source called 'Click here', using the update's category", async () => {
+    respondWith([
+      {
+        title: "SSC CGL Result 2026",
+        category: "result",
+        detail: { download_links: [{ label: "Click here", url: "https://ssc.gov.in/x/y" }] },
+      },
+    ]);
+
+    const [group] = await (await updates()).listUpdateLinksForJob("job-id");
+    expect(group?.links[0]?.label).toBe("Result link");
+  });
+
+  it("drops a whole update once nothing on it survives", async () => {
+    respondWith([
+      {
+        title: "Promo only",
+        category: "news",
+        detail: { download_links: [{ label: "Join", url: "https://t.me/x" }] },
+      },
+    ]);
+
+    expect(await (await updates()).listUpdateLinksForJob("job-id")).toEqual([]);
   });
 });

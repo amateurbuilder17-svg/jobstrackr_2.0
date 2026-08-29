@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   humanise,
+  feeAmount,
   maxFee,
   toDateLinks,
   toFeeRows,
@@ -132,8 +133,108 @@ describe("toFeeRows and maxFee", () => {
     ).toBe(1000);
   });
 
-  it("returns null when no row carries a number", () => {
-    expect(maxFee([{ category: "All", fee: "Exempted" }])).toBeNull();
+  it("returns null when the table does not say", () => {
+    expect(maxFee([{ category: "All", fee: "As per online portal" }])).toBeNull();
+    expect(maxFee([])).toBeNull();
+  });
+});
+
+describe("feeAmount", () => {
+  it("reads the fee out of the wording notifications actually use", () => {
+    // Every one of these is a real cell from the fee tables in this database,
+    // and every one of them read as "no fee stated" before.
+    expect(feeAmount("Rs. 500/- (Rupees Five Hundred only)")).toBe(500);
+    expect(feeAmount("Rs. 200/- plus GST")).toBe(200);
+    expect(feeAmount("₹ 300/- (Non-refundable, plus bank charges extra)")).toBe(300);
+    expect(feeAmount("Rs. 50 (Processing Charges only)")).toBe(50);
+    expect(feeAmount("Rs. 1,180")).toBe(1180);
+  });
+
+  it("takes the first figure, not the largest, and ignores asides", () => {
+    // The total is what a candidate pays; the breakdown in the bracket is how
+    // it is made up. Taking the largest prices this at ₹800.
+    expect(feeAmount("Rs. 1500/- (Rs. 800 Application Fee + Rs. 700 Processing Fee)")).toBe(
+      1500,
+    );
+    // And a percentage inside an aside is not a fee of ₹18.
+    expect(feeAmount("Rs. 148/- (including 18% GST)")).toBe(148);
+    expect(feeAmount("Rs. 600 + 18% GST")).toBe(600);
+  });
+
+  it("reads the free wordings as zero, which is an answer", () => {
+    for (const free of ["Nil", "NIl", "NIL (Exempted)", "Exempted", "No Application Fee"]) {
+      expect(feeAmount(free)).toBe(0);
+    }
+    expect(feeAmount("₹00")).toBe(0);
+    expect(feeAmount("Rs. 0")).toBe(0);
+  });
+
+  it("does not read 'no fee is mentioned' as no fee", () => {
+    // The one wording that must not become ₹0: it says nobody knows, and
+    // printing "No fee" for it would be inventing an answer.
+    expect(
+      feeAmount("No application fee is mentioned in the official notification."),
+    ).toBeNull();
+    expect(feeAmount("Refer to the advertisement for specific fees per post")).toBeNull();
+  });
+
+  it("refuses a number that is not money", () => {
+    // An eligibility table read as a fee table. Priced at ₹32 by any parser
+    // that simply takes the first number it finds.
+    expect(feeAmount("32 years")).toBeNull();
+    expect(feeAmount("35 years (Min. Age- 30 years)")).toBeNull();
+    expect(feeAmount("Not applicable under 72nd CCE after corrigendum")).toBeNull();
+  });
+
+  it("refuses a document reference that happens to contain a number", () => {
+    // Real cell, in a table whose other two rows say ₹1,000. The first number
+    // in it is an advertisement number.
+    expect(
+      feeAmount(
+        "Not required to pay again if already paid for Advt. No. 1440/E-12015/24/26 dated 24.06.2026",
+      ),
+    ).toBeNull();
+    // This column is rupees. $30 is not ₹30.
+    expect(feeAmount("USD $30")).toBeNull();
+  });
+
+  it("accepts a figure a fee word introduces", () => {
+    expect(feeAmount("Application fee 500")).toBe(500);
+    expect(feeAmount("Fee: Rs. 250")).toBe(250);
+  });
+
+  it("refuses a figure too large to be a fee", () => {
+    // A salary column that drifted one place left. The largest fee this
+    // project has ever parsed is ₹5,000.
+    expect(feeAmount("Rs. 35,400")).toBeNull();
+  });
+
+  it("does not let a category name become a fee", () => {
+    expect(feeAmount("Unreserved (UR)")).toBeNull();
+    expect(feeAmount("SC, ST and PwD")).toBeNull();
+  });
+});
+
+describe("maxFee and a table that is free all the way down", () => {
+  it("answers zero rather than nothing", () => {
+    // 466 cells in this database read "Nil". Skipping anything not strictly
+    // positive made every one of those jobs show no fee information at all,
+    // when what the notification says is that it costs nothing to apply.
+    expect(
+      maxFee([
+        { category: "All categories", fee: "Nil" },
+        { category: "SC / ST", fee: "Nil" },
+      ]),
+    ).toBe(0);
+  });
+
+  it("still prefers a real rate over a concessional nil", () => {
+    expect(
+      maxFee([
+        { category: "General", fee: "Rs. 500/- (Non-Refundable)" },
+        { category: "SC / ST / PwD", fee: "Nil" },
+      ]),
+    ).toBe(500);
   });
 });
 

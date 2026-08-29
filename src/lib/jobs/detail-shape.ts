@@ -246,22 +246,150 @@ export function toFeeRows(value: unknown): FeeRow[] {
 }
 
 /**
+ * The largest application fee worth believing, in rupees.
+ *
+ * The sibling of `MIN_PLAUSIBLE_SALARY` and `MAX_PLAUSIBLE_VACANCIES` in
+ * `sync/normalize.ts`, and it exists for the same reason: these tables are
+ * scraped by column position, so the wrong column lands here regularly. Across
+ * every fee this project has ever parsed the highest is ₹5,000 and the median
+ * is ₹500, so a five-figure "fee" is a salary or a pay-matrix figure that has
+ * drifted one column left.
+ */
+export const MAX_PLAUSIBLE_FEE = 10_000;
+
+/**
+ * Units that mean the number beside them is not money.
+ *
+ * Real rows this catches: `"32 years"` and `"35 years (Min. Age- 30 years)"`,
+ * in the fee column, because an eligibility table was read as a fee table. A
+ * parser that simply took the first number would price those jobs at ₹32.
+ * `nd`/`st`/`th` catch the other shape of it — `"Not applicable under 72nd CCE
+ * after corrigendum"` is not a ₹72 fee.
+ */
+const NOT_MONEY = /^(years?|yrs?|months?|days?|hours?|marks?|%|st|nd|rd|th|am|pm)\b/i;
+
+/**
+ * What has to sit immediately in front of a number for it to be a price.
+ *
+ * The other half of the same problem, and the real cell that forced it:
+ *
+ *   "Not required to pay again if already paid for Advt. No. 1440/E-12015/…"
+ *
+ * That is an advertisement number in the fee column of a table whose other two
+ * rows say ₹1,000, and reading the first number in it prices the job at ₹1,440.
+ * No blocklist of reference words is going to stay ahead of the ways a document
+ * reference can be written, so this is an allowlist: a number counts as money
+ * when it opens the cell or when something naming money introduces it.
+ *
+ * Checked against every fee cell in the database, it rejects three: that advt
+ * number, a corrigendum reference, and "USD $30" — which is also right, since
+ * this column is rupees and $30 is not ₹30.
+ */
+const MONEY_BEFORE = /(₹|rs\.?|inr|rupees|fees?|charges?|amount|payable|cost)\s*[:\-–—]?\s*$/i;
+
+/**
+ * Wordings that mean the fee is zero, as opposed to unknown.
+ *
+ * This distinction is the whole point of the list. "Nil" is the single
+ * commonest value in this column — 466 cells of it — and it is an answer: the
+ * post is free to apply for, which is worth telling someone. "No application
+ * fee is mentioned in the official notification" reads almost identically and
+ * is the opposite: nobody knows. So this is an exact-match set after asides are
+ * stripped, not a prefix test, because a prefix test on "no application fee"
+ * would swallow the second one and print "No fee" on a page that has no idea.
+ */
+const NO_FEE = new Set([
+  "nil",
+  "none",
+  "free",
+  "zero",
+  "no fee",
+  "no fees",
+  "nil fee",
+  "no application fee",
+  "no application fees",
+  "application fee exempted",
+  "fee exempted",
+  "exempt",
+  "exempted",
+  "not applicable",
+]);
+
+/**
+ * One fee cell, as a number of rupees, or null when it does not say.
+ *
+ * Zero is a real answer here and null is not the same thing — see `NO_FEE`.
+ *
+ * The number taken is the FIRST one outside any parenthetical, which is the
+ * behaviour `extractFirstNumber` in `apps-script/JobScraper.gs` already has and
+ * the reason both readings come out right:
+ *
+ *   "Rs. 1500/- (Rs. 800 Application Fee + Rs. 700 Processing Fee)" → 1500
+ *   "Rs. 148/- (including 18% GST)"                                → 148
+ *   "Rs. 600 + 18% GST"                                            → 600
+ *
+ * Taking the largest would price the first at ₹800; keeping the parenthetical
+ * would price the second at ₹18.
+ */
+export function feeAmount(value: string): number | null {
+  // Asides carry decoy numbers, and they also carry the words that qualify a
+  // "Nil" — "NIL (Exempted)" is still nil.
+  const withoutAsides = value.replace(/\([^)]*\)/g, " ");
+
+  const words = withoutAsides
+    .replace(/\s+/g, " ")
+    .replace(/[.,\-–—/\s]+$/g, "")
+    .trim()
+    .toLowerCase();
+  if (NO_FEE.has(words)) return 0;
+
+  const match = /\d[\d,]*(?:\.\d+)?/.exec(withoutAsides);
+  if (!match) return null;
+
+  const before = withoutAsides.slice(0, match.index);
+  if (before.trim() !== "" && !MONEY_BEFORE.test(before)) return null;
+
+  const after = withoutAsides.slice(match.index + match[0].length).trimStart();
+  if (NOT_MONEY.test(after)) return null;
+
+  const n = Number(match[0].replace(/,/g, ""));
+  if (!Number.isFinite(n) || n < 0 || n > MAX_PLAUSIBLE_FEE) return null;
+  return n;
+}
+
+/**
  * The highest fee named in a fee table, as a number.
  *
  * The `application_fee` column carries one figure and the table carries the
  * breakdown; when the column is empty the table can still answer "what will
  * this cost me", and the honest answer to show a stranger is the unconcessional
  * rate rather than the cheapest line in the table.
+ *
+ * A table whose every readable line is free returns 0, not null. Those are the
+ * same value to `Number`, which is exactly why the old version lost them: it
+ * skipped anything that was not strictly positive, so a notification saying
+ * every category pays nothing rendered as if the fee were unknown. `jobs`
+ * already treats 0 as an answer — the detail page prints "No fee" for it and
+ * `sync/changes.ts` has a wording for it — so this was the one place that did
+ * not.
  */
 export function maxFee(rows: FeeRow[]): number | null {
   let max: number | null = null;
+  let free = false;
+
   for (const row of rows) {
-    const cleaned = row.fee.replace(/rs\.?/gi, "").replace(/[₹,\s/-]+/g, "");
-    const n = Number(cleaned);
-    if (!Number.isFinite(n) || n <= 0) continue;
+    const n = feeAmount(row.fee);
+    if (n === null) continue;
+    if (n === 0) {
+      free = true;
+      continue;
+    }
     if (max === null || n > max) max = n;
   }
-  return max;
+
+  // A concessional "Nil" beside a general "₹500" is not a free job; the highest
+  // rate still stands. Zero only wins when nothing else was readable.
+  return max ?? (free ? 0 : null);
 }
 
 /* ── Vacancy breakdown ──────────────────────────────────────────────────── */

@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useActionState } from "react";
 
-import { signInAction, signInWithGoogleAction } from "@/lib/auth/actions";
+import { signInAction } from "@/lib/auth/actions";
 import { EMPTY_FORM_STATE } from "@/lib/auth/form-state";
+import { GoogleAuth } from "@/components/auth/google-auth";
 import { Field, FormError, Input } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { Button } from "@/components/ui/button";
 
 export function SignInForm({
   next,
@@ -29,24 +29,9 @@ export function SignInForm({
     <div className="flex flex-col gap-5">
       {/* Google first when it exists: one click against three fields, and most
           returning users took that path originally. Hidden rather than
-          disabled when the provider is off — an button that always fails is
+          disabled when the provider is off — a button that always fails is
           worse than no button. */}
-      {google ? (
-        <>
-          <form action={signInWithGoogleAction}>
-            <input type="hidden" name="next" value={next ?? ""} />
-            <Button type="submit" variant="secondary" size="lg" className="w-full">
-              Continue with Google
-            </Button>
-          </form>
-
-          <div className="flex items-center gap-3 text-xs text-ink-3">
-            <span className="h-px flex-1 bg-line" />
-            or
-            <span className="h-px flex-1 bg-line" />
-          </div>
-        </>
-      ) : null}
+      {google ? <GoogleAuth next={next} /> : null}
 
       <form action={formAction} className="flex flex-col gap-4">
         <input type="hidden" name="next" value={next ?? ""} />

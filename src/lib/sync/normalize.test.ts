@@ -212,3 +212,30 @@ describe("toVacancies", () => {
     expect(toVacancies(-3)).toBeNull();
   });
 });
+
+describe("the scrapers' explicit missing-data markers", () => {
+  it.each(["Not Available", "not available", "N/A", "NA", "Nil", "None", "-", "—"])(
+    "reads %s as an empty cell",
+    (marker) => {
+      // `Config.gs` writes these rather than fabricating a plausible value.
+      // Stored literally they become a card whose location reads
+      // "Not Available", which looks like an answer rather than the absence
+      // of one.
+      expect(toText(marker)).toBeNull();
+    },
+  );
+
+  it("keeps TBD, which is an answer", () => {
+    // `last_date_display` exists to carry it; the deadline badge renders it.
+    expect(toText("TBD")).toBe("TBD");
+    expect(toDateText("TBD")).toBe("TBD");
+    expect(toDate("TBD")).toBeNull();
+  });
+
+  it("does not swallow text that merely contains a marker", () => {
+    expect(toText("Vacancy details not available in the notification")).toBe(
+      "Vacancy details not available in the notification",
+    );
+    expect(toText("Nilgiri District")).toBe("Nilgiri District");
+  });
+});

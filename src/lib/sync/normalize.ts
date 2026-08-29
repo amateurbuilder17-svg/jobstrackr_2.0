@@ -21,6 +21,28 @@ const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
 
 /**
+ * What the scrapers write when they have nothing.
+ *
+ * `Config.gs` is explicit about this — `NA_TEXT: 'Not Available'` and
+ * `NA_DATE: 'TBD'` — and the comment beside it says why: never fabricate a
+ * plausible value. That is the right call at the scraper, and it makes these
+ * strings markers rather than content. Read literally they become a job whose
+ * location is "Not Available" and whose vacancy count reads "Not Available"
+ * on the card, which is worse than an empty field because it looks deliberate.
+ *
+ * "TBD" is deliberately NOT on this list, and the test that pins it says why:
+ * `last_date_display` exists so the sheet can say "TBD" without the parser
+ * inventing a date, and the badge renders it as the answer. `toDate` already
+ * rejects it by shape, so it never reaches a date column either way.
+ * "Not Available" is different — it is the absence of an answer, not one.
+ *
+ * Otherwise this is the list `jobs/detail-shape.ts` has always applied to the
+ * JSONB side, applied now to the typed columns as well.
+ */
+const PLACEHOLDER =
+  /^(n\.?\s*\/?\s*a\.?|na|nil|none|null|undefined|not\s*available|not\s*specified|not\s*mentioned|-+|—+)$/i;
+
+/**
  * Text from a spreadsheet cell, or null.
  *
  * Objects and arrays return null rather than being coerced. `String({})` is
@@ -42,7 +64,8 @@ function cellText(value: unknown): string | null {
   // rather than someone else's markup. See `format/text.ts` for why the
   // renderer decodes as well.
   const trimmed = decodeEntities(text).trim();
-  return trimmed === "" ? null : trimmed;
+  if (trimmed === "" || PLACEHOLDER.test(trimmed)) return null;
+  return trimmed;
 }
 
 /**

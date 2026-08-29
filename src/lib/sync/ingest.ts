@@ -137,7 +137,14 @@ export function toJobPayload(
       state: toText(row.state),
       vacancies: toVacancies(row.vacancies),
       vacancies_display: toText(row.vacancies_display),
-      qualification_summary: toText(row.qualification_summary),
+      // `qualification` is what the Jobs tab of the sheet calls this column,
+      // and what the old project's table called it. Reading only the new name
+      // left it NULL on every row the live feed sends — and 0011 and 0019
+      // generate `required_stream` and `min_qualification_level` from it, so
+      // every job synced from the sheet would have been silently excluded from
+      // matching. Generated columns cannot be forgotten; the text they read
+      // from can.
+      qualification_summary: toText(row.qualification_summary) ?? toText(row.qualification),
       salary_min: toSalary(row.salary_min),
       salary_max: toSalary(row.salary_max),
       salary_display: toText(row.salary_display),

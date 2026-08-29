@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import { type FormState } from "@/lib/auth/form-state";
 import {
@@ -56,6 +57,16 @@ export async function updateProfileAction(
   const p = parsed.data;
 
   const db = await sessionDb();
+
+  // Read before the write, because the write itself sets `onboarding_completed`
+  // — afterwards there is no way to tell a first save from an edit, and only
+  // the first one should carry the user off this page.
+  const { data: before } = await db
+    .from("profiles")
+    .select("onboarding_completed")
+    .eq("id", user.id)
+    .maybeSingle();
+
   const { error } = await db
     .from("profiles")
     .update({
@@ -79,6 +90,16 @@ export async function updateProfileAction(
   if (error) return { ok: false, errors: { form: error.message } };
 
   revalidatePath("/profile");
+
+  // Finishing onboarding is the one save that has somewhere to go: the feed the
+  // form exists to fill. Leaving someone on the form they just completed, with
+  // a "Profile saved." line and no next step, is the missing redirect. Later
+  // edits are edits — they stay put and get the message.
+  if (!before?.onboarding_completed) {
+    revalidatePath("/for-you");
+    redirect("/for-you");
+  }
+
   return { ok: true, message: "Profile saved." };
 }
 
