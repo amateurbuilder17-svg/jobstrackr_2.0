@@ -985,6 +985,48 @@ export type Database = {
         }
         Relationships: []
       }
+      syllabus_cache: {
+        Row: {
+          confidence: number | null
+          data: Json
+          exam_key: string
+          exam_name: string
+          expires_at: string
+          fetched_at: string
+          grounded: boolean
+          model: string | null
+          slug: string
+          sources: string[]
+          year: number | null
+        }
+        Insert: {
+          confidence?: number | null
+          data: Json
+          exam_key: string
+          exam_name: string
+          expires_at?: string
+          fetched_at?: string
+          grounded?: boolean
+          model?: string | null
+          slug: string
+          sources?: string[]
+          year?: number | null
+        }
+        Update: {
+          confidence?: number | null
+          data?: Json
+          exam_key?: string
+          exam_name?: string
+          expires_at?: string
+          fetched_at?: string
+          grounded?: boolean
+          model?: string | null
+          slug?: string
+          sources?: string[]
+          year?: number | null
+        }
+        Relationships: []
+      }
       sync_dead_letter: {
         Row: {
           attempts: number

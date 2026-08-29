@@ -1,6 +1,5 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -65,6 +64,11 @@ interface SessionContextValue {
    * top bar reflows the moment the session resolves.
    */
   identity: Identity | null;
+  /**
+   * Re-read the session if the auth cookie no longer matches what we believe.
+   * Called by `SessionRouteWatcher` on navigation; cheap and idempotent.
+   */
+  recheck: () => void;
   isSaved: (jobId: string) => boolean;
   /**
    * The saved ids. Exposed because the guest saved list has to exchange them
@@ -264,14 +268,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
    *
    * The check is the auth cookie rather than another request. `@supabase/ssr`
    * writes it without `httpOnly` precisely so the browser can read it, which
-   * makes this a string comparison per navigation instead of a fetch. Its
-   * presence is only a hint that something changed — `/api/session` remains the
-   * authority, and is what actually re-runs.
+   * makes this a string comparison instead of a fetch. Its presence is only a
+   * hint that something changed — `/api/session` remains the authority, and is
+   * what actually re-runs.
+   *
+   * The *trigger* used to be `usePathname()` right here, and it had to move.
+   * That hook reads URL data, this provider is in the root layout, and under
+   * Cache Components a client hook reading the URL outside a `<Suspense>`
+   * boundary blocks prerendering for the whole route. It was invisible for as
+   * long as every dynamic route had `generateStaticParams`; the first one
+   * without them — /syllabus/[slug] — failed the build on it. So the watching
+   * lives in `SessionRouteWatcher`, which is one line of JSX inside a boundary,
+   * and this exposes the recheck for it to call.
    */
-  const pathname = usePathname();
-  useEffect(() => {
+  const recheck = useCallback(() => {
     if (hasAuthCookie() !== signedInRef.current) hydrate();
-  }, [pathname, hydrate]);
+  }, [hydrate]);
 
   /* ── Replay when the network comes back ───────────────────────────────── */
   useEffect(() => {
@@ -360,6 +372,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         ready,
         signedIn,
         identity,
+        recheck,
         isSaved,
         savedIds,
         toggle,
@@ -395,6 +408,11 @@ function useSessionContext(): SessionContextValue {
  */
 export function useSession(): Pick<SessionContextValue, "ready" | "signedIn" | "identity"> {
   return useSessionContext();
+}
+
+/** Just the recheck, for the route watcher. */
+export function useSessionRecheck(): () => void {
+  return useSessionContext().recheck;
 }
 
 /** The saved-jobs view of the same store, named for what the caller wants. */

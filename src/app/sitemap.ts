@@ -3,6 +3,7 @@ import type { MetadataRoute } from "next";
 import { env } from "@/lib/env";
 import { listJobSlugs } from "@/lib/db/queries/jobs";
 import { listExamUpdateSlugs } from "@/lib/db/queries/exam-updates";
+import { listSyllabusSlugs } from "@/lib/db/queries/syllabus";
 
 /**
  * Sitemap.
@@ -29,13 +30,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // rejecting inside a cache scope fails the build before any caller's handler
   // runs. Each query now returns an empty array on failure, so there is
   // nothing left to settle.
-  const [jobs, updates] = await Promise.all([listJobSlugs(), listExamUpdateSlugs()]);
+  const [jobs, updates, syllabi] = await Promise.all([
+    listJobSlugs(),
+    listExamUpdateSlugs(),
+    listSyllabusSlugs(),
+  ]);
 
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: site, changeFrequency: "daily", priority: 1 },
     { url: `${site}/jobs`, changeFrequency: "hourly", priority: 0.9 },
     { url: `${site}/updates`, changeFrequency: "hourly", priority: 0.8 },
     { url: `${site}/calendar`, changeFrequency: "weekly", priority: 0.5 },
+    { url: `${site}/syllabus`, changeFrequency: "weekly", priority: 0.6 },
+    { url: `${site}/faq`, changeFrequency: "monthly", priority: 0.4 },
+    { url: `${site}/user-manual`, changeFrequency: "monthly", priority: 0.3 },
+    { url: `${site}/help`, changeFrequency: "monthly", priority: 0.3 },
     { url: `${site}/privacy-policy`, changeFrequency: "yearly", priority: 0.2 },
     { url: `${site}/terms-of-service`, changeFrequency: "yearly", priority: 0.2 },
     { url: `${site}/refund-policy`, changeFrequency: "yearly", priority: 0.2 },
@@ -54,6 +63,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: new Date(updated_at),
       changeFrequency: "weekly" as const,
       priority: 0.6,
+    })),
+    // Cached syllabi are real pages worth indexing: "SSC CGL syllabus" is a
+    // search people make, and the answer here is a full one. `monthly` because
+    // an entry is refetched at most that often — claiming `weekly` would ask
+    // a crawler back for a page that provably has not changed.
+    ...syllabi.map(({ slug, fetchedAt }) => ({
+      url: `${site}/syllabus/${slug}`,
+      lastModified: new Date(fetchedAt),
+      changeFrequency: "monthly" as const,
+      priority: 0.5,
     })),
   ];
 }

@@ -118,7 +118,6 @@ export const MENU_SECTIONS: MenuSection[] = [
         hint: "Search and read an exam syllabus",
         href: "/syllabus",
         icon: ListIcon,
-        state: "soon",
       },
       {
         label: "Telegram alerts",

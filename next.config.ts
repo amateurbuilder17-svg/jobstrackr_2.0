@@ -141,7 +141,9 @@ const nextConfig: NextConfig = {
       { source: "/trending", destination: "/updates", permanent: true },
       { source: "/auth", destination: "/sign-in", permanent: true },
       { source: "/welcome", destination: "/", permanent: true },
-      { source: "/more", destination: "/profile", permanent: true },
+      // /more was the old app's menu page. /menu is its successor, so this is
+      // the one legacy redirect that points at a like-for-like replacement.
+      { source: "/more", destination: "/menu", permanent: true },
       { source: "/for-you/shelf/:key", destination: "/for-you", permanent: true },
 
       // The old app split profile editing across four screens; it is one now.
@@ -156,21 +158,20 @@ const nextConfig: NextConfig = {
       { source: "/countdown/live", destination: "/calendar", permanent: true },
       { source: "/countdown/:slug", destination: "/calendar", permanent: true },
 
-      // These previously pointed at /help and /syllabus, which do not exist in
-      // this app — a 301 into a 404, which satisfies "resolves 301" while
-      // being worse for the visitor than no redirect at all. Both now land
-      // somewhere real.
-      // FormMate was the old app's form-filling assistant. It is not rebuilt —
-      // it depended on the document upload and OCR that this schema deliberately
-      // dropped. The jobs list is where someone looking for it actually wants to
-      // end up; a 404 was the previous answer and told them nothing.
+      // FormMate is not rebuilt yet (plan M24). Until it is, the jobs list is
+      // where someone looking for it actually wants to end up.
       { source: "/formmate", destination: "/jobs", permanent: true },
 
-      { source: "/user-manual", destination: "/", permanent: true },
-      { source: "/faq", destination: "/", permanent: true },
-      { source: "/help", destination: "/", permanent: true },
-      { source: "/syllabus", destination: "/updates?category=syllabus", permanent: true },
-      { source: "/syllabus/result", destination: "/updates?category=result", permanent: true },
+      // /user-manual, /faq, /help and /syllabus were all listed here, pointing
+      // at "/" or at a category filter, on the grounds that they did not exist
+      // in this app. They exist now, and the redirects had to come out with the
+      // pages going in — a 301 shadows its own route completely, so the pages
+      // built, passed every check, appeared in the sitemap, and were reachable
+      // by nobody. `redirects.test.ts` now fails if that recurs.
+      //
+      // The old syllabus result page took its exam in a query string; results
+      // are addressable now, so the only honest destination is the search.
+      { source: "/syllabus/result", destination: "/syllabus", permanent: true },
 
       // Retired endpoints, still called by the old Apps Script and by crawlers.
       { source: "/api/cache/:key", destination: "/jobs", permanent: true },

@@ -3,12 +3,15 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { CheckIcon, ChevronRightIcon, ExternalLinkIcon } from "@/components/icons";
+import { useToday } from "@/components/jobs/today-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
-import { formatDate } from "@/lib/format/deadline";
+import { daysUntilFrom, formatDate } from "@/lib/format/deadline";
 import {
   EVENT_LABELS,
+  EXAM_STAGES,
   STAGE_LABELS,
   examDateOf,
   hasSecondPhase,
@@ -44,6 +47,15 @@ import {
  * **The refresh button tells the truth about waiting.** Its cooldown is the
  * server's cooldown, so it never offers a refresh that would be refused, and a
  * refusal that carries a stale answer shows the answer rather than an error.
+ *
+ * ## Why the three lists look different from each other
+ *
+ * A report carries dates, news and advice, and they were all rendered as `<li>`
+ * in `text-xs text-ink-2` — three kinds of information in one grey column, which
+ * is the same as printing none of them. Dates are now a timeline with the
+ * figures set in the ink the exam's own name uses; news items are boxed, one per
+ * card, because each is a separate event; advice is a checklist. The reader can
+ * tell which is which before reading a word, which is the whole job.
  */
 
 interface Props {
@@ -158,7 +170,21 @@ export function StatusPanel({ attemptId, name, initial }: Props) {
         : "Check status";
 
   return (
-    <div className="mt-3 border-t border-line pt-3">
+    <section className="border-t border-line bg-surface-2/40 px-4 py-3">
+      {/* A band with its own name on it. Everything above this line is what the
+          person typed; everything below it is what a model wrote, and the two
+          should never be mistaken for each other. */}
+      <div className="flex items-baseline justify-between gap-3">
+        <h4 className="cond text-2xs font-semibold tracking-wider text-ink-3 uppercase">
+          Status check
+        </h4>
+        {report ? (
+          <span className="tabular text-2xs text-ink-3" suppressHydrationWarning>
+            {timeAgo(report.refreshedAt)}
+          </span>
+        ) : null}
+      </div>
+
       {report ? (
         <Summary
           report={report}
@@ -168,7 +194,7 @@ export function StatusPanel({ attemptId, name, initial }: Props) {
           }}
         />
       ) : (
-        <p className="text-xs text-ink-3">
+        <p className="mt-2 text-xs leading-5 text-ink-3">
           No status yet. Check for the admit card, exam date and result.
         </p>
       )}
@@ -199,7 +225,7 @@ export function StatusPanel({ attemptId, name, initial }: Props) {
           {notice?.text}
         </span>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -214,12 +240,11 @@ function Summary({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const percent = progressOf(report.report);
   const stage = report.report.stage;
 
   return (
-    <div>
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="mt-2">
+      <div className="flex flex-wrap items-center gap-1.5">
         <Badge tone={toneForStage(stage)}>{STAGE_LABELS[stage]}</Badge>
 
         {!isConfident(report.confidence) ? (
@@ -233,28 +258,12 @@ function Summary({
             Not searched
           </Badge>
         ) : null}
-
-        <span className="text-2xs text-ink-3" suppressHydrationWarning>
-          {timeAgo(report.refreshedAt)}
-        </span>
       </div>
 
-      <div
-        className="mt-2 h-1 w-full overflow-hidden rounded-full bg-surface-2"
-        role="progressbar"
-        aria-valuenow={percent}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-label={`Progress: ${STAGE_LABELS[stage]}`}
-      >
-        <div
-          className="h-full rounded-full bg-accent"
-          style={{ width: `${String(percent)}%` }}
-        />
-      </div>
+      <StageRail stage={stage} report={report} />
 
       {report.report.summary ? (
-        <p className={cn("mt-2 text-xs leading-5 text-ink-2", !expanded && "line-clamp-2")}>
+        <p className={cn("mt-2.5 text-sm leading-6 text-ink-2", !expanded && "line-clamp-3")}>
           {report.report.summary}
         </p>
       ) : null}
@@ -263,10 +272,50 @@ function Summary({
         type="button"
         onClick={onToggle}
         aria-expanded={expanded}
-        className="mt-2 text-2xs font-medium text-accent hover:underline"
+        className="mt-2 inline-flex items-center gap-0.5 text-2xs font-semibold text-accent hover:underline"
       >
         {expanded ? "Hide details" : "Show details"}
+        <ChevronRightIcon
+          className={cn(
+            "size-3.5 transition-transform duration-(--duration-fast)",
+            expanded && "rotate-90",
+          )}
+        />
       </button>
+    </div>
+  );
+}
+
+/**
+ * The seven stages of an exam as seven segments, rather than as one filled bar.
+ *
+ * `progressOf` already derives a percentage from the stage's index, and a bar
+ * drawn from it is honest but says nothing: 67% of what? A segment per stage
+ * shows the sequence the exam actually moves through, and the filled count is
+ * the same number the percentage was. The percentage stays on the ARIA node,
+ * where a screen reader can use it.
+ */
+function StageRail({ stage, report }: { stage: ExamStage; report: ExamStatusReport }) {
+  const reached = EXAM_STAGES.indexOf(stage);
+
+  return (
+    <div
+      className="mt-2.5 flex gap-1"
+      role="progressbar"
+      aria-valuenow={progressOf(report.report)}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-label={`Progress: ${STAGE_LABELS[stage]}`}
+    >
+      {EXAM_STAGES.map((step, i) => (
+        <span
+          key={step}
+          className={cn(
+            "h-1.5 flex-1 rounded-full",
+            i <= reached ? "bg-accent" : "bg-surface-3",
+          )}
+        />
+      ))}
     </div>
   );
 }
@@ -284,9 +333,10 @@ function Detail({ report, name }: { report: ExamStatusReport; name: string }) {
   const [phase, setPhase] = useState<1 | 2>(1);
   const twoPhases = hasSecondPhase(report.report);
   const active = phaseOf(report.report, phase);
+  const today = useToday();
 
   return (
-    <div className="mt-3 flex flex-col gap-3">
+    <div className="mt-4 flex flex-col gap-4">
       {twoPhases ? (
         <div className="flex gap-1" role="tablist" aria-label={`Stages of ${name}`}>
           {([1, 2] as const).map((n) => {
@@ -301,10 +351,10 @@ function Detail({ report, name }: { report: ExamStatusReport; name: string }) {
                   setPhase(n);
                 }}
                 className={cn(
-                  "rounded-md px-2.5 py-1 text-2xs font-medium transition-colors",
+                  "rounded-md px-2.5 py-1 text-2xs font-semibold transition-colors",
                   phase === n
                     ? "bg-accent text-on-accent"
-                    : "border border-line text-ink-2 hover:bg-surface-2",
+                    : "border border-line bg-surface text-ink-2 hover:bg-surface-2",
                 )}
               >
                 {stage?.name ?? `Stage ${String(n)}`}
@@ -317,41 +367,73 @@ function Detail({ report, name }: { report: ExamStatusReport; name: string }) {
       {active ? <PhaseFacts report={report} phase={phase} data={active} /> : null}
 
       {report.report.events.length > 0 ? (
-        <Section title="Dates">
-          <ul className="flex flex-col gap-1">
-            {report.report.events.map((event) => (
-              <li
-                key={`${event.type}-${event.date}-${String(event.phase ?? 0)}`}
-                className="flex items-baseline justify-between gap-3 text-xs"
-              >
-                <span className="text-ink-2">
-                  {EVENT_LABELS[event.type]}
-                  {event.phase !== null && twoPhases ? (
-                    <span className="text-ink-3">
-                      {" "}
-                      · {phaseOf(report.report, event.phase === 2 ? 2 : 1)?.name ?? ""}
+        <Section title="Key dates">
+          {/* A rail with a dot per date. The figures carry the ink the exam's
+              own name uses, because on this page they are the answer. */}
+          <ol className="flex flex-col gap-2.5 border-l border-line pl-4">
+            {report.report.events.map((event) => {
+              const days = today === null ? null : daysUntilFrom(today, event.date);
+              const ahead = days !== null && days >= 0;
+
+              return (
+                <li
+                  key={`${event.type}-${event.date}-${String(event.phase ?? 0)}`}
+                  className="relative"
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "absolute top-1.5 -left-5 size-2 rounded-full",
+                      ahead ? "bg-accent" : "bg-line-strong",
+                    )}
+                  />
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-xs font-medium text-ink-2">
+                      {EVENT_LABELS[event.type]}
+                      {event.phase !== null && twoPhases ? (
+                        <span className="text-ink-3">
+                          {" "}
+                          · {phaseOf(report.report, event.phase === 2 ? 2 : 1)?.name ?? ""}
+                        </span>
+                      ) : null}
                     </span>
+                    <span className="tabular shrink-0 text-right text-sm font-semibold text-ink">
+                      {formatDate(event.date)}
+                      {/* A low-confidence date is a guess and is labelled as
+                          one. The old app rendered guesses and facts
+                          identically. */}
+                      {event.certainty === "low" ? (
+                        <span className="ml-1 text-2xs font-normal text-ink-3">(expected)</span>
+                      ) : null}
+                    </span>
+                  </div>
+                  {days !== null ? (
+                    <p className="tabular text-2xs text-ink-3">
+                      {days === 0
+                        ? "today"
+                        : ahead
+                          ? `in ${String(days)} ${days === 1 ? "day" : "days"}`
+                          : `${String(Math.abs(days))} ${Math.abs(days) === 1 ? "day" : "days"} ago`}
+                    </p>
                   ) : null}
-                </span>
-                <span className="shrink-0 font-medium text-ink">
-                  {formatDate(event.date)}
-                  {/* A low-confidence date is a guess and is labelled as one.
-                      The old app rendered guesses and facts identically. */}
-                  {event.certainty === "low" ? (
-                    <span className="ml-1 font-normal text-ink-3">(expected)</span>
-                  ) : null}
-                </span>
-              </li>
-            ))}
-          </ul>
+                </li>
+              );
+            })}
+          </ol>
         </Section>
       ) : null}
 
       {report.report.updates.length > 0 ? (
-        <Section title="Recent">
-          <ul className="flex flex-col gap-1">
+        <Section title="Latest news">
+          {/* One card per item. These are separate events that happened on
+              separate days; run together as bare list items they read as one
+              paragraph of hedging. */}
+          <ul className="flex flex-col gap-1.5">
             {report.report.updates.map((line) => (
-              <li key={line} className="text-xs leading-5 text-ink-2">
+              <li
+                key={line}
+                className="rounded-md border border-line bg-surface px-3 py-2 text-xs leading-5 text-ink-2"
+              >
                 {line}
               </li>
             ))}
@@ -361,10 +443,12 @@ function Detail({ report, name }: { report: ExamStatusReport; name: string }) {
 
       {report.report.recommendations.length > 0 ? (
         <Section title="What to do next">
-          <ul className="flex list-disc flex-col gap-1 pl-4">
+          {/* Advice, so it looks like a checklist rather than like more prose. */}
+          <ul className="flex flex-col gap-1.5 rounded-md border border-accent-line bg-accent-soft px-3 py-2.5">
             {report.report.recommendations.map((line) => (
-              <li key={line} className="text-xs leading-5 text-ink-2">
-                {line}
+              <li key={line} className="flex items-start gap-2 text-xs leading-5 text-ink-2">
+                <CheckIcon className="mt-0.5 size-3.5 shrink-0 text-accent" />
+                <span>{line}</span>
               </li>
             ))}
           </ul>
@@ -384,9 +468,10 @@ function Detail({ report, name }: { report: ExamStatusReport; name: string }) {
                   // came from. `nofollow` because this app does not vouch for
                   // them.
                   rel="noopener noreferrer nofollow"
-                  className="inline-block max-w-45 truncate rounded-full border border-line px-2 py-0.5 text-2xs text-ink-2 hover:border-line-strong hover:text-ink"
+                  className="inline-flex max-w-45 items-center gap-1 rounded-full border border-line bg-surface px-2 py-0.5 text-2xs text-ink-2 hover:border-line-strong hover:text-ink"
                 >
-                  {source.title}
+                  <ExternalLinkIcon className="size-3 shrink-0 text-ink-3" />
+                  <span className="truncate">{source.title}</span>
                 </a>
               </li>
             ))}
@@ -403,12 +488,20 @@ function Detail({ report, name }: { report: ExamStatusReport; name: string }) {
   );
 }
 
+/**
+ * A section heading with the rule drawn from the end of its own words.
+ *
+ * The rule is what separates four blocks of small text that would otherwise
+ * run together — cheaper than a border box round each, and it keeps the
+ * content flush with the panel's left edge so the eye has one column to follow.
+ */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h4 className="mb-1.5 text-2xs font-semibold tracking-wide text-ink-3 uppercase">
+      <h5 className="cond mb-2 flex items-center gap-2 text-2xs font-semibold tracking-wider text-ink-3 uppercase">
         {title}
-      </h4>
+        <span className="h-px flex-1 bg-line" aria-hidden />
+      </h5>
       {children}
     </div>
   );
@@ -434,7 +527,7 @@ function PhaseFacts({
   const resultDate = resultDateOf(report.report, phase);
 
   return (
-    <dl className="flex flex-col gap-2 rounded-md border border-line bg-surface-2/50 p-3">
+    <dl className="flex flex-col divide-y divide-line rounded-lg border border-line bg-surface">
       <Fact
         term="Admit card"
         value={data.admitCardAvailable ? "Out now" : "Not out yet"}
@@ -477,17 +570,21 @@ function Fact({
   hrefLabel?: string;
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-3">
-      <dt className="text-xs text-ink-2">{term}</dt>
+    <div className="flex items-baseline justify-between gap-3 px-3 py-2">
+      <dt className="cond shrink-0 text-2xs font-semibold tracking-wider text-ink-3 uppercase">
+        {term}
+      </dt>
       <dd className="flex min-w-0 items-baseline gap-2 text-right">
         {detail ? <span className="truncate text-2xs text-ink-3">{detail}</span> : null}
-        <Badge tone={tone}>{value}</Badge>
+        <Badge tone={tone} className="tabular">
+          {value}
+        </Badge>
         {href ? (
           <a
             href={href}
             target="_blank"
             rel="noopener noreferrer nofollow"
-            className="shrink-0 text-2xs font-medium text-accent hover:underline"
+            className="shrink-0 text-2xs font-semibold text-accent hover:underline"
           >
             {hrefLabel}
           </a>

@@ -1,9 +1,10 @@
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 
 import { TodayProvider } from "@/components/jobs/today-provider";
 import { SessionProvider } from "@/components/session/session-provider";
 import { BottomNav } from "./bottom-nav";
 import { MenuPanel } from "./menu-panel";
+import { RouteWatcher } from "./route-watcher";
 import { Sidebar } from "./sidebar";
 import { SiteFooter } from "./site-footer";
 import { TopBar } from "./top-bar";
@@ -48,6 +49,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         <BottomNav />
       </div>
       <MenuPanel />
+
+      {/* Renders nothing. It is the shell's only reader of the URL — closing
+          the drawer and re-checking the session on navigation — and it is
+          behind a boundary because a client hook reading URL data outside one
+          stops every route carrying this shell from prerendering. */}
+      <Suspense fallback={null}>
+        <RouteWatcher />
+      </Suspense>
     </SessionProvider>
   );
 }

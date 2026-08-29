@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
+import { ShieldIcon } from "@/components/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { requireUser } from "@/lib/auth/session";
 import { listExamAttempts, listExams } from "@/lib/db/queries/attempts";
@@ -63,10 +64,13 @@ async function Tracker() {
       {attempts.length > 0 ? (
         // Once, at the foot of the list, rather than on every card. The old app
         // repeated this warning per exam and it stopped being read.
-        <p className="mt-4 rounded-md border border-line bg-surface-2/50 px-3 py-2 text-2xs leading-4 text-ink-3">
-          Status answers are researched automatically and can be wrong or out of date. The
-          conducting body&rsquo;s own website is the only thing that decides an admit card, a
-          date or a result.
+        <p className="mt-4 flex items-start gap-2 rounded-md border border-line bg-surface-2/50 px-3 py-2.5 text-2xs leading-4 text-ink-3">
+          <ShieldIcon className="mt-px size-3.5 shrink-0" />
+          <span>
+            Status answers are researched automatically and can be wrong or out of date. The
+            conducting body&rsquo;s own website is the only thing that decides an admit card, a
+            date or a result.
+          </span>
         </p>
       ) : null}
 

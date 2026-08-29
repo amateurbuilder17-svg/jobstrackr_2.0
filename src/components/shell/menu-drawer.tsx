@@ -1,6 +1,5 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 
 import { CloseIcon } from "@/components/icons";
@@ -30,14 +29,10 @@ export function MenuDrawer({ children }: { children: ReactNode }) {
   /** Whatever had focus when the drawer opened, so it can be given back. */
   const restoreRef = useRef<HTMLElement | null>(null);
 
-  /* ── Close on route change ────────────────────────────────────────────── */
-  // A link inside the drawer navigates; the drawer must not still be sitting
-  // over the page it navigated to. This runs on every pathname change, which
-  // is also the correct behaviour for the browser back button.
-  const pathname = usePathname();
-  useEffect(() => {
-    closeMenu();
-  }, [pathname]);
+  // Closing on navigation is handled by `RouteWatcher`, not here. A
+  // `usePathname()` in this component reads URL data from inside the root
+  // layout, which under Cache Components stops every route carrying the shell
+  // from prerendering.
 
   /* ── Focus in, focus back ─────────────────────────────────────────────── */
   useEffect(() => {
