@@ -32,9 +32,14 @@ const TRAFFIC = {
   dailyActiveUsers: 30,
   pageViewsPerUser: 8,
   daysPerMonth: 30,
-  // A search engine recrawling the whole corpus, twice a week. 448 is the
+  // A search engine recrawling the whole corpus, twice a week. 694 is the
   // prerendered page count from the last build, not a guess.
-  crawlerPagesPerMonth: 448 * 8,
+  //
+  // 448 → 694 when the countdown landed (M27): every job with a closing date
+  // gained a shareable /countdown/[slug] page. That is a 55% larger corpus for
+  // a crawler to walk, and it is the reason this number is remeasured on every
+  // module rather than set once.
+  crawlerPagesPerMonth: 694 * 8,
   // Signed-in sessions that hit the personalised routes.
   personalisedSessionsPerMonth: 30 * 30,
   adminSessionsPerMonth: 60,

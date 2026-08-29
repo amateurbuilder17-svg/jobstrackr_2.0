@@ -153,10 +153,10 @@ const nextConfig: NextConfig = {
       { source: "/edit-sector-preferences", destination: "/profile", permanent: true },
       { source: "/documents", destination: "/profile", permanent: true },
 
-      // Countdown was its own feature; the calendar answers the same question.
-      { source: "/countdown", destination: "/calendar", permanent: true },
-      { source: "/countdown/live", destination: "/calendar", permanent: true },
-      { source: "/countdown/:slug", destination: "/calendar", permanent: true },
+      // /countdown, /countdown/live and /countdown/:slug used to redirect to
+      // /calendar, on the grounds that the calendar answered the same question.
+      // The countdown is rebuilt (plan M27) and the redirects are gone with it;
+      // `redirects.test.ts` is what caught them still standing.
 
       // FormMate is not rebuilt yet (plan M24). Until it is, the jobs list is
       // where someone looking for it actually wants to end up.
