@@ -44,7 +44,15 @@ import { env } from "@/lib/env";
  * would be the app hiding their data from them. The page renders from
  * localStorage for guests and from the database for everyone else.
  */
-const PROTECTED = ["/profile", "/tracker", "/for-you", "/admin"] as const;
+const PROTECTED = [
+  "/profile",
+  "/tracker",
+  "/for-you",
+  "/admin",
+  // Both hold identity data and neither has anything to show a guest.
+  "/my-details",
+  "/documents",
+] as const;
 
 /**
  * Routes a signed-in user has no reason to see. `/reset-password` is
@@ -117,6 +125,8 @@ export const config = {
   // cannot be interpolated here. Keep the two in step when adding a route.
   matcher: [
     "/profile/:path*",
+    "/my-details/:path*",
+    "/documents/:path*",
     "/tracker/:path*",
     "/for-you/:path*",
     "/admin/:path*",

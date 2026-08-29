@@ -67,6 +67,20 @@ export interface GenerateRequest {
   maxTokens?: number;
   /** Defaults to true. The only caller that would set false is a retry. */
   grounded?: boolean;
+  /**
+   * An image or PDF to read, base64-encoded, for the vision calls.
+   *
+   * Sent as an `inlineData` part alongside the prompt. Deliberately typed here
+   * rather than given its own entry point: OCR needs the same key pool, the
+   * same rotation and the same timeout handling as everything else, and a
+   * parallel implementation of that is a second place for the pool bookkeeping
+   * to be wrong.
+   *
+   * Callers that pass this should also pass `grounded: false`. Reading a
+   * photograph of a marksheet is not a question about the world, and a search
+   * tool on the request buys nothing while costing the grounding quota.
+   */
+  image?: { mimeType: string; data: string };
 }
 
 export interface GenerateResult {
@@ -206,9 +220,18 @@ async function callOnce(
   req: GenerateRequest,
   grounded: boolean,
 ): Promise<Response> {
+  // The image goes first. Gemini's own guidance for a single-image prompt is
+  // image-then-text, and it is measurably better at following an instruction
+  // that arrives after the thing it is about.
+  const parts: Record<string, unknown>[] = [];
+  if (req.image) {
+    parts.push({ inlineData: { mimeType: req.image.mimeType, data: req.image.data } });
+  }
+  parts.push({ text: req.prompt });
+
   const body: Record<string, unknown> = {
     systemInstruction: { parts: [{ text: req.system }] },
-    contents: [{ role: "user", parts: [{ text: req.prompt }] }],
+    contents: [{ role: "user", parts }],
     generationConfig: {
       temperature: req.temperature ?? 0.2,
       maxOutputTokens: req.maxTokens ?? 4096,

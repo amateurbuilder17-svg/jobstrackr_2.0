@@ -97,20 +97,22 @@ export const MENU_SECTIONS: MenuSection[] = [
   {
     title: "Smart tools",
     items: [
+      // Both were named after the machinery rather than the job. "Application
+      // guidance" guided nobody, and "Your documents" described a filing
+      // cabinet — what people come here to do is stop typing the same twelve
+      // fields into every form.
       {
-        label: "Application guidance",
-        hint: "Copy your details into forms with a tap",
-        href: "/formmate",
+        label: "Copy my details",
+        hint: "Your saved details, one tap each, for any form",
+        href: "/my-details",
         icon: FileIcon,
-        state: "soon",
         requiresAuth: true,
       },
       {
-        label: "Your documents",
-        hint: "Fill your profile from a marksheet or ID",
+        label: "Scan a document",
+        hint: "Read a marksheet or ID and fill your profile",
         href: "/documents",
         icon: UploadIcon,
-        state: "soon",
         requiresAuth: true,
       },
       {

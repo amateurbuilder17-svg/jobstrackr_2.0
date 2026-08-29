@@ -147,20 +147,22 @@ const nextConfig: NextConfig = {
       { source: "/for-you/shelf/:key", destination: "/for-you", permanent: true },
 
       // The old app split profile editing across four screens; it is one now.
+      // /documents is absent from this list on purpose — it is a real page
+      // again (plan M25), and a redirect would shadow it completely.
       { source: "/settings/notifications", destination: "/profile", permanent: true },
       { source: "/edit-profile", destination: "/profile", permanent: true },
       { source: "/edit-education", destination: "/profile", permanent: true },
       { source: "/edit-sector-preferences", destination: "/profile", permanent: true },
-      { source: "/documents", destination: "/profile", permanent: true },
 
       // /countdown, /countdown/live and /countdown/:slug used to redirect to
       // /calendar, on the grounds that the calendar answered the same question.
       // The countdown is rebuilt (plan M27) and the redirects are gone with it;
       // `redirects.test.ts` is what caught them still standing.
 
-      // FormMate is not rebuilt yet (plan M24). Until it is, the jobs list is
-      // where someone looking for it actually wants to end up.
-      { source: "/formmate", destination: "/jobs", permanent: true },
+      // /formmate was the old app's name for this. The page exists again, under
+      // a name that says what it does, so the legacy link now lands on the
+      // thing it was always for rather than on the jobs list.
+      { source: "/formmate", destination: "/my-details", permanent: true },
 
       // /user-manual, /faq, /help and /syllabus were all listed here, pointing
       // at "/" or at a category filter, on the grounds that they did not exist
