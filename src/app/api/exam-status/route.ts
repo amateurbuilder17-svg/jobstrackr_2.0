@@ -222,11 +222,21 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     refreshed = await fetchExamStatus(subject);
   } catch (error) {
-    const message =
-      error instanceof GeminiError && error.exhausted
-        ? "The status service is busy. Try again in a few minutes."
-        : "Could not reach the status service. Try again shortly.";
+    const gemini = error instanceof GeminiError ? error : null;
     console.error(`[exam-status] ${subjectKey}:`, error);
+
+    // Google refused every key in the pool — revoked, restricted, or never
+    // valid. That is the same condition the check at the top of this handler
+    // reports, discovered a step later, and it deserves the same sentence:
+    // "try again shortly" would spend the rest of today's ten refreshes
+    // rediscovering a problem only a deployment change can fix.
+    if (gemini?.unusable) {
+      return fail("unconfigured", "Status refresh is not configured on this deployment.", 503);
+    }
+
+    const message = gemini?.exhausted
+      ? "The status service is busy. Try again in a few minutes."
+      : "Could not reach the status service. Try again shortly.";
     return fail("unavailable", message, 503, 120);
   }
 

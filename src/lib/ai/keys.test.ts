@@ -189,6 +189,50 @@ describe("keys that cannot be used", () => {
   });
 });
 
+describe("a model a key may not use", () => {
+  it("is remembered as a pairing, so the key survives a change of model", async () => {
+    // Google closes a model to new projects rather than removing it, so a key
+    // created last week is refused gemini-2.5-flash while the eight beside it
+    // keep using it. Disabling that key would retire a working one — and on
+    // the day a model closes to existing users, the whole pool at once.
+    const mod = await import("./keys");
+    const key = {
+      id: "env-0",
+      provider: "gemini",
+      model: "gemini-2.5-flash",
+      key: "usable-elsewhere",
+      label: "env key 1",
+      totalCalls: 0,
+      totalErrors: 0,
+    };
+
+    expect(mod.servesItsModel(key)).toBe(true);
+
+    mod.recordUnsupportedModel(key, 404, "no longer available to new users");
+
+    expect(mod.servesItsModel(key)).toBe(false);
+    // The memo names the model too, so moving this row — or GEMINI_MODEL — to
+    // one the key may use clears it with nothing to reset.
+    expect(mod.servesItsModel({ ...key, model: "gemini-3.6-flash" })).toBe(true);
+  });
+
+  it("does not take the key out of the pool", async () => {
+    // `is_active` is untouched: what is broken is the pairing, and the loader
+    // must still return the key so a later model can use it.
+    vi.stubEnv("GEMINI_API_KEY", "still-loaded");
+
+    const mod = await import("./keys");
+    const loaded = (await mod.loadApiKeys())[0];
+    if (!loaded) throw new Error("the environment pool was empty");
+
+    mod.recordUnsupportedModel(loaded, 404, "no longer available to new users");
+
+    expect((await mod.loadApiKeys()).map((k) => k.key)).toEqual(["still-loaded"]);
+
+    vi.stubEnv("GEMINI_API_KEY", "");
+  });
+});
+
 describe("the environment fallback", () => {
   it("is used when the table is empty, so a bare deployment still works", async () => {
     vi.stubEnv("GEMINI_API_KEY", "env-single");
@@ -228,6 +272,26 @@ describe("the environment fallback", () => {
 
     vi.stubEnv("GEMINI_API_KEYS", "");
     vi.stubEnv("GEMINI_API_KEY", "");
+  });
+
+  it("drops a key Google refused, so the next request does not pay to rediscover it", async () => {
+    // An environment key has no row to switch `is_active` off on, so before
+    // this it was reloaded on every request: past the `hasApiKeys` gate, past
+    // the quota claim, into a call Google had already refused. Ten of those
+    // and the day's refreshes are gone without the model being reached once.
+    vi.stubEnv("GEMINI_API_KEY", "revoked");
+    vi.stubEnv("GEMINI_API_KEY_2", "working");
+
+    const mod = await import("./keys");
+    const refused = (await mod.loadApiKeys())[0];
+    if (!refused) throw new Error("the environment pool was empty");
+
+    mod.recordDeadKey(refused, 400, "API key not valid. Please pass a valid API key.");
+
+    expect((await mod.loadApiKeys()).map((k) => k.key)).toEqual(["working"]);
+
+    vi.stubEnv("GEMINI_API_KEY", "");
+    vi.stubEnv("GEMINI_API_KEY_2", "");
   });
 
   it("is not used when the table has rows — the table is the source of truth", async () => {

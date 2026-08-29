@@ -7,6 +7,8 @@ import {
   recordError,
   recordRateLimit,
   recordSuccess,
+  recordUnsupportedModel,
+  servesItsModel,
   type ApiKey,
 } from "./keys";
 
@@ -81,6 +83,15 @@ export class GeminiError extends Error {
     message: string,
     /** True when every key was rate-limited rather than broken. */
     readonly exhausted = false,
+    /**
+     * True when the pool is empty or Google refused every key in it.
+     *
+     * The distinction from a plain failure is what the caller tells the person
+     * waiting. "Try again shortly" is right for a timeout and wrong for a
+     * revoked key: nothing about waiting fixes it, and each retry costs a
+     * quota claim to rediscover the same refusal.
+     */
+    readonly unusable = false,
   ) {
     super(message);
     this.name = "GeminiError";
@@ -140,6 +151,25 @@ function isInvalidKey(detail: string): boolean {
 }
 
 /**
+ * A 404 that means "not this key, not this model".
+ *
+ * Google closes a model to new projects rather than removing it, so a key
+ * created last week is refused `gemini-2.5-flash` — "no longer available to
+ * new users" — while the eight keys beside it keep using it happily. Left
+ * unclassified this is a generic error: recorded, never disabled, and retried
+ * on every request forever, one wasted round trip at a time.
+ *
+ * A model name that is simply wrong lands here too ("is not found for API
+ * version v1beta"), and that is correct rather than sloppy: every key will be
+ * refused it, the walk ends with nothing usable, and the caller is told the
+ * deployment is misconfigured — which is exactly what a bad model name is.
+ */
+function isModelRefused(status: number, detail: string): boolean {
+  if (status !== 404) return false;
+  return /no longer available|not available|is not found|not supported/i.test(detail);
+}
+
+/**
  * Finish reasons no other key will do any better on.
  *
  * These describe the *request* — the model mangled its own structured output,
@@ -191,9 +221,14 @@ async function callOnce(
   // That is not a preference — asking for both is a 400.
   if (grounded) body.tools = [{ google_search: {} }];
 
-  return fetch(`${ENDPOINT}/${encodeURIComponent(key.model)}:generateContent?key=${key.key}`, {
+  // The key travels in a header, not in `?key=`. Google accepts both, and the
+  // query form is the one that ends up somewhere it should not be: request
+  // URLs are what proxies log, what error reporters attach to a breadcrumb,
+  // and what a stack trace quotes back. A header is not automatically captured
+  // by any of those. Same call, same auth, one fewer place the secret leaks.
+  return fetch(`${ENDPOINT}/${encodeURIComponent(key.model)}:generateContent`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "x-goog-api-key": key.key },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
@@ -212,13 +247,25 @@ async function attempt(
   grounded: boolean,
 ): Promise<GenerateResult> {
   if (keys.length === 0) {
-    throw new GeminiError("No Gemini API key is configured.");
+    throw new GeminiError("No Gemini API key is configured.", false, true);
   }
 
   let lastError = "every key failed";
   let allExhausted = true;
+  // Until something says otherwise, assume the worst kind of failure: a pool
+  // Google will refuse just as flatly on the next request.
+  let allInvalid = true;
 
   for (const [index, key] of keys.entries()) {
+    // Already proven, in this process, to be a pairing Google refuses. Skipped
+    // rather than re-proven — but `allInvalid` is left standing, because a pool
+    // where no key may use its model is a deployment problem, not a bad moment.
+    if (!servesItsModel(key)) {
+      allExhausted = false;
+      lastError = `${key.label} may not use ${key.model}`;
+      continue;
+    }
+
     let response: Response;
 
     try {
@@ -228,6 +275,7 @@ async function attempt(
       // can tell, so nothing is written against it — but the next key gets a
       // turn, because a hung region is a real thing.
       allExhausted = false;
+      allInvalid = false;
       lastError = error instanceof Error ? error.message : "network error";
       continue;
     }
@@ -251,6 +299,7 @@ async function attempt(
         // Empty for some other reason. Charged against the key, so one that is
         // consistently empty shows up in the counters, and rotate on.
         allExhausted = false;
+        allInvalid = false;
         lastError = `the model returned an empty answer (${stop})`;
         recordError(key, 200, `empty answer (${stop})`);
         continue;
@@ -283,6 +332,9 @@ async function attempt(
     // key goes on cooldown and stays in the pool.
     if (response.status === 429 || response.status === 402) {
       recordRateLimit(key, response.status);
+      // A capped key is a working key. Whatever else this call reports, it is
+      // not a deployment that cannot answer.
+      allInvalid = false;
       lastError = "every key is rate limited";
       continue;
     }
@@ -304,15 +356,23 @@ async function attempt(
       continue;
     }
 
-    // Everything else: a bad model name, an unsupported tool combination, a 500
-    // from Google. Recorded and rotated past — some of these are per-key (a
-    // model a particular project cannot reach), so the next key may well work.
+    // A model this key's project may not use. Remembered as a pairing so the
+    // rest of the pool — and this same key on another model — is unaffected.
+    if (isModelRefused(response.status, detail)) {
+      recordUnsupportedModel(key, response.status, detail);
+      lastError = `${key.label} may not use ${key.model}`;
+      continue;
+    }
+
+    // Everything else: an unsupported tool combination, a 500 from Google.
+    // Recorded and rotated past — the next key may well work.
     recordError(key, response.status, detail);
+    allInvalid = false;
     lastError = `API error ${String(response.status)}: ${detail.slice(0, 200)}`;
     console.warn(`[gemini] ${key.model} ${String(response.status)}: ${detail}`);
   }
 
-  throw new GeminiError(lastError, allExhausted);
+  throw new GeminiError(lastError, allExhausted, allInvalid);
 }
 
 /**
@@ -338,6 +398,11 @@ export async function generate(req: GenerateRequest): Promise<GenerateResult> {
     const failure = error instanceof GeminiError ? error : new GeminiError(String(error));
 
     if (!wantsGrounding) throw failure;
+
+    // A pool Google refused outright will refuse the ungrounded call too — the
+    // key is checked before the tools are. Walking it a second time doubles
+    // the wait for a failure that is already decided.
+    if (failure.unusable) throw failure;
 
     // Note that an exhausted pool is NOT excluded here, and that is a
     // correction made against a live key rather than a guess. The reasoning
