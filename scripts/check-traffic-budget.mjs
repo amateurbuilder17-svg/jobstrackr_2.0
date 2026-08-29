@@ -32,8 +32,9 @@ const TRAFFIC = {
   dailyActiveUsers: 30,
   pageViewsPerUser: 8,
   daysPerMonth: 30,
-  // A search engine recrawling the whole corpus, twice a week.
-  crawlerPagesPerMonth: 438 * 8,
+  // A search engine recrawling the whole corpus, twice a week. 448 is the
+  // prerendered page count from the last build, not a guess.
+  crawlerPagesPerMonth: 448 * 8,
   // Signed-in sessions that hit the personalised routes.
   personalisedSessionsPerMonth: 30 * 30,
   adminSessionsPerMonth: 60,
@@ -48,16 +49,35 @@ const TRAFFIC = {
 
 /* ── Measured payloads, in kilobytes ───────────────────────────────────── */
 const PAYLOAD = {
-  // `pnpm budget`: heaviest route first load, gzipped.
-  pageFirstLoadKb: 151,
+  // Heaviest route, gzipped: first-load JS from `pnpm budget` (159.9) plus the
+  // document below, because a cold visitor pays for both and this line is the
+  // only one they are counted on.
+  pageFirstLoadKb: 178,
   // Repeat views reuse the chunk cache; only the document is refetched.
-  pageDocumentKb: 14,
+  //
+  // 14 → 18 for the app menu (M21). The drawer's contents are server-rendered
+  // into the shell, so every page now carries the menu's markup twice — once as
+  // HTML and once in the RSC payload that hydrates it. Measured across the
+  // whole build: +1.8 kB gzipped on a list page, +4.0 kB on a job detail page,
+  // and +30% on the total bytes the CDN holds (13.3 → 17.3 MB).
+  //
+  // That is the price of the drawer costing ~2 kB of JavaScript instead of
+  // shipping fifty links as a client component, and at this traffic it buys
+  // more than it costs — but it is a real number and it belongs here rather
+  // than in a commit message. 18 is the heaviest document, not the mean;
+  // crawler traffic is mostly detail pages, so the heavy one is the one to
+  // model.
+  pageDocumentKb: 18,
   // Measured in M8: match_jobs for 50 rows.
   forYouRpcKb: 31,
   // Measured in M10: a full admin session, overview + 6 pages + storage.
   adminSessionKb: 98,
-  // Measured in M7: /api/saved for a session.
-  savedIdsKb: 4,
+  // Measured in M7 as /api/saved; now /api/session, which also carries the
+  // display name, address and admin flag for the profile button. The identity
+  // block adds ~0.12 kB to the response and two small reads behind it — a
+  // one-column profile select and the has_role RPC — against a request the
+  // session was already making.
+  sessionPayloadKb: 4.2,
   // A sync run reads the feed and writes only what changed; the read is the
   // Apps Script side, so what counts here is the diff query plus writes.
   syncRunKb: 60,
@@ -67,6 +87,28 @@ const PAYLOAD = {
   statusRefreshKb: 12,
   // The tracker's own read: one page of attempts plus their cached reports.
   trackerPageKb: 18,
+};
+
+/* ── Stored rows ───────────────────────────────────────────────────────── */
+// `supabaseDbMb` was declared as a ceiling from the first version of this file
+// and then never checked — a limit nothing verifies is a limit that is not
+// really there, and this is the one the old project actually hit second.
+//
+// Bytes per row are measured, not guessed: `pg_total_relation_size / n_live_tup`
+// on a seeded database, so each figure already includes that table's indexes
+// and its toast. Row counts are the production corpus from the plan (§0.4:
+// ~5,200 indexed job pages, 99 accounts).
+const STORED = {
+  jobs: { rows: 5200, bytesPerRow: 5530 },
+  jobDetails: { rows: 5200, bytesPerRow: 4437 },
+  examUpdates: { rows: 3000, bytesPerRow: 4779 },
+  examUpdateDetails: { rows: 3000, bytesPerRow: 6599 },
+  // Carries a 384-dimension embedding, which is most of the row.
+  profiles: { rows: 99, bytesPerRow: 12288 },
+  examAttempts: { rows: 500, bytesPerRow: 19661 },
+  // Ops and log tables are pruned nightly by /api/cron/prune, so they are
+  // modelled at a steady state rather than growing without bound.
+  opsAndLogs: { rows: 5000, bytesPerRow: 2000 },
 };
 
 const KB_PER_GB = 1024 * 1024;
@@ -86,7 +128,7 @@ const vercelKb =
 // served from the CDN and cost nothing here — that is the entire architecture,
 // and this line is where it shows up.
 const supabaseKb =
-  TRAFFIC.personalisedSessionsPerMonth * (PAYLOAD.forYouRpcKb + PAYLOAD.savedIdsKb) +
+  TRAFFIC.personalisedSessionsPerMonth * (PAYLOAD.forYouRpcKb + PAYLOAD.sessionPayloadKb) +
   TRAFFIC.adminSessionsPerMonth * PAYLOAD.adminSessionKb +
   TRAFFIC.syncRunsPerMonth * PAYLOAD.syncRunKb +
   TRAFFIC.personalisedSessionsPerMonth * PAYLOAD.trackerPageKb +
@@ -102,11 +144,19 @@ const invocations =
   TRAFFIC.statusCronCallsPerMonth +
   humanPageViews * 0.1; // server actions: saves, form posts
 
+const storedMb =
+  Object.values(STORED).reduce((sum, t) => sum + t.rows * t.bytesPerRow, 0) / (1024 * 1024);
+
 const projection = {
   "Supabase egress": {
     value: supabaseKb / KB_PER_GB,
     limit: LIMITS.supabaseEgressGb,
     unit: "GB",
+  },
+  "Supabase database": {
+    value: storedMb,
+    limit: LIMITS.supabaseDbMb,
+    unit: "MB",
   },
   "Vercel bandwidth": {
     value: vercelKb / KB_PER_GB,
