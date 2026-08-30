@@ -15,7 +15,7 @@ import type { Database } from "@/lib/db/database.types";
  * and the inference collapses to `any`.
  */
 export const PROFILE_COLUMNS =
-  "id, full_name, phone, date_of_birth, gender, category, state, district, highest_qualification, experience_years, preferred_sectors, preferred_states, onboarding_completed" as const;
+  "id, full_name, phone, date_of_birth, gender, category, state, district, highest_qualification, experience_years, preferred_sectors, preferred_states, skills, preferred_grades, preferred_salary_min, preferred_salary_max, onboarding_completed" as const;
 
 export type ProfileRow = Pick<
   Database["public"]["Tables"]["profiles"]["Row"],
@@ -31,6 +31,10 @@ export type ProfileRow = Pick<
   | "experience_years"
   | "preferred_sectors"
   | "preferred_states"
+  | "skills"
+  | "preferred_grades"
+  | "preferred_salary_min"
+  | "preferred_salary_max"
   | "onboarding_completed"
 >;
 

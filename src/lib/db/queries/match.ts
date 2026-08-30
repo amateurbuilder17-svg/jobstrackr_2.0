@@ -7,10 +7,11 @@ import type { JobCard } from "./jobs";
 /**
  * The For You feed.
  *
- * A single RPC call. All the eligibility logic lives in `match_jobs` — see
- * migration 0011 — because that is where the indexes are and where it can be
- * proved. The old app did this in the browser, which is why it also had to ship
- * every row: scoring in JavaScript needs the whole table present.
+ * A single RPC call. All the eligibility logic lives in the database — see
+ * migrations 0011, 0012, 0022 and 0028 — because that is where the indexes are
+ * and where it can be proved. The old app did this in the browser, which is why
+ * it also had to ship every row: scoring in JavaScript needs the whole table
+ * present.
  *
  * Per-user by definition, so this never caches. It is the one place in the app
  * where a dynamic read is the point rather than a regression.
@@ -29,9 +30,9 @@ export async function listMatchedJobs(limit = 50): Promise<MatchedJob[]> {
   const rows = unwrap("listMatchedJobs", await db.rpc("match_jobs", { p_limit: limit }));
 
   // `organization` arrives as jsonb because the function builds it with
-  // to_jsonb(). Its shape is fixed by the function's own select, so this cast
-  // is narrowing a deliberately loose transport type rather than papering over
-  // an unknown.
+  // jsonb_build_object(). Its shape is fixed by the function's own select, so
+  // this cast is narrowing a deliberately loose transport type rather than
+  // papering over an unknown.
   return rows as unknown as MatchedJob[];
 }
 
@@ -52,15 +53,10 @@ export interface BlockedJob extends JobCard {
 /**
  * Open jobs that fail exactly one hard filter, with that filter named.
  *
- * A feed that only ever removes things cannot be checked by the person reading
- * it. The old app's For You page was trusted because it showed its working —
- * four buckets, each card carrying its reason — and this is the honest half of
- * that: not a relaxation, not a "maybe", but the jobs that came closest and the
- * single thing standing in the way.
- *
- * Nothing here can appear in `listMatchedJobs`: a job failing one test is by
- * construction absent from the set that fails none, and the proof harness
- * asserts it (`nothing is both matched and blocked`).
+ * Kept for the home page and for the proof harness, which asserts that
+ * `match_feed`'s `can_apply` tier never contains a row `match_jobs` would not
+ * have returned. Two implementations checked against each other are safer than
+ * one rewrite that is not — see 0028.
  */
 export async function listBlockedJobs(limit = 12): Promise<BlockedJob[]> {
   const db = await sessionDb();
@@ -71,4 +67,45 @@ export async function listBlockedJobs(limit = 12): Promise<BlockedJob[]> {
   );
 
   return rows as unknown as BlockedJob[];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// The four tiers
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Where a posting sits relative to this candidate.
+ *
+ *   can_apply   every stated requirement is affirmatively met.
+ *   skills_gap  every hard requirement is met; a skill is missing. Acquirable.
+ *   review      nothing is failed, but something cannot be confirmed — either
+ *               the notification's wording or the profile's silence.
+ *   blocked     exactly one stated requirement is definitely failed.
+ */
+export type MatchTier = "can_apply" | "skills_gap" | "review" | "blocked";
+
+export interface TieredJob extends JobCard {
+  tier: MatchTier;
+  /** Ready to render — "Matches your sectors", "Closing soon". */
+  reasons: string[];
+  /** `kind:value` codes. `describeGap` in `lib/match/gaps.ts` renders them. */
+  gaps: string[];
+  /** Rows in this tier before the per-tier cap, so the counters are honest. */
+  tier_total: number;
+}
+
+/**
+ * The whole page, in one round trip.
+ *
+ * One call rather than the two `/for-you` used to make, and it returns the
+ * counters as well as the rows — `tier_total` is a window function over rows
+ * already scanned, not four more queries. Against the traffic model this is
+ * roughly the same bytes as the pair it replaces and half the round trips.
+ */
+export async function listFeed(limit = 70): Promise<TieredJob[]> {
+  const db = await sessionDb();
+
+  const rows = unwrap("listFeed", await db.rpc("match_feed", { p_limit: limit }));
+
+  return rows as unknown as TieredJob[];
 }

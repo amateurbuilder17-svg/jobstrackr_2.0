@@ -99,6 +99,7 @@ same cursor path as every other filter (the same fix `listJobs` already got in
 | **M16** | Home — the real feed | — | **Built** |
 | **M17** | For You — a matcher that can actually match | — | **Built** |
 | **M18** | Accounts and user data into the new project | cutover | **Tooling built, not run** |
+| **M30** | For You — the old matcher's four tiers, in full | — | **Built** |
 
 > **Migrations 0016–0022 are applied to the Supabase project** — verified
 > 26 Aug 2026 by probing each object on the remote: `job_details.salary_text`,
@@ -395,6 +396,13 @@ bucket. No column records it and no scraper extracts it; matching on it would be
 guessing in the one direction this module is not allowed to guess. It returns
 when `required_skills` is populated by ingest, which is a separate piece of work.
 
+> **This paragraph turned out to be wrong, and M30 reverses it.** It was true of
+> the schema and false of the old app: the old matcher did not read a column
+> either. `SKILL_KEYWORDS` in `jobMatcher.ts` was forty-five regexes run over the
+> job's own qualification text, and the scraper had nothing to do with it. The
+> signal was in prose we already store, so `required_skills` was never the
+> blocker — writing the parser was. See M30 below.
+
 ### Gate
 
 A seeded profile returns a known, hand-verified row set — and the same profile
@@ -575,3 +583,79 @@ ordered by user-visible value, not by dependency.
 Every module keeps the four rules from the README: no `select("*")`, every query
 bounded, static by default, budgets are gates. Nothing here is allowed to raise
 a number in `budget.json` without saying so out loud.
+
+---
+
+## M30 · For You, the old matcher in full
+
+**The point:** M17 gave the page back two of the old one's four buckets and
+recorded why the other two were out of reach. One of those reasons was wrong.
+
+### What was wrong
+
+M17's "explicitly not brought across" said the skills dimension needed a column
+nothing populates. But the old app had no such column either — `SKILL_KEYWORDS`
+was forty-five regexes over the job's own qualification line, and it is the
+reason its "Almost There" bucket existed at all. The work was the parser, not
+the ingest.
+
+The same argument recovers the fourth bucket for free. `match_jobs` drops any
+posting whose qualification wording it cannot parse, on the correct principle
+that "we are not sure" must not render as "you are eligible" — but dropping it
+renders as *nothing at all*, which is the same silence as "not for you" and a
+different fact. The old app called those "Worth Checking — Verify Eligibility"
+and printed the unreadable part on the card.
+
+### Scope
+
+1. **`skill_tags_of` and `grade_of`, in SQL.** Ports of `SKILL_KEYWORDS` and
+   `inferGrade`. Generated columns on `jobs`, for the reason 0011 gave about
+   `required_stream`: a derived value written by whoever happens to insert is a
+   value some future ingest path forgets. The word-boundary bug in about a third
+   of the old patterns (`\b(steno|stenograph)\b` cannot match "stenography") is
+   fixed in the crossing.
+2. **The rest of the old wizard, server-side.** `profiles.skills`,
+   `preferred_grades`, `preferred_salary_min/max`. The old app kept these in
+   `localStorage`, which is the real reason its matching had to run in the
+   browser — half the inputs were never on the server.
+3. **`match_feed`, one RPC, four tiers.** Every hard requirement is tri-state —
+   met, definitely failed, or unconfirmable — and the third routes to `review`
+   with the unreadable half named, rather than dropping the row. Returns the
+   true per-tier counts as a window function, so the counters are not four more
+   queries.
+4. **The shelves.** `buildShelves` is the old `feedBuilder`, including its
+   deduplication, rebuilt from the single RPC result. Rendered as ruled sections
+   over hairline lists rather than as sideways rails: a horizontal strip is right
+   for browsing options and wrong for a set of deadlines.
+5. **The preferences panel, with no JavaScript.** Sixty checkboxes as a Client
+   Component is markup in the RSC payload plus code in the bundle, against a
+   route with about a kilobyte spare. It is a Server Component posting to a
+   Server Action, with `has-[:checked]:` drawing the selected state and a query
+   parameter carrying the confirmation back.
+
+### Explicitly not brought across
+
+**"Because you saved X" and the "Saved jobs" shelf.** The first needed a
+similarity pass over every row in the table, which is the shape of read this
+rebuild exists to remove. The second duplicates `/saved`, a nav item in this app
+and not in the old one.
+
+**The Groq re-rank.** The old page called an LLM on every load to re-score its
+twenty candidates. It was a layer on top of the deterministic matcher — which is
+what this module ports — and it fails open in the old code for good reason. A
+model call in the render path of a per-user page is the wrong trade on a free
+tier, and the eligibility decision it was influencing is exactly the decision
+that should be provable rather than sampled.
+
+**Age relaxations for reserved categories.** Unchanged from M17: real, granted
+per notification, and not recorded by this schema. Assuming them would widen the
+result set on an assumption.
+
+### Gate
+
+`match_feed`'s `can_apply` tier contains no row `match_jobs` would not have
+returned, asserted in `03_match_proof.sql` — two implementations checked against
+each other rather than one unproven rewrite. Every non-matching row names at
+least one gap. No job appears in two tiers. Claiming a skill moves exactly the
+postings that asked for it. One RPC call per page load, measured at 33.3 kB
+against the 45.1 kB the two calls it replaces cost.

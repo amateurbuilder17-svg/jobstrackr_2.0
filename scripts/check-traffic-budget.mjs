@@ -73,8 +73,22 @@ const PAYLOAD = {
   // crawler traffic is mostly detail pages, so the heavy one is the one to
   // model.
   pageDocumentKb: 18,
-  // Measured in M8: match_jobs for 50 rows.
-  forYouRpcKb: 31,
+  // Measured in M30: one `match_feed()` call against the 6,000-job proof corpus,
+  // serialised as PostgREST would send it — 46 rows, 33.3 kB.
+  //
+  // It went DOWN. The page used to make two calls: `match_jobs(50)` at 30.4 kB
+  // and `match_jobs_blocked(20)` at 14.7 kB, which is 45.1 kB and two round
+  // trips for two of the four tiers. One call returns all four, its own
+  // counters, and the `qualification_summary` the cards were previously
+  // rendering as undefined — because the per-tier caps (36/12/12/10) are
+  // tighter than 50 + 20 was.
+  //
+  // Database time is 38.4 ms against the pair's 25.3 ms, best of three on the
+  // same corpus: the tiering has to evaluate every open job to know which ones
+  // fail exactly one test, where `match_jobs` can stop at the eligibility
+  // index. One fewer Vercel-to-Supabase round trip buys that back several
+  // times over.
+  forYouRpcKb: 34,
   // Measured in M10: a full admin session, overview + 6 pages + storage.
   adminSessionKb: 98,
   // Measured in M7 as /api/saved; now /api/session, which also carries the
