@@ -32,6 +32,11 @@ export const tags = {
   exam: (slug: string) => `exam:${slug}` as const,
   examList: () => "exams:list" as const,
 
+  /** One cached syllabus. Invalidated when that exam is re-fetched. */
+  syllabus: (slug: string) => `syllabus:${slug}` as const,
+  /** The "already available" list and the sitemap's syllabus entries. */
+  syllabusList: () => "syllabus:list" as const,
+
   /** The sitemap, which changes whenever any indexable entity does. */
   sitemap: () => "sitemap" as const,
 } as const;
@@ -52,6 +57,7 @@ export const TAG_PREFIXES = [
   "orgs",
   "exam",
   "exams",
+  "syllabus",
   "sitemap",
 ] as const;
 

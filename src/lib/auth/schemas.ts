@@ -1,6 +1,10 @@
 import { z } from "zod";
 
+import { GRADES, SALARY_BANDS, SKILL_KEYS } from "@/lib/match/vocab";
 import { GENDERS, QUALIFICATION_LEVELS, RESERVATION_CATEGORIES } from "@/lib/profile/enums";
+
+const GRADE_VALUES: readonly string[] = GRADES.map((g) => g.value);
+const SALARY_BAND_VALUES: readonly string[] = SALARY_BANDS.map((b) => b.value);
 
 // Re-exported so server-side callers have one import for "the contract".
 // Client Components must import these from `@/lib/profile/enums` directly —
@@ -236,6 +240,50 @@ export const matchProfileSchema = z.object({
 });
 
 export type MatchProfileInput = z.infer<typeof matchProfileSchema>;
+
+/* ── The rest of the old wizard ────────────────────────────────────────── */
+
+/**
+ * Skills, salary band and post classification.
+ *
+ * The old app asked these in a six-step wizard and kept the answers in
+ * `localStorage` under `jfy_preferences:<userId>` — which is the real reason
+ * its matching had to run in the browser: half the inputs were never on the
+ * server. They are columns now (migration 0028), so this is what writes them.
+ *
+ * Every field defaults to empty and none of them can fail, deliberately. This
+ * form is not a gate on anything: an unanswered skill is a job in "almost
+ * there" rather than an error, and a rejected submission here would lose the
+ * other four answers to punish one. The vocabulary is enforced instead —
+ * `skills` is filtered against `SKILL_KEYS` rather than validated against it,
+ * so a stale checkbox from a cached page drops out silently instead of
+ * refusing the whole save.
+ */
+export const matchPreferencesSchema = z.object({
+  skills: z
+    .array(z.string().trim().min(1))
+    .max(60)
+    .default([])
+    .transform((values) => values.filter((v) => SKILL_KEYS.includes(v))),
+
+  preferredGrades: z
+    .array(z.string().trim().min(1))
+    .max(4)
+    .default([])
+    .transform((values) => values.filter((v) => GRADE_VALUES.includes(v))),
+
+  preferredSectors: z.array(z.string().trim().min(1)).max(20).default([]),
+  preferredStates: z.array(z.string().trim().min(1)).max(40).default([]),
+
+  /** One of `SALARY_BANDS`, or "" for no preference. Split in the action. */
+  salaryBand: z
+    .string()
+    .trim()
+    .default("")
+    .transform((v) => (SALARY_BAND_VALUES.includes(v) ? v : "")),
+});
+
+export type MatchPreferencesInput = z.infer<typeof matchPreferencesSchema>;
 
 /* ── Helpers ───────────────────────────────────────────────────────────── */
 

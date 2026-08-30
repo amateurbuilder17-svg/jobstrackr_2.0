@@ -248,3 +248,175 @@ select pg_temp.check('the 41-year-old is blocked on age, not silently dropped',
   'age');
 
 rollback;
+
+
+-- ═══ 7. The four tiers (Module 30) ═════════════════════════════════════════
+-- `match_feed` adds two tiers between "yes" and "no". The assertions that
+-- matter are the ones proving it did not smuggle a relaxation in with them:
+-- nothing reaches `can_apply` that `match_jobs` would not have returned, and a
+-- posting whose requirements cannot be *confirmed* lands in `review` rather
+-- than being quietly dropped or quietly matched.
+
+-- ── Two more jobs, for the skills dimension ────────────────────────────────
+insert into public.jobs
+  (id, slug, title, organization_id, status, last_date, published_at,
+   qualification_summary, age_min, age_max, gender)
+values
+  -- Asks for an acquirable skill. Everything else is open to any graduate.
+  ('b0000000-0000-4000-8000-000000000007', 'steno-post', 'Stenographer Grade C',
+   'a0000000-0000-4000-8000-000000000001', 'published', current_date + 30, now(),
+   'Bachelor''s degree in any discipline with shorthand at 80 wpm', 21, 30, 'any'),
+
+  -- Asks for a standard nobody acquires before a closing date.
+  ('b0000000-0000-4000-8000-000000000008', 'constable-post', 'Constable (Group C)',
+   'a0000000-0000-4000-8000-000000000001', 'published', current_date + 30, now(),
+   'Bachelor''s degree in any discipline, physical fitness test and height 170 cm chest 80 cm',
+   21, 30, 'any');
+
+select pg_temp.check('skills: shorthand is read out of the qualification line',
+  (select 'stenography' = any (skill_tags) from public.jobs where slug = 'steno-post'), true);
+select pg_temp.check('skills: a physical standard is read as a gate',
+  (select 'physical_fitness' = any (skill_tags) from public.jobs where slug = 'constable-post'), true);
+select pg_temp.check('skills: an ordinary graduate post asks for nothing',
+  (select skill_tags from public.jobs where slug = 'open-graduate'), '{}'::text[]);
+
+select pg_temp.check('grade: "(Group C)" in the title is read as Group C',
+  (select grade from public.jobs where slug = 'constable-post'), 'Group C');
+select pg_temp.check('grade: a title implying no class stays NULL',
+  (select grade from public.jobs where slug = 'open-graduate'), null::text);
+
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = 'c0000000-0000-4000-8000-000000000001';
+
+-- ── The load-bearing assertion: can_apply is a subset of match_jobs ─────────
+-- Two implementations of the same eligibility rules exist on purpose — the
+-- proven one stays untouched and the new one is checked against it. If they
+-- ever disagree, this fails before anyone is told they are eligible.
+select pg_temp.check('can_apply never contains a row match_jobs would not return',
+  (select count(*)::int from public.match_feed() f
+    where f.tier = 'can_apply'
+      and not exists (select 1 from public.match_jobs(50) m where m.id = f.id)), 0);
+
+-- The reverse holds only up to `review`, and that is the point rather than a
+-- gap in the proof: a posting demanding a physical standard or a statutory
+-- registration passes every filter `match_jobs` knows about, and the old
+-- matcher still refused to call it applicable. It is never *lost* — it moves
+-- one tier, under a heading that says why.
+select pg_temp.check('...and the reverse: every match_jobs row is still surfaced',
+  (select count(*)::int from public.match_jobs(50) m
+    where not exists (
+      select 1 from public.match_feed() f
+      where f.id = m.id and f.tier in ('can_apply', 'skills_gap', 'review'))), 0);
+
+select pg_temp.check('a gate demotes a match_jobs row to review, never drops it',
+  (select tier from public.match_feed() f
+    join public.match_jobs(50) m on m.id = f.id
+   where f.slug = 'constable-post'), 'review');
+
+-- ── The old app's headline behaviours ──────────────────────────────────────
+select pg_temp.check('arts grad can apply to the open graduate post',
+  (select tier from public.match_feed() where slug = 'open-graduate'), 'can_apply');
+
+select pg_temp.check('arts grad is NEVER offered the engineering post as applicable',
+  (select count(*)::int from public.match_feed()
+    where slug = 'civil-engineer' and tier in ('can_apply', 'skills_gap')), 0);
+select pg_temp.check('...it is blocked, and says so',
+  (select tier from public.match_feed() where slug = 'civil-engineer'), 'blocked');
+select pg_temp.check('...naming the discipline that failed',
+  (select 'stream:engineering' = any (gaps) from public.match_feed()
+    where slug = 'civil-engineer'), true);
+
+-- The row M17 dropped on the floor. Unreadable wording is a different fact
+-- from ineligibility, and this is the tier that says so.
+select pg_temp.check('an unparseable qualification lands in review, not silence',
+  (select tier from public.match_feed() where slug = 'mystery-post'), 'review');
+select pg_temp.check('...and names the notification as the unreadable half',
+  (select 'unstated:level' = any (gaps) from public.match_feed()
+    where slug = 'mystery-post'), true);
+
+-- Skills: acquirable is a gap, a physical standard is a gate.
+select pg_temp.check('a shorthand requirement the profile lacks is a skills gap',
+  (select tier from public.match_feed() where slug = 'steno-post'), 'skills_gap');
+select pg_temp.check('...naming the skill',
+  (select 'skill:stenography' = any (gaps) from public.match_feed()
+    where slug = 'steno-post'), true);
+select pg_temp.check('a physical standard is a gate, never "almost there"',
+  (select tier from public.match_feed() where slug = 'constable-post'), 'review');
+
+-- A closed notification is not an opportunity, in any tier.
+select pg_temp.check('a closed notification appears in no tier',
+  (select count(*)::int from public.match_feed() where slug = 'closed-post'), 0);
+
+-- One row, one tier.
+select pg_temp.check('no job appears in two tiers',
+  (select count(*)::int from (
+     select id from public.match_feed() group by id having count(*) > 1) d), 0);
+
+select pg_temp.check('every non-matching row explains itself',
+  (select count(*)::int from public.match_feed()
+    where tier <> 'can_apply' and cardinality(gaps) = 0), 0);
+
+select pg_temp.check('the cap cannot be raised past 70 by the caller',
+  (select count(*)::int from public.match_feed(5000)) <= 70, true);
+
+rollback;
+
+-- ── Claiming the skill moves the row, and only that row ────────────────────
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = 'c0000000-0000-4000-8000-000000000001';
+
+update public.profiles set skills = '{stenography}'
+  where id = 'c0000000-0000-4000-8000-000000000001';
+
+select pg_temp.check('claiming shorthand moves the stenographer post to can_apply',
+  (select tier from public.match_feed() where slug = 'steno-post'), 'can_apply');
+select pg_temp.check('...and does not touch the physical-standards post',
+  (select tier from public.match_feed() where slug = 'constable-post'), 'review');
+
+rollback;
+
+-- ── The preference filters exclude, and absence of data never does ─────────
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = 'c0000000-0000-4000-8000-000000000001';
+
+update public.profiles set preferred_grades = '{Group A}'
+  where id = 'c0000000-0000-4000-8000-000000000001';
+
+select pg_temp.check('a Group C post is excluded by a Group A preference',
+  (select count(*)::int from public.match_feed() where slug = 'constable-post'), 0);
+select pg_temp.check('a post with no inferable grade is NOT excluded by it',
+  (select count(*)::int from public.match_feed() where slug = 'open-graduate'), 1);
+
+rollback;
+
+-- ── The candidate who never entered a date of birth ────────────────────────
+-- `match_jobs` returns nothing for this person, which is correct and is also
+-- indistinguishable from a broken page. Here the same rows come back as review,
+-- naming the field that would fix it.
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = 'c0000000-0000-4000-8000-000000000004';
+
+select pg_temp.check('a missing date of birth still matches nothing',
+  (select count(*)::int from public.match_feed() where tier = 'can_apply'), 0);
+select pg_temp.check('...but the open graduate post is surfaced for review',
+  (select tier from public.match_feed() where slug = 'open-graduate'), 'review');
+select pg_temp.check('...naming the profile as the unanswered half',
+  (select 'unknown:age' = any (gaps) from public.match_feed()
+    where slug = 'open-graduate'), true);
+
+rollback;
+
+-- ── The counters are the true totals, not the capped ones ──────────────────
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = 'c0000000-0000-4000-8000-000000000001';
+
+select pg_temp.check('tier_total counts the tier, not the page',
+  (select distinct tier_total from public.match_feed() where tier = 'can_apply'),
+  (select count(*)::int from public.match_feed() where tier = 'can_apply'));
+
+rollback;

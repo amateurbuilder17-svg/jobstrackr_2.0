@@ -2,7 +2,7 @@
 
 import { BookmarkIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
-import { useSaved } from "./saved-provider";
+import { useSaved } from "@/components/session/session-provider";
 
 /**
  * The save toggle.
@@ -21,7 +21,7 @@ import { useSaved } from "./saved-provider";
  * So the button is always live, and starts drawn unsaved on both sides. The
  * store fills it in afterwards as an ordinary state update, which hydration
  * does not police. A press that lands before the store is ready is kept, not
- * dropped — see the merge in `SavedProvider`.
+ * dropped — see the merge in `SessionProvider`.
  */
 export function SaveButton({
   jobId,

@@ -171,3 +171,98 @@ export const FileIcon = (p: IconProps) => (
     <path d="M14 3v5h5" />
   </Icon>
 );
+
+/* ── Menu glyphs ─────────────────────────────────────────────────────────
+   Added for the app menu (M21). Same 24px grid and 1.75 stroke as the set
+   above; each is a few hundred bytes and the bundler drops the unused ones,
+   which is the whole reason this file exists instead of an icon package. */
+
+export const UploadIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12 16V4" />
+    <path d="m7.5 8.5 4.5-4.5 4.5 4.5" />
+    <path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" />
+  </Icon>
+);
+
+export const BookIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v14H6.5A2.5 2.5 0 0 0 4 19.5Z" />
+    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H19v4H6.5A2.5 2.5 0 0 1 4 19.5Z" />
+  </Icon>
+);
+
+export const HelpIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M9.5 9.5a2.5 2.5 0 1 1 3.2 2.4c-.5.2-.7.6-.7 1.1v.5" />
+    <path d="M12 16.75h.01" />
+  </Icon>
+);
+
+export const MessageIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M20 14a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2Z" />
+  </Icon>
+);
+
+export const ShieldIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12 3l7 3v5.5c0 4.5-3 7.8-7 9.5-4-1.7-7-5-7-9.5V6Z" />
+  </Icon>
+);
+
+export const TimerIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="13.5" r="7.5" />
+    <path d="M12 10v3.5l2.5 1.5" />
+    <path d="M9.5 2.5h5" />
+  </Icon>
+);
+
+export const SendIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M20.5 3.5 10.5 13.5" />
+    <path d="M20.5 3.5 14 20.5l-3.5-7-7-3.5Z" />
+  </Icon>
+);
+
+export const KeyIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="8" cy="16" r="3.5" />
+    <path d="m10.5 13.5 8-8" />
+    <path d="m15.5 8.5 2 2M18 6l2 2" />
+  </Icon>
+);
+
+export const SignOutIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M14 4H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h8" />
+    <path d="M18 15l3-3-3-3" />
+    <path d="M21 12H10" />
+  </Icon>
+);
+
+export const ListIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M9 6h11M9 12h11M9 18h11" />
+    <path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" />
+  </Icon>
+);
+
+export const ScaleIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12 4.5v15.5M7.5 20h9" />
+    <path d="M5 7.5h14" />
+    <path d="M5 7.5 2.5 13a2.75 2.75 0 0 0 5 0Z" />
+    <path d="M19 7.5 16.5 13a2.75 2.75 0 0 0 5 0Z" />
+  </Icon>
+);
+
+export const CreditCardIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3" y="5.5" width="18" height="13" rx="2" />
+    <path d="M3 10h18" />
+    <path d="M7 14.5h3" />
+  </Icon>
+);

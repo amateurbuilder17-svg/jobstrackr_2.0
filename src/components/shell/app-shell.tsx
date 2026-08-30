@@ -1,8 +1,10 @@
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 
 import { TodayProvider } from "@/components/jobs/today-provider";
-import { SavedProvider } from "@/components/saved/saved-provider";
+import { SessionProvider } from "@/components/session/session-provider";
 import { BottomNav } from "./bottom-nav";
+import { MenuPanel } from "./menu-panel";
+import { RouteWatcher } from "./route-watcher";
 import { Sidebar } from "./sidebar";
 import { SiteFooter } from "./site-footer";
 import { TopBar } from "./top-bar";
@@ -14,29 +16,47 @@ import { TopBar } from "./top-bar";
  * card of every list sits underneath the nav — reachable only by
  * overscrolling, which reads as a broken page rather than a missing rule.
  *
- * `SavedProvider` sits here, above the router outlet, so it survives client
- * navigation: the saved-ids fetch happens once per full page load rather than
- * once per route change. It is a Client Component wrapping Server Component
- * children, which is fine — `children` is already-rendered output being passed
- * through, not code being pulled into the browser bundle.
+ * `SessionProvider` wraps the whole frame rather than only the router outlet,
+ * and the difference matters: the top bar's profile button lives above `main`,
+ * and it needs the same answer the save buttons below it are already waiting
+ * for. One provider, one fetch per page load, shared by both.
+ *
+ * It is a Client Component wrapping Server Component children, which is fine —
+ * `children` is already-rendered output being passed through, not code being
+ * pulled into the browser bundle. `Sidebar`, `BottomNav` and `MenuPanel` stay
+ * server-rendered for exactly that reason.
+ *
+ * `MenuPanel` is rendered here, in the frame, rather than inside the drawer
+ * that opens it. Its markup is the same list `/menu` renders, and putting it in
+ * the layout is what keeps the drawer's client cost to the open/close logic
+ * alone instead of the fifty links inside it.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-dvh">
-      <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar />
-        <main id="content" className="flex-1 pb-16 lg:pb-0">
-          {/* Both providers sit above the router outlet so they survive client
-              navigation: the saved-ids fetch and the midnight timer each happen
-              once per full page load rather than once per route change. */}
-          <TodayProvider>
-            <SavedProvider>{children}</SavedProvider>
-          </TodayProvider>
-        </main>
-        <SiteFooter />
+    <SessionProvider>
+      <div className="flex min-h-dvh">
+        <Sidebar />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <TopBar />
+          <main id="content" className="flex-1 pb-16 lg:pb-0">
+            {/* The midnight timer sits above the router outlet so it survives
+                client navigation: it is armed once per full page load rather
+                than once per route change. */}
+            <TodayProvider>{children}</TodayProvider>
+          </main>
+          <SiteFooter />
+        </div>
+        <BottomNav />
       </div>
-      <BottomNav />
-    </div>
+      <MenuPanel />
+
+      {/* Renders nothing. It is the shell's only reader of the URL — closing
+          the drawer and re-checking the session on navigation — and it is
+          behind a boundary because a client hook reading URL data outside one
+          stops every route carrying this shell from prerendering. */}
+      <Suspense fallback={null}>
+        <RouteWatcher />
+      </Suspense>
+    </SessionProvider>
   );
 }

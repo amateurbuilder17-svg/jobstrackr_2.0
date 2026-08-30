@@ -88,6 +88,11 @@ export type Database = {
           kind: string
           label: string | null
           mime_type: string | null
+          ocr_attempts: number
+          ocr_error: string | null
+          ocr_result: Json | null
+          ocr_status: string
+          reviewed_at: string | null
           size_bytes: number | null
           storage_path: string
           user_id: string
@@ -98,6 +103,11 @@ export type Database = {
           kind: string
           label?: string | null
           mime_type?: string | null
+          ocr_attempts?: number
+          ocr_error?: string | null
+          ocr_result?: Json | null
+          ocr_status?: string
+          reviewed_at?: string | null
           size_bytes?: number | null
           storage_path: string
           user_id: string
@@ -108,6 +118,11 @@ export type Database = {
           kind?: string
           label?: string | null
           mime_type?: string | null
+          ocr_attempts?: number
+          ocr_error?: string | null
+          ocr_result?: Json | null
+          ocr_status?: string
+          reviewed_at?: string | null
           size_bytes?: number | null
           storage_path?: string
           user_id?: string
@@ -601,6 +616,7 @@ export type Database = {
           embedding: string | null
           experience_years_min: number | null
           gender: Database["public"]["Enums"]["gender_eligibility"]
+          grade: string | null
           id: string
           is_featured: boolean
           last_date: string | null
@@ -621,6 +637,7 @@ export type Database = {
           salary_max: number | null
           salary_min: number | null
           search_vector: unknown
+          skill_tags: string[] | null
           slug: string
           source_url: string | null
           state: string | null
@@ -642,6 +659,7 @@ export type Database = {
           embedding?: string | null
           experience_years_min?: number | null
           gender?: Database["public"]["Enums"]["gender_eligibility"]
+          grade?: string | null
           id?: string
           is_featured?: boolean
           last_date?: string | null
@@ -662,6 +680,7 @@ export type Database = {
           salary_max?: number | null
           salary_min?: number | null
           search_vector?: unknown
+          skill_tags?: string[] | null
           slug: string
           source_url?: string | null
           state?: string | null
@@ -683,6 +702,7 @@ export type Database = {
           embedding?: string | null
           experience_years_min?: number | null
           gender?: Database["public"]["Enums"]["gender_eligibility"]
+          grade?: string | null
           id?: string
           is_featured?: boolean
           last_date?: string | null
@@ -703,6 +723,7 @@ export type Database = {
           salary_max?: number | null
           salary_min?: number | null
           search_vector?: unknown
+          skill_tags?: string[] | null
           slug?: string
           source_url?: string | null
           state?: string | null
@@ -800,66 +821,141 @@ export type Database = {
       }
       profiles: {
         Row: {
+          aadhaar_number: string | null
+          aadhaar_number_encrypted: string | null
+          address: string | null
           avatar_path: string | null
+          caste_certificate_number: string | null
+          caste_issue_date: string | null
+          caste_issuing_authority: string | null
+          caste_name: string | null
           category: Database["public"]["Enums"]["reservation_category"] | null
           created_at: string
+          current_status: string | null
           date_of_birth: string | null
+          disability_certificate_number: string | null
+          disability_type: string | null
           district: string | null
           embedding: string | null
+          ews_certificate_number: string | null
+          ews_issuing_authority: string | null
           experience_years: number | null
+          father_name: string | null
           full_name: string | null
           gender: Database["public"]["Enums"]["gender_eligibility"] | null
           highest_qualification:
             | Database["public"]["Enums"]["qualification_level"]
             | null
           id: string
+          marital_status: string | null
+          mother_name: string | null
           onboarding_completed: boolean
+          pan_number: string | null
+          pan_number_encrypted: string | null
+          passport_number: string | null
+          passport_number_encrypted: string | null
           phone: string | null
+          pincode: string | null
+          preferred_grades: string[]
+          preferred_salary_max: number | null
+          preferred_salary_min: number | null
           preferred_sectors: string[]
           preferred_states: string[]
+          skills: string[]
           state: string | null
+          sub_category: string | null
           updated_at: string
         }
         Insert: {
+          aadhaar_number?: string | null
+          aadhaar_number_encrypted?: string | null
+          address?: string | null
           avatar_path?: string | null
+          caste_certificate_number?: string | null
+          caste_issue_date?: string | null
+          caste_issuing_authority?: string | null
+          caste_name?: string | null
           category?: Database["public"]["Enums"]["reservation_category"] | null
           created_at?: string
+          current_status?: string | null
           date_of_birth?: string | null
+          disability_certificate_number?: string | null
+          disability_type?: string | null
           district?: string | null
           embedding?: string | null
+          ews_certificate_number?: string | null
+          ews_issuing_authority?: string | null
           experience_years?: number | null
+          father_name?: string | null
           full_name?: string | null
           gender?: Database["public"]["Enums"]["gender_eligibility"] | null
           highest_qualification?:
             | Database["public"]["Enums"]["qualification_level"]
             | null
           id: string
+          marital_status?: string | null
+          mother_name?: string | null
           onboarding_completed?: boolean
+          pan_number?: string | null
+          pan_number_encrypted?: string | null
+          passport_number?: string | null
+          passport_number_encrypted?: string | null
           phone?: string | null
+          pincode?: string | null
+          preferred_grades?: string[]
+          preferred_salary_max?: number | null
+          preferred_salary_min?: number | null
           preferred_sectors?: string[]
           preferred_states?: string[]
+          skills?: string[]
           state?: string | null
+          sub_category?: string | null
           updated_at?: string
         }
         Update: {
+          aadhaar_number?: string | null
+          aadhaar_number_encrypted?: string | null
+          address?: string | null
           avatar_path?: string | null
+          caste_certificate_number?: string | null
+          caste_issue_date?: string | null
+          caste_issuing_authority?: string | null
+          caste_name?: string | null
           category?: Database["public"]["Enums"]["reservation_category"] | null
           created_at?: string
+          current_status?: string | null
           date_of_birth?: string | null
+          disability_certificate_number?: string | null
+          disability_type?: string | null
           district?: string | null
           embedding?: string | null
+          ews_certificate_number?: string | null
+          ews_issuing_authority?: string | null
           experience_years?: number | null
+          father_name?: string | null
           full_name?: string | null
           gender?: Database["public"]["Enums"]["gender_eligibility"] | null
           highest_qualification?:
             | Database["public"]["Enums"]["qualification_level"]
             | null
           id?: string
+          marital_status?: string | null
+          mother_name?: string | null
           onboarding_completed?: boolean
+          pan_number?: string | null
+          pan_number_encrypted?: string | null
+          passport_number?: string | null
+          passport_number_encrypted?: string | null
           phone?: string | null
+          pincode?: string | null
+          preferred_grades?: string[]
+          preferred_salary_max?: number | null
+          preferred_salary_min?: number | null
           preferred_sectors?: string[]
           preferred_states?: string[]
+          skills?: string[]
           state?: string | null
+          sub_category?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -960,6 +1056,7 @@ export type Database = {
           created_at: string
           email: string | null
           id: string
+          kind: string
           message: string
           status: string
           user_id: string | null
@@ -968,6 +1065,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          kind?: string
           message: string
           status?: string
           user_id?: string | null
@@ -976,9 +1074,52 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          kind?: string
           message?: string
           status?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      syllabus_cache: {
+        Row: {
+          confidence: number | null
+          data: Json
+          exam_key: string
+          exam_name: string
+          expires_at: string
+          fetched_at: string
+          grounded: boolean
+          model: string | null
+          slug: string
+          sources: string[]
+          year: number | null
+        }
+        Insert: {
+          confidence?: number | null
+          data: Json
+          exam_key: string
+          exam_name: string
+          expires_at?: string
+          fetched_at?: string
+          grounded?: boolean
+          model?: string | null
+          slug: string
+          sources?: string[]
+          year?: number | null
+        }
+        Update: {
+          confidence?: number | null
+          data?: Json
+          exam_key?: string
+          exam_name?: string
+          expires_at?: string
+          fetched_at?: string
+          grounded?: boolean
+          model?: string | null
+          slug?: string
+          sources?: string[]
+          year?: number | null
         }
         Relationships: []
       }
@@ -1234,6 +1375,7 @@ export type Database = {
           total_bytes: number
         }[]
       }
+      blocker_skill_tags: { Args: never; Returns: string[] }
       claim_ai_quota: {
         Args: {
           p_cooldown_seconds: number
@@ -1249,10 +1391,39 @@ export type Database = {
       }
       close_expired_jobs: { Args: never; Returns: number }
       decrypt_api_key: { Args: { encrypted_key: string }; Returns: string }
+      decrypt_own_id: { Args: { p_field: string }; Returns: string }
+      grade_of: { Args: { subject: string }; Returns: string }
       has_role: { Args: { check_role: string }; Returns: boolean }
       level_of: {
         Args: { subject: string }
         Returns: Database["public"]["Enums"]["qualification_level"]
+      }
+      match_feed: {
+        Args: { p_limit?: number }
+        Returns: {
+          application_fee: number
+          gaps: string[]
+          id: string
+          is_featured: boolean
+          last_date: string
+          last_date_display: string
+          location: string
+          organization: Json
+          published_at: string
+          qualification_summary: string
+          reasons: string[]
+          salary_display: string
+          salary_max: number
+          salary_min: number
+          slug: string
+          state: string
+          tags: string[]
+          tier: string
+          tier_total: number
+          title: string
+          vacancies: number
+          vacancies_display: string
+        }[]
       }
       match_jobs: {
         Args: { p_limit?: number }
@@ -1329,6 +1500,7 @@ export type Database = {
           no_match: number
         }[]
       }
+      skill_tags_of: { Args: { subject: string }; Returns: string[] }
       slugify: { Args: { input: string }; Returns: string }
       stale_status_subjects: {
         Args: { p_limit?: number; p_stale_after?: unknown }

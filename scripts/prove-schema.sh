@@ -47,6 +47,11 @@ q 2>&1 < "$ROOT/supabase/.validate/05_status_proof.sql" \
   | grep -E "ok|FAIL|ERROR" | sed 's/^NOTICE: */ /'
 
 echo
+echo "── Identity numbers: masked, encrypted, owner-only ──"
+q 2>&1 < "$ROOT/supabase/.validate/06_pii_proof.sql" \
+  | grep -E "ok|FAIL|ERROR" | sed 's/^NOTICE: */ /'
+
+echo
 echo "── Index usage at production volume ──"
 q -q < "$ROOT/supabase/.validate/01_seed_proof.sql"
 

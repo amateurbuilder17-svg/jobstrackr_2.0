@@ -7,9 +7,11 @@ import { type FormState } from "@/lib/auth/form-state";
 import {
   educationSchema,
   fieldErrors,
+  matchPreferencesSchema,
   matchProfileSchema,
   profileSchema,
 } from "@/lib/auth/schemas";
+import { parseSalaryBand } from "@/lib/match/vocab";
 import { getUser } from "@/lib/auth/session";
 import { consume, LIMITS } from "@/lib/rate-limit";
 import { sessionDb } from "@/lib/db/clients";
@@ -263,4 +265,75 @@ export async function completeMatchProfileAction(
   revalidatePath("/for-you");
   revalidatePath("/profile");
   return { ok: true, message: "Saved. Your matches are below." };
+}
+
+/**
+ * The rest of the old wizard's answers, as one save.
+ *
+ * The old app spread these across six screens and stored them in the browser.
+ * They are five multi-selects and a radio group, all optional, all changing the
+ * same feed — so they are one form and one round trip, on the page whose
+ * results they change.
+ *
+ * ── Why this one is not a `useActionState` action ──────────────────────────
+ * Every other form here returns a `FormState` and is driven by a Client
+ * Component, which is right when a field can be rejected and the message has to
+ * land next to it. Nothing here can be: `matchPreferencesSchema` filters
+ * unrecognised values rather than refusing them, because a save that quietly
+ * drops one stale checkbox is better than one that rejects five good answers to
+ * punish a sixth.
+ *
+ * So there is no state to hold, and holding none means the form can be a Server
+ * Component — sixty checkboxes, thirty-six states and twelve sectors of markup
+ * that ship as HTML rather than as JavaScript. /for-you has about a kilobyte of
+ * headroom against `defaultRouteKb`; this is how it keeps it. Feedback comes
+ * back as a query parameter, which needs no bundle at all.
+ */
+export async function updateMatchPreferencesAction(formData: FormData): Promise<void> {
+  const user = await getUser();
+  if (!user) redirect("/sign-in?next=/for-you");
+
+  if (!consume(`form:${user.id}`, LIMITS.form)) {
+    redirect("/for-you?prefs=slow");
+  }
+
+  const input = {
+    // `getAll` gives an array even for one value, and `[]` for an absent field
+    // — which is the column default, so an unchecked group clears cleanly.
+    skills: formData.getAll("skills"),
+    preferredGrades: formData.getAll("preferredGrades"),
+    preferredSectors: formData.getAll("preferredSectors"),
+    preferredStates: formData.getAll("preferredStates"),
+    salaryBand: formData.get("salaryBand") ?? "",
+  };
+
+  // Cannot fail — see the schema. `parse` rather than `safeParse` so that a
+  // future edit which makes it failable is a loud crash here rather than a
+  // silent no-op the user reads as "the save button does nothing".
+  const p = matchPreferencesSchema.parse(input);
+
+  const [salaryMin, salaryMax] = parseSalaryBand(p.salaryBand || null);
+
+  const db = await sessionDb();
+
+  const { error } = await db
+    .from("profiles")
+    .update({
+      skills: p.skills,
+      preferred_grades: p.preferredGrades,
+      preferred_sectors: p.preferredSectors,
+      preferred_states: p.preferredStates,
+      preferred_salary_min: salaryMin,
+      preferred_salary_max: salaryMax,
+    })
+    .eq("id", user.id);
+
+  // Genuinely exceptional: RLS scopes the write to the owner and every value
+  // has already been filtered to the vocabulary. There is no user-correctable
+  // form of this, so it belongs on the error boundary rather than in a chip.
+  if (error) throw new Error(`Could not save your preferences: ${error.message}`);
+
+  revalidatePath("/for-you");
+  revalidatePath("/profile");
+  redirect("/for-you?prefs=saved");
 }

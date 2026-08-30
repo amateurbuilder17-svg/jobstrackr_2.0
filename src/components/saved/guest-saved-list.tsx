@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import { JobCard, JobCardSkeleton } from "@/components/jobs/job-card";
 import type { JobCard as JobCardData } from "@/lib/db/queries/jobs";
-import { useSaved } from "./saved-provider";
+import { useSaved } from "@/components/session/session-provider";
 
 /**
  * The saved list for a visitor with no account.

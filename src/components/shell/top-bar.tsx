@@ -7,6 +7,8 @@ import { Suspense } from "react";
 import { SearchIcon } from "@/components/icons";
 import { SearchField } from "@/components/filters/search-field";
 import { NAV_ITEMS, isActive } from "@/lib/navigation";
+import { MenuButton } from "./menu-button";
+import { ProfileButton } from "./profile-button";
 import { ThemeToggle } from "./theme-toggle";
 
 /**
@@ -22,6 +24,20 @@ import { ThemeToggle } from "./theme-toggle";
  * carry their own search field. Two search inputs stacked above each other is
  * not twice as findable; it is one of them wasting a row of height and both of
  * them raising the question of which one is the real one.
+ *
+ * ## The width, which is the hard part below `lg`
+ *
+ * The bar has to hold, in order: a menu button, a title or a search field, a
+ * theme toggle and an avatar. Two of those are new and each is 36–40px, so
+ * about 80px came out of a 320px screen's budget for the middle.
+ *
+ * The search *link* gives up its label there and becomes an icon — "Search jobs
+ * and updates" is a nicety, and a nicety is what should go first. The search
+ * *field* keeps its input, because a field with no room to type in is not a
+ * field. What lets it survive the squeeze is the `min-w-0` that was already
+ * there: a flex child's automatic minimum width is its content, so without it
+ * the field sets a floor, the bar grows wider than the viewport, and the whole
+ * page scrolls sideways.
  */
 
 /**
@@ -48,7 +64,9 @@ export function TopBar() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-bg/85 backdrop-blur-md">
-      <div className="flex h-13 items-center gap-3 px-4 lg:px-6">
+      <div className="flex h-13 items-center gap-2 px-4 sm:gap-3 lg:px-6">
+        <MenuButton />
+
         {searchesHere ? (
           // The bar *is* the search field here. `min-w-0` so it can shrink past
           // its own placeholder; without it the field sets a floor and on a
@@ -94,20 +112,23 @@ export function TopBar() {
 
             <Link
               href="/jobs"
+              aria-label="Search jobs and updates"
               className={
-                "ml-auto flex h-9 max-w-md min-w-0 flex-1 items-center gap-2 rounded-md border border-line " +
-                "bg-surface px-3 text-sm text-ink-3 transition-colors duration-(--duration-fast) " +
-                "hover:border-line-strong hover:text-ink-2 lg:ml-0"
+                "ml-auto flex h-9 min-w-0 shrink-0 items-center justify-center gap-2 rounded-md " +
+                "border border-line bg-surface text-sm text-ink-3 " +
+                "transition-colors duration-(--duration-fast) hover:border-line-strong " +
+                "hover:text-ink-2 max-sm:size-9 sm:max-w-md sm:flex-1 sm:shrink sm:px-3 lg:ml-0"
               }
             >
               <SearchIcon className="size-4 shrink-0" />
-              <span className="truncate">Search jobs and updates</span>
+              <span className="truncate max-sm:hidden">Search jobs and updates</span>
             </Link>
           </>
         )}
 
         <div className="ml-auto flex shrink-0 items-center gap-1">
           <ThemeToggle />
+          <ProfileButton />
         </div>
       </div>
     </header>

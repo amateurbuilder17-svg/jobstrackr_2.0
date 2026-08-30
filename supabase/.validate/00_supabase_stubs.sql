@@ -57,3 +57,44 @@ create or replace function vault.create_secret(
   on conflict (name) do update set secret = excluded.secret
   returning id
 $$;
+
+-- ── Storage ────────────────────────────────────────────────────────────────
+-- Supabase provides this; migration 0030 creates the `documents` bucket in it
+-- and attaches four ownership policies to storage.objects. The stub exists so
+-- that DDL applies and those policies can be proved on a vanilla container.
+--
+-- `foldername` is the real function's behaviour and the thing the policies turn
+-- on: it splits an object key on '/', so element 1 of `<uid>/<uuid>.jpg` is the
+-- owning user's id. Getting this stub wrong would make the proof pass against
+-- semantics Supabase does not have, so it is written to match:
+-- `storage.foldername('a/b/c.jpg')` is `{a,b}` — the path without the filename.
+create schema if not exists storage;
+
+create table if not exists storage.buckets (
+  id                 text primary key,
+  name               text not null,
+  public             boolean not null default false,
+  file_size_limit    bigint,
+  allowed_mime_types text[],
+  created_at         timestamptz default now()
+);
+
+create table if not exists storage.objects (
+  id         uuid primary key default gen_random_uuid(),
+  bucket_id  text references storage.buckets (id),
+  name       text not null,
+  owner      uuid,
+  metadata   jsonb,
+  created_at timestamptz default now()
+);
+
+alter table storage.objects enable row level security;
+
+create or replace function storage.foldername(name text)
+returns text[] language sql immutable as $$
+  select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1]
+$$;
+
+grant usage on schema storage to anon, authenticated, service_role;
+grant select, insert, update, delete on storage.objects to authenticated;
+grant select on storage.buckets to anon, authenticated;

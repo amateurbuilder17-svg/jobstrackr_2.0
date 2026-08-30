@@ -141,7 +141,7 @@ export async function listExams(): Promise<ExamOption[]> {
  * The sibling of `listSavedJobIds`, and it rides on the same request: the
  * job page and every job card need one bit per job, and a second round trip
  * to learn a second bit would double the per-session cost of keeping the
- * static pages static. See `/api/saved`.
+ * static pages static. See `/api/session`.
  */
 export async function listTrackedJobIds(): Promise<string[]> {
   const db = await sessionDb();
