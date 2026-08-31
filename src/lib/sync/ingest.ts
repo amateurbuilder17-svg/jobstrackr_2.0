@@ -21,6 +21,7 @@ import {
   toStringArray,
   toText,
   toVacancies,
+  toVector,
 } from "./normalize";
 
 /**
@@ -189,6 +190,7 @@ export function toJobPayload(
       // without the date column inventing one.
       last_date_display: toText(row.last_date_display),
       tags: toStringArray(row.tags),
+      embedding: toVector(row.embedding) as string | null,
     },
   };
 }

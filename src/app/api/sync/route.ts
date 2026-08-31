@@ -6,7 +6,6 @@ import { z } from "zod";
 import { adminDb } from "@/lib/db/clients";
 import { tags } from "@/lib/db/tags";
 import { getServerEnv } from "@/lib/env.server";
-import { embedNewJobs } from "@/lib/sync/embed";
 import { ingestJobs, recordJobChanges } from "@/lib/sync/ingest";
 import { ingestExamUpdates } from "@/lib/sync/updates";
 
@@ -225,33 +224,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       revalidateTag(tags.sitemap(), { expire: 0 });
     }
 
-    // ── Embeddings ────────────────────────────────────────────────────────
-    // After everything else, because this is the least important step and
-    // its failure must not shadow a successful ingest. Capped at 50 rows —
-    // one Gemini batch call, ~1-3s — so it fits comfortably within the
-    // remaining function time.
-    let embedded = 0;
-    if (result.inserted + result.updated > 0) {
-      try {
-        const embedResult = await embedNewJobs(50);
-        embedded = embedResult.processed;
-      } catch (error) {
-        // Logged inside embedNewJobs. A failed embedding pass is a gap in a
-        // feature, not a failed sync.
-        console.error(
-          "[sync] embedding pass failed:",
-          error instanceof Error ? error.message : String(error),
-        );
-      }
-    }
-
     return NextResponse.json({
       runId: run.id,
       ...summarise(result),
       detailsWritten: result.detailsWritten,
       closed,
       changesRecorded: recorded.written,
-      embedded,
       revalidated: wrote > 0,
     });
   } catch (error) {
