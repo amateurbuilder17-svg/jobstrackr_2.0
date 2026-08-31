@@ -56,6 +56,29 @@ export interface IngestResult {
   detailsWritten: number;
 }
 
+/**
+ * Drops `subject` when it lands on the wrong side of `keep`, instead of
+ * letting the pair fail its ordering CHECK constraint.
+ *
+ * `jobs_dates_ordered`, `jobs_age_range` and `jobs_salary_range` all require
+ * one end of a pair to be `<=` the other. A scraped pair that violates one is
+ * normal — a source page with the columns transposed, say — but a violation
+ * reaching the database fails the whole bulk `insert()`, not just this row:
+ * Postgres evaluates a multi-row insert as one statement, so one bad pair
+ * (`application_start_date > last_date`) took the entire batch down on
+ * 2026-08-26 and stopped ingestion for four days, because nothing here caught
+ * it before it reached Postgres.
+ */
+function dropIfWrongSideOf<T extends number | string>(
+  subject: T | null,
+  keep: T | null,
+  subjectMustBeAtMost: boolean,
+): T | null {
+  if (subject === null || keep === null) return subject;
+  const outOfOrder = subjectMustBeAtMost ? subject > keep : subject < keep;
+  return outOfOrder ? null : subject;
+}
+
 /** A payload about to be written, reduced to the comparison shape. */
 function toComparable(payload: JobPayload): ComparableRow {
   return {
@@ -119,6 +142,14 @@ export function toJobPayload(
     .slice(0, 32);
 
   const lastDate = toDate(row.last_date);
+  // The less essential end of each pair is dropped, not the row: `last_date`
+  // (not `application_start_date`) drives status/expiry/sort, and `_min` (not
+  // `_max`) is the more commonly cited figure for salary and age.
+  const applicationStartDate = dropIfWrongSideOf(toDate(row.application_start_date), lastDate, true);
+  const salaryMin = toSalary(row.salary_min);
+  const salaryMax = dropIfWrongSideOf(toSalary(row.salary_max), salaryMin, false);
+  const ageMin = toInt(row.age_min);
+  const ageMax = dropIfWrongSideOf(toInt(row.age_max), ageMin, false);
   const orgId = organizationId(organisation);
 
   return {
@@ -145,14 +176,14 @@ export function toJobPayload(
       // matching. Generated columns cannot be forgotten; the text they read
       // from can.
       qualification_summary: toText(row.qualification_summary) ?? toText(row.qualification),
-      salary_min: toSalary(row.salary_min),
-      salary_max: toSalary(row.salary_max),
+      salary_min: salaryMin,
+      salary_max: salaryMax,
       salary_display: toText(row.salary_display),
       application_fee: toInt(row.application_fee),
-      age_min: toInt(row.age_min),
-      age_max: toInt(row.age_max),
+      age_min: ageMin,
+      age_max: ageMax,
       experience_years_min: toInt(row.experience_years_min),
-      application_start_date: toDate(row.application_start_date),
+      application_start_date: applicationStartDate,
       last_date: lastDate,
       // Kept as typed, because "TBD" is a real answer this column must carry
       // without the date column inventing one.

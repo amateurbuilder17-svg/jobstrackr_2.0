@@ -101,4 +101,45 @@ describe("toJobPayload", () => {
 
     expect(a.dedupeKey).toBe(b.dedupeKey);
   });
+
+  // 2026-08-26: a row with application_start_date > last_date failed
+  // `jobs_dates_ordered` inside a bulk insert, which took the whole batch
+  // down and stopped ingestion for four days — nothing upstream of Postgres
+  // caught it. These pin the fix: the offending end is dropped here, before
+  // the row ever reaches the database, instead of the row (or the batch).
+  it("drops application_start_date rather than fail jobs_dates_ordered", () => {
+    const { payload } = toJobPayload(
+      { ...REQUIRED, application_start_date: "2026-09-15", last_date: "2026-09-01" },
+      noOrganizations,
+    );
+
+    expect(payload.application_start_date).toBeNull();
+    expect(payload.last_date).toBe("2026-09-01"); // kept — drives status/expiry/sort
+  });
+
+  it("keeps a correctly ordered application_start_date", () => {
+    const { payload } = toJobPayload(
+      { ...REQUIRED, application_start_date: "2026-08-01", last_date: "2026-09-01" },
+      noOrganizations,
+    );
+
+    expect(payload.application_start_date).toBe("2026-08-01");
+  });
+
+  it("drops salary_max rather than fail jobs_salary_range", () => {
+    const { payload } = toJobPayload(
+      { ...REQUIRED, salary_min: 92300, salary_max: 81100 },
+      noOrganizations,
+    );
+
+    expect(payload.salary_max).toBeNull();
+    expect(payload.salary_min).toBe(92300);
+  });
+
+  it("drops age_max rather than fail jobs_age_range", () => {
+    const { payload } = toJobPayload({ ...REQUIRED, age_min: 35, age_max: 21 }, noOrganizations);
+
+    expect(payload.age_max).toBeNull();
+    expect(payload.age_min).toBe(35);
+  });
 });
