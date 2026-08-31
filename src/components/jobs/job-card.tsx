@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { Row } from "@/components/ui/card";
+import { CardInteractive, Row } from "@/components/ui/card";
 import type { JobCard as JobCardData } from "@/lib/db/queries/jobs";
 import { formatSalary, formatVacancies } from "@/lib/format/deadline";
 import { DeadlineBadge } from "./deadline-badge";
@@ -31,7 +31,13 @@ import { DeadlineBadge } from "./deadline-badge";
  * Then one eligibility line, then the muted meta. The deadline is the only
  * coloured thing, which is the whole point of the palette.
  */
-export function JobCard({ job }: { job: JobCardData }) {
+export function JobCard({
+  job,
+  variant = "row",
+}: {
+  job: JobCardData;
+  variant?: "row" | "card";
+}) {
   const vacancies = formatVacancies(job.vacancies_display, job.vacancies);
   const salary = job.salary_display ?? formatSalary(job.salary_min, job.salary_max);
   const org = job.organization?.short_name ?? job.organization?.name;
@@ -41,8 +47,10 @@ export function JobCard({ job }: { job: JobCardData }) {
   const eligibility = [org, job.qualification_summary].filter(Boolean).join(" · ");
   const meta = [vacancies, salary, job.location].filter(Boolean);
 
+  const Wrapper = variant === "card" ? CardInteractive : Row;
+
   return (
-    <Row className="px-4 py-2 lg:px-5 lg:py-2.5">
+    <Wrapper className="px-4 py-2 lg:px-5 lg:py-2.5">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           {/* Two lines, then ellipsis. Source titles run to sixty words —
@@ -74,7 +82,7 @@ export function JobCard({ job }: { job: JobCardData }) {
             wedged inside a scrolling row where it invites mis-taps. */}
         <DeadlineBadge date={job.last_date} />
       </div>
-    </Row>
+    </Wrapper>
   );
 }
 

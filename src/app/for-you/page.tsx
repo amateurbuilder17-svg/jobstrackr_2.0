@@ -203,7 +203,7 @@ function MatchRow({ job, showGaps }: { job: TieredJob; showGaps: boolean }) {
 
   return (
     <li className="flex flex-col gap-1.5">
-      <JobCard job={job} />
+      <JobCard job={job} variant="card" />
       {chips.length > 0 ? (
         <div className="flex flex-wrap gap-1.5 pl-1">
           {chips.map((chip) => (
