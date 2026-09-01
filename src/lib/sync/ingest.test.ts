@@ -137,7 +137,10 @@ describe("toJobPayload", () => {
   });
 
   it("drops age_max rather than fail jobs_age_range", () => {
-    const { payload } = toJobPayload({ ...REQUIRED, age_min: 35, age_max: 21 }, noOrganizations);
+    const { payload } = toJobPayload(
+      { ...REQUIRED, age_min: 35, age_max: 21 },
+      noOrganizations,
+    );
 
     expect(payload.age_max).toBeNull();
     expect(payload.age_min).toBe(35);

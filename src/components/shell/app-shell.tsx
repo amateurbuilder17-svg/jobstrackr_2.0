@@ -38,7 +38,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar />
-          <main id="content" className="flex-1 pb-16 lg:pb-0">
+          <main id="content" className="flex-1 pb-24 lg:pb-0">
             {/* The midnight timer sits above the router outlet so it survives
                 client navigation: it is armed once per full page load rather
                 than once per route change. */}

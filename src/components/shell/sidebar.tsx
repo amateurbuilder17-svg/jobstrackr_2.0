@@ -68,9 +68,7 @@ export function Sidebar() {
                 {section.items.map((item) => (
                   <li
                     key={item.label}
-                    className={cn(
-                      item.requiresAdmin && "group-data-[admin=no]/session:hidden",
-                    )}
+                    className={cn(item.requiresAdmin && "group-data-[admin=no]/session:hidden")}
                   >
                     <SidebarRow item={item} />
                   </li>
@@ -116,11 +114,7 @@ function SidebarRow({ item }: { item: MenuItem }) {
   const { icon: Icon, label, href, state } = item;
 
   if (item.action === "share") {
-    return (
-      <ShareAppButton
-        className={cn(ROW, "hover:bg-surface-2 hover:text-ink")}
-      />
-    );
+    return <ShareAppButton className={cn(ROW, "hover:bg-surface-2 hover:text-ink")} />;
   }
 
   // "Soon" items — rendered inert with a subtle badge.
@@ -142,10 +136,7 @@ function SidebarRow({ item }: { item: MenuItem }) {
   }
 
   return (
-    <Link
-      href={href}
-      className={cn(ROW, "group/row hover:bg-surface-2 hover:text-ink")}
-    >
+    <Link href={href} className={cn(ROW, "group/row hover:bg-surface-2 hover:text-ink")}>
       <Icon className="size-[1.05rem] shrink-0 text-ink-3" />
       <span className="min-w-0 flex-1 truncate">{label}</span>
       <ChevronRightIcon className="size-3.5 shrink-0 text-ink-3/0 transition-colors group-hover/row:text-ink-3" />

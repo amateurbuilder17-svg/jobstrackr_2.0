@@ -71,10 +71,12 @@ export type JobDetail = QueryData<ReturnType<typeof detailQuery>>[number];
  * deadlines every ingest run, so `status = 'published'` means "still open" —
  * see migration 0016.
  */
-export type JobSort = "closing" | "newest";
+export type JobSort = "closing" | "newest" | "vacancy";
 
 export function toJobSort(value: string | undefined): JobSort {
-  return value === "newest" ? "newest" : "closing";
+  if (value === "newest") return "newest";
+  if (value === "vacancy") return "vacancy";
+  return "closing";
 }
 
 export interface JobListOptions {
@@ -82,6 +84,7 @@ export interface JobListOptions {
   limit?: number | undefined;
   organizationSlug?: string | undefined;
   tag?: string | undefined;
+  sector?: string | undefined;
   /** Canonical state or union territory, matched against `location_state`. */
   state?: string | undefined;
   /** The post's stated minimum qualification, exactly. */
@@ -97,13 +100,13 @@ export interface JobListOptions {
 /**
  * One page of open jobs.
  *
- * Two orderings, each backed by its own index so the planner walks it and stops
- * at `limit`:
+ * Backed by indexes so the planner walks it and stops at `limit`:
  *
- *   `closing` — `(last_date asc, id asc)`, served by `jobs_closing_idx`.
- *   `newest`  — `(published_at desc, id desc)`, served by `jobs_feed_idx`.
+ *   `closing` — `(last_date asc, id asc)`
+ *   `newest`  — `(published_at desc, id desc)`
+ *   `vacancy` — `(vacancies desc, id asc)`
  *
- * The tie-break on `id` is not decorative in either: without it, rows sharing a
+ * The tie-break on `id` is not decorative: without it, rows sharing a
  * sort key can repeat or vanish across page boundaries, which is the classic
  * keyset pagination bug.
  *
@@ -120,7 +123,8 @@ export async function listJobs(options: JobListOptions = {}): Promise<Page<JobCa
   const limit = options.limit ?? PAGE_SIZE.list;
   const cursor = decodeCursor(options.cursor);
   const sort = options.sort ?? "closing";
-  const column = sort === "closing" ? "last_date" : "published_at";
+  const column =
+    sort === "closing" ? "last_date" : sort === "vacancy" ? "vacancies" : "published_at";
   const ascending = sort === "closing";
 
   // Fetch one extra row to answer "is there a next page?" without a count(*),
@@ -152,8 +156,8 @@ export async function listJobs(options: JobListOptions = {}): Promise<Page<JobCa
     // lag by up to one `feed` revalidation. That bounds the error at hours
     // instead of "until someone notices ingestion stopped".
     .gte("last_date", todayInIndia())
-    .order(column, { ascending })
-    .order("id", { ascending })
+    .order(column, { ascending, nullsFirst: false })
+    .order("id", { ascending: true })
     .limit(limit + 1);
 
   if (cursor) {
@@ -168,6 +172,7 @@ export async function listJobs(options: JobListOptions = {}): Promise<Page<JobCa
   if (options.organizationSlug)
     query = query.eq("organizations.slug", options.organizationSlug);
   if (options.tag) query = query.contains("tags", [options.tag]);
+  if (options.sector) query = query.contains("tags", [options.sector]);
 
   // `location_state`, not `state`. `state` is raw scraped text and is a
   // verbatim copy of `location` on every row — "New Delhi, Delhi", "Chennai,
@@ -175,7 +180,7 @@ export async function listJobs(options: JobListOptions = {}): Promise<Page<JobCa
   // matched almost nothing: the Tamil Nadu chip found 1 job where 20 named the
   // state. `location_state` is the generated, normalised answer; see migration
   // 0023.
-  if (options.state) query = query.eq("location_state", options.state);
+  if (options.state && options.state !== "All India") query = query.eq("location_state", options.state);
 
   // Both are typed enums the ingest path already derives, so these filter on
   // real data rather than on `tags`, which is populated on 129 rows out of
@@ -205,7 +210,12 @@ export async function listJobs(options: JobListOptions = {}): Promise<Page<JobCa
   const rows = unwrap("listJobs", await query);
 
   return toPage(rows, limit, (row) => ({
-    sortKey: sort === "closing" ? row.last_date : row.published_at,
+    sortKey:
+      sort === "closing"
+        ? row.last_date
+        : sort === "vacancy"
+          ? String(row.vacancies ?? 0)
+          : row.published_at,
     id: row.id,
   }));
 }

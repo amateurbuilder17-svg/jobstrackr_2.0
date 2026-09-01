@@ -22,6 +22,10 @@ export interface FilterParams {
   push: (next: URLSearchParams) => void;
   /** Set or clear one parameter. */
   set: (param: string, value: string | null) => void;
+  /** Set or clear multiple parameters in a single transition. */
+  setMultiple: (updates: Record<string, string | null>) => void;
+  /** Clear all filter parameters except search term if specified. */
+  clearAll: (keepKeys?: string[]) => void;
 }
 
 export function useFilterParams(): FilterParams {
@@ -50,5 +54,29 @@ export function useFilterParams(): FilterParams {
     [params, push],
   );
 
-  return { params, push, set };
+  const setMultiple = useCallback(
+    (updates: Record<string, string | null>) => {
+      const next = new URLSearchParams(params.toString());
+      for (const [key, value] of Object.entries(updates)) {
+        if (value) next.set(key, value);
+        else next.delete(key);
+      }
+      push(next);
+    },
+    [params, push],
+  );
+
+  const clearAll = useCallback(
+    (keepKeys: string[] = ["q"]) => {
+      const next = new URLSearchParams();
+      for (const key of keepKeys) {
+        const val = params.get(key);
+        if (val) next.set(key, val);
+      }
+      push(next);
+    },
+    [params, push],
+  );
+
+  return { params, push, set, setMultiple, clearAll };
 }

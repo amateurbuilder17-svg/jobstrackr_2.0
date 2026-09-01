@@ -23,7 +23,8 @@
  * against the actual malformed answers a photograph of a marksheet produces.
  */
 
-export type FieldKind = "text" | "date" | "number" | "gender" | "category" | "qualification";
+export type FieldKind =
+  "text" | "date" | "number" | "year" | "gender" | "category" | "qualification";
 
 export interface FieldSpec {
   /** The profiles column, or an education column when `education` is set. */
@@ -112,6 +113,18 @@ export const FIELD_MAP: Record<string, FieldSpec> = {
     kind: "text",
     education: true,
   },
+  date_of_passing: {
+    column: "year_of_passing",
+    label: "Year of passing",
+    kind: "year",
+    education: true,
+  },
+  year_of_passing: {
+    column: "year_of_passing",
+    label: "Year of passing",
+    kind: "year",
+    education: true,
+  },
   percentage: { column: "percentage", label: "Percentage", kind: "number", education: true },
 };
 
@@ -122,7 +135,14 @@ const QUALIFICATION_MAP: Record<string, string> = {
   iti: "iti",
   diploma: "diploma",
   graduation: "bachelor",
+  bachelor: "bachelor",
+  bachelors: "bachelor",
   post_graduation: "master",
+  master: "master",
+  masters: "master",
+  phd: "doctorate",
+  "ph.d": "doctorate",
+  doctorate: "doctorate",
 };
 
 const CATEGORY_MAP: Record<string, string> = {
@@ -222,6 +242,20 @@ function coerce(raw: unknown, kind: FieldKind): string | number | null {
 
     case "date":
       return toIsoDate(text);
+
+    case "year": {
+      const iso = toIsoDate(text);
+      if (iso) {
+        const yr = Number(iso.slice(0, 4));
+        if (Number.isFinite(yr) && yr >= 1950 && yr <= 2100) return yr;
+      }
+      const match = /(19|20)\d{2}/.exec(text);
+      if (match) {
+        const yr = Number(match[0]);
+        if (yr >= 1950 && yr <= 2100) return yr;
+      }
+      return null;
+    }
 
     case "gender": {
       const g = text.toLowerCase();

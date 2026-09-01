@@ -137,6 +137,7 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       // Renamed surfaces.
+      { source: "/my-exams", destination: "/tracker", permanent: true },
       { source: "/search", destination: "/jobs", permanent: true },
       { source: "/trending", destination: "/updates", permanent: true },
       { source: "/auth", destination: "/sign-in", permanent: true },

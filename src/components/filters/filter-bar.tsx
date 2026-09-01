@@ -1,7 +1,10 @@
 "use client";
 
-import { CloseIcon } from "@/components/icons";
+import { useState } from "react";
+
+import { CloseIcon, SlidersHorizontalIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
+import { FilterModal } from "./filter-modal";
 import type { FilterOption } from "./filter-chips";
 import { useFilterParams } from "./use-filter-params";
 
@@ -12,32 +15,22 @@ export interface FilterGroup {
   param: string;
   /** Announced to screen readers, and the sheet's section heading. */
   label: string;
+  iconName?: string;
   options: FilterOption[];
 }
 
 /**
  * The filter row.
  *
- * One horizontally scrolling line, not four wrapped ones.
- *
- * The previous version rendered each group as its own wrapping `flex-wrap` row.
- * On a 375px screen that came to twelve chips over four lines which, with the
- * page heading and the description sentence above them, pushed the first job
- * below the fold — the list of jobs opened with no jobs on it. Nothing said
- * which chips were qualifications and which were states either, because the two
- * groups rendered identically.
- *
- * So: active filters come first, as removable chips, then the rest scroll
- * sideways. A person who has filtered sees what they filtered by without
- * scrolling; a person who has not sees the common starting points.
- *
- * `overflow-x-auto` on this element alone — the page body must never scroll
- * sideways, which is both a GIGW test and the difference between a list that
- * feels solid and one that feels broken.
+ * One horizontally scrolling line with a prominent Filter modal trigger,
+ * active filter removable pills, and quick filter shortcuts.
  */
 export function FilterBar({ groups }: { groups: FilterGroup[] }) {
-  const { params, push, set } = useFilterParams();
+  const { params, set, clearAll } = useFilterParams();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalTab, setModalTab] = useState<string>("sort");
 
+  // Collect all active filters from the URL
   const active = groups.flatMap((group) => {
     const value = params.get(group.param);
     if (!value) return [];
@@ -45,73 +38,139 @@ export function FilterBar({ groups }: { groups: FilterGroup[] }) {
     return [{ group, value, label: option?.label ?? value }];
   });
 
-  const activeParams = new Set(active.map((a) => a.group.param));
-  const inactive = groups.filter((group) => !activeParams.has(group.param));
+  const sortValue = params.get("sort");
+  const isSortActive = sortValue && sortValue !== "closing";
+  const totalActiveCount = active.length + (isSortActive ? 1 : 0);
+
+  const openFilter = (tab = "sort") => {
+    setModalTab(tab);
+    setIsModalOpen(true);
+  };
+
+  // Quick filter shortcuts to display when inactive
+  const quickShortcuts = [
+    { param: "level", value: "bachelor", label: "Graduate" },
+    { param: "level", value: "class_10", label: "10th Pass" },
+    { param: "stream", value: "engineering", label: "Engineering" },
+    { param: "sector", value: "railway", label: "Railways" },
+    { param: "sector", value: "banking", label: "Banking" },
+    { param: "sector", value: "defence", label: "Defence" },
+    { param: "state", value: "All India", label: "All India" },
+    { param: "state", value: "Delhi", label: "Delhi" },
+    { param: "state", value: "Maharashtra", label: "Maharashtra" },
+    { param: "state", value: "Uttar Pradesh", label: "Uttar Pradesh" },
+  ];
 
   return (
-    <div
-      className={cn(
-        "-mx-4 flex items-center gap-2 overflow-x-auto px-4 py-1 lg:mx-0 lg:px-0",
-        // Hides the scrollbar without hiding the scroll. The row is short and a
-        // permanent bar under it reads as a stray rule.
-        "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
-      )}
-    >
-      {active.map(({ group, label }) => (
+    <>
+      <div
+        className={cn(
+          "-mx-4 flex items-center gap-2 overflow-x-auto px-4 py-1.5 lg:mx-0 lg:px-0",
+          "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        )}
+      >
+        {/* Primary Filter Button */}
         <button
-          key={group.param}
           type="button"
           onClick={() => {
-            set(group.param, null);
+            openFilter("sort");
           }}
           className={cn(
-            "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5",
-            "border-accent-line bg-accent-soft text-xs font-semibold text-accent",
-            "transition-colors duration-(--duration-fast) hover:bg-accent-soft/70",
+            "inline-flex h-9 shrink-0 items-center gap-2 rounded-full border px-3.5 text-xs font-semibold shadow-xs",
+            "transition-all duration-(--duration-fast)",
+            totalActiveCount > 0
+              ? "border-accent bg-accent text-on-accent hover:bg-accent-hover active:translate-y-px"
+              : "border-line bg-surface text-ink hover:border-line-strong hover:bg-surface-2",
           )}
         >
-          {label}
-          <CloseIcon className="size-3" />
-          <span className="sr-only">— remove this {group.label.toLowerCase()} filter</span>
+          <SlidersHorizontalIcon className="size-3.5" />
+          <span>Filters</span>
+          {totalActiveCount > 0 && (
+            <span className="flex size-4.5 items-center justify-center rounded-full bg-on-accent text-accent text-[10px] font-bold">
+              {totalActiveCount}
+            </span>
+          )}
         </button>
-      ))}
 
-      {active.length > 1 ? (
-        <button
-          type="button"
-          onClick={() => {
-            const next = new URLSearchParams(params.toString());
-            for (const group of groups) next.delete(group.param);
-            push(next);
-          }}
-          className="h-9 shrink-0 px-1.5 text-xs font-medium text-ink-3 underline-offset-2 hover:text-ink hover:underline"
-        >
-          Clear all
-        </button>
-      ) : null}
+        {/* Active Filter Removable Pills */}
+        {isSortActive && (
+          <button
+            type="button"
+            onClick={() => {
+              set("sort", null);
+            }}
+            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-accent-line bg-accent-soft px-3 text-xs font-semibold text-accent transition-colors hover:bg-accent-soft/70"
+          >
+            <span>Sort: {sortValue === "vacancy" ? "Highest vacancy" : "Newest"}</span>
+            <CloseIcon className="size-3" />
+            <span className="sr-only">— remove sort filter</span>
+          </button>
+        )}
 
-      {inactive.map((group) => (
-        <div key={group.param} role="group" aria-label={group.label} className="contents">
-          {group.options.map((option) => (
+        {active.map(({ group, label }) => (
+          <button
+            key={group.param}
+            type="button"
+            onClick={() => {
+              set(group.param, null);
+            }}
+            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-accent-line bg-accent-soft px-3 text-xs font-semibold text-accent transition-colors hover:bg-accent-soft/70"
+          >
+            <span>{label}</span>
+            <CloseIcon className="size-3" />
+            <span className="sr-only">— remove this {group.label.toLowerCase()} filter</span>
+          </button>
+        ))}
+
+        {totalActiveCount > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              clearAll(["q"]);
+            }}
+            className="h-9 shrink-0 px-2 text-xs font-semibold text-ink-3 underline-offset-4 hover:text-accent hover:underline"
+          >
+            Clear all
+          </button>
+        )}
+
+        {/* Separator if active filters exist */}
+        {totalActiveCount > 0 && <div className="h-4 w-px bg-line shrink-0 mx-0.5" />}
+
+        {/* Quick Filter Shortcuts */}
+        {quickShortcuts.map((shortcut) => {
+          const isSelected = params.get(shortcut.param) === shortcut.value;
+          if (isSelected) return null; // Already rendered in active list above
+
+          return (
             <button
-              key={option.value}
+              key={`${shortcut.param}-${shortcut.value}`}
               type="button"
               onClick={() => {
-                set(group.param, option.value);
+                set(shortcut.param, shortcut.value);
               }}
               className={cn(
                 "inline-flex h-9 shrink-0 items-center rounded-full border border-line px-3.5",
                 "bg-surface text-xs font-medium whitespace-nowrap text-ink-2",
                 "transition-colors duration-(--duration-fast)",
-                "hover:border-line-strong hover:text-ink",
+                "hover:border-line-strong hover:text-ink hover:bg-surface-2",
               )}
             >
-              {option.label}
+              {shortcut.label}
             </button>
-          ))}
-        </div>
-      ))}
-    </div>
+          );
+        })}
+      </div>
+
+      {/* Enterprise Filter Modal */}
+      <FilterModal
+        open={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+        }}
+        initialTab={modalTab}
+      />
+    </>
   );
 }
 

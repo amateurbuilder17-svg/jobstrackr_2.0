@@ -49,7 +49,7 @@ export default function MyDetailsPage() {
 async function Details() {
   const [profile, education] = await Promise.all([getPiiProfile(), getEducationForForms()]);
 
-  const filled = Object.values(profile).filter(Boolean).length;
+  const filled = Object.values(profile).filter(Boolean).length + education.length;
 
   return (
     <>

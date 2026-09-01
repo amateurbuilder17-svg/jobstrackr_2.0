@@ -92,6 +92,7 @@ export async function updateProfileAction(
   if (error) return { ok: false, errors: { form: error.message } };
 
   revalidatePath("/profile");
+  revalidatePath("/my-details");
 
   // Finishing onboarding is the one save that has somewhere to go: the feed the
   // form exists to fill. Leaving someone on the form they just completed, with
@@ -147,6 +148,7 @@ export async function upsertEducationAction(
   if (error) return { ok: false, errors: { form: error.message } };
 
   revalidatePath("/profile");
+  revalidatePath("/my-details");
   return { ok: true, message: "Qualification saved." };
 }
 
@@ -179,6 +181,7 @@ export async function deleteEducationAction(
   if (error) return { ok: false, errors: { form: error.message } };
 
   revalidatePath("/profile");
+  revalidatePath("/my-details");
   return { ok: true, message: "Qualification removed." };
 }
 

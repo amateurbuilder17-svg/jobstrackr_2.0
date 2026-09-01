@@ -61,6 +61,7 @@ export function TopBar() {
 
   const current = NAV_ITEMS.find((item) => isActive(pathname, item.href));
   const searchesHere = SEARCHES_HERE.has(pathname);
+  const isHome = pathname === "/";
 
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-bg/85 backdrop-blur-md">
@@ -110,19 +111,21 @@ export function TopBar() {
               )}
             </div>
 
-            <Link
-              href="/jobs"
-              aria-label="Search jobs and updates"
-              className={
-                "ml-auto flex h-9 min-w-0 shrink-0 items-center justify-center gap-2 rounded-md " +
-                "border border-line bg-surface text-sm text-ink-3 " +
-                "transition-colors duration-(--duration-fast) hover:border-line-strong " +
-                "hover:text-ink-2 max-sm:size-9 sm:max-w-md sm:flex-1 sm:shrink sm:px-3 lg:ml-0"
-              }
-            >
-              <SearchIcon className="size-4 shrink-0" />
-              <span className="truncate max-sm:hidden">Search jobs and updates</span>
-            </Link>
+            {!isHome && (
+              <Link
+                href="/jobs"
+                aria-label="Search jobs and updates"
+                className={
+                  "ml-auto flex h-9 min-w-0 shrink-0 items-center justify-center gap-2 rounded-md " +
+                  "border border-line bg-surface text-sm text-ink-3 " +
+                  "transition-colors duration-(--duration-fast) hover:border-line-strong " +
+                  "hover:text-ink-2 max-sm:size-9 sm:max-w-md sm:flex-1 sm:shrink sm:px-3 lg:ml-0"
+                }
+              >
+                <SearchIcon className="size-4 shrink-0" />
+                <span className="truncate max-sm:hidden">Search jobs and updates</span>
+              </Link>
+            )}
           </>
         )}
 

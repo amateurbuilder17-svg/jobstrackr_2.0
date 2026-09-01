@@ -1,12 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import { useActionState, useMemo, useState } from "react";
 
-import { useActionState, useState } from "react";
-
-import { ChevronRightIcon, ClockIcon } from "@/components/icons";
+import { OrganizationBadge } from "@/components/home/primitives";
+import {
+  ArrowRightIcon,
+  CheckCircleIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  CircleIcon,
+  TrackerIcon,
+} from "@/components/icons";
 import { useToday } from "@/components/jobs/today-provider";
-import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Select } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { EMPTY_FORM_STATE } from "@/lib/auth/form-state";
@@ -15,14 +22,15 @@ import type { ExamAttempt } from "@/lib/db/queries/attempts";
 import type { ExamStatusReport } from "@/lib/exams/report";
 import { subjectKeyFor } from "@/lib/exams/subject";
 import { daysUntilFrom, formatDate } from "@/lib/format/deadline";
+import { deleteAttemptAction, setAttemptStatusAction } from "@/lib/tracker/actions";
 import {
   ATTEMPT_STATUSES,
   STATUS_LABELS,
-  STATUS_ORDER,
-  STATUS_TONE,
   type AttemptStatus,
 } from "@/lib/tracker/enums";
-import { deleteAttemptAction, setAttemptStatusAction } from "@/lib/tracker/actions";
+import { computeStages, ExamProgress, type Stage } from "./exam-progress";
+import { FilterTabs, type FilterKey } from "./filter-tabs";
+import { StatusBadge } from "./status-badge";
 import { StatusPanel } from "./status-panel";
 
 const STATUS_OPTIONS = ATTEMPT_STATUSES.map((s) => ({
@@ -30,35 +38,30 @@ const STATUS_OPTIONS = ATTEMPT_STATUSES.map((s) => ({
   label: STATUS_LABELS[s],
 }));
 
-/**
- * The status tone, again, as a one-pixel spine down the left edge of the card.
- *
- * Not decoration: it is the same value the badge carries, in the one place a
- * list can be scanned without reading — the eye finds the amber card before it
- * finds the word "Admit card out". `neutral` deliberately stays grey, so a
- * tracker full of nothing-happening rows has no colour in it at all.
- */
-const SPINE: Record<NonNullable<BadgeProps["tone"]>, string> = {
-  neutral: "bg-line-strong",
-  accent: "bg-accent",
-  good: "bg-good",
-  warn: "bg-warn",
-  critical: "bg-critical",
-  criticalSolid: "bg-critical",
-};
-
-/** Outcomes. A finished exam opens collapsed — it is history, not a to-do. */
+/** Settled exams are completed history */
 const SETTLED: ReadonlySet<AttemptStatus> = new Set<AttemptStatus>([
   "passed",
   "failed",
   "withdrawn",
 ]);
 
-/**
- * `reports` is keyed by subject rather than by attempt, because the cache is:
- * two attempts at the same exam in different years read the same answer, and
- * the page fetched them in one query rather than one per row.
- */
+type ExamCategory = "action" | "upcoming" | "completed";
+
+function categorizeAttempt(attempt: ExamAttempt): ExamCategory {
+  const status = attempt.status as AttemptStatus;
+  if (SETTLED.has(status)) return "completed";
+  if (status === "admit_card" || status === "tracking" || status === "applied") {
+    return "action";
+  }
+  return "upcoming";
+}
+
+const SECTIONS: { key: ExamCategory; title: string; quiet?: boolean }[] = [
+  { key: "action", title: "Action Required" },
+  { key: "upcoming", title: "Upcoming" },
+  { key: "completed", title: "Completed", quiet: true },
+];
+
 export function AttemptList({
   attempts,
   reports,
@@ -66,191 +69,370 @@ export function AttemptList({
   attempts: ExamAttempt[];
   reports: Record<string, ExamStatusReport>;
 }) {
+  const [filter, setFilter] = useState<FilterKey>("all");
+  const [expandedId, setExpandedId] = useState<string | null>(
+    attempts[0]?.id ?? null,
+  );
+
+  const categorized = useMemo(() => {
+    return attempts.map((a) => ({
+      attempt: a,
+      category: categorizeAttempt(a),
+    }));
+  }, [attempts]);
+
+  const counts = useMemo(() => {
+    const res: Partial<Record<FilterKey, number>> = {
+      all: attempts.length,
+      action: categorized.filter((c) => c.category === "action").length,
+      upcoming: categorized.filter((c) => c.category === "upcoming").length,
+      completed: categorized.filter((c) => c.category === "completed").length,
+    };
+    return res;
+  }, [attempts.length, categorized]);
+
+  const visible = useMemo(() => {
+    if (filter === "all") return categorized;
+    return categorized.filter((c) => c.category === filter);
+  }, [categorized, filter]);
+
   if (attempts.length === 0) {
     return (
-      <div className="mt-6 rounded-lg border border-dashed border-line bg-surface px-4 py-10 text-center">
-        <p className="text-sm font-semibold text-ink">Nothing tracked yet</p>
-        <p className="mt-1 text-sm text-ink-3">
-          Add your first exam below and this page will follow its dates for you.
+      <div className="mt-8 rounded-2xl border border-border bg-card p-8 text-center shadow-card sm:p-12 animate-in fade-in duration-200">
+        <div className="mx-auto flex size-12 items-center justify-center rounded-2xl border border-border bg-brand-soft text-brand-deep shadow-2xs">
+          <TrackerIcon className="size-6 text-brand" />
+        </div>
+        <h3 className="mt-4 text-base font-bold text-foreground">No exams tracked yet</h3>
+        <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted-foreground">
+          Tap the + button above to add your target exams and monitor admit cards, exam dates, and results in one place.
         </p>
       </div>
     );
   }
 
-  // Live things first, finished things last. The database orders by date, which
-  // is right within a group but would otherwise mix a passed exam from March in
-  // among the ones still to sit.
-  const sorted = [...attempts].sort(
-    (a, b) => STATUS_ORDER[a.status as AttemptStatus] - STATUS_ORDER[b.status as AttemptStatus],
-  );
-
-  const settled = sorted.filter((a) => SETTLED.has(a.status as AttemptStatus)).length;
-  const live = sorted.length - settled;
-
   return (
-    <>
-      {/* A rule with a count on it, rather than a summary panel. The list is
-          the content; this only tells the eye where it starts. */}
-      <div className="mt-6 flex items-baseline justify-between gap-3 border-b border-line pb-1.5">
-        <h2 className="cond text-2xs font-semibold tracking-wider text-ink-3 uppercase">
-          Tracked exams
-        </h2>
-        <p className="cond tabular text-2xs tracking-wider text-ink-3 uppercase">
-          {live > 0 ? `${String(live)} live` : null}
-          {live > 0 && settled > 0 ? " · " : null}
-          {settled > 0 ? `${String(settled)} finished` : null}
-        </p>
-      </div>
+    <div className="space-y-6">
+      {/* Filter Tabs */}
+      <FilterTabs value={filter} onChange={setFilter} counts={counts} />
 
-      <ul className="mt-3 flex flex-col gap-3">
-        {sorted.map((attempt) => {
-          const key = subjectKeyFor(attempt);
+      {/* Categorized Sections */}
+      <div className="space-y-7">
+        {SECTIONS.map((section) => {
+          const items = visible.filter((e) => e.category === section.key);
+          if (items.length === 0) return null;
+
           return (
-            <AttemptRow
-              key={attempt.id}
-              attempt={attempt}
-              report={(key === null ? undefined : reports[key]) ?? null}
-            />
+            <section key={section.key} aria-labelledby={`section-${section.key}`}>
+              <h2 id={`section-${section.key}`} className="section-label mb-3 px-0.5">
+                {section.title}
+              </h2>
+              <div className="space-y-3">
+                {items.map(({ attempt }) => {
+                  const key = subjectKeyFor(attempt);
+                  const report = (key === null ? undefined : reports[key]) ?? null;
+
+                  return (
+                    <ExamCardItem
+                      key={attempt.id}
+                      attempt={attempt}
+                      report={report}
+                      quiet={section.quiet}
+                      expanded={expandedId === attempt.id}
+                      onToggle={() => {
+                        setExpandedId((cur) => (cur === attempt.id ? null : attempt.id));
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            </section>
           );
         })}
-      </ul>
-    </>
+      </div>
+    </div>
   );
 }
 
-function AttemptRow({
+function ExamCardItem({
   attempt,
   report,
+  expanded,
+  onToggle,
+  quiet,
 }: {
   attempt: ExamAttempt;
   report: ExamStatusReport | null;
+  expanded: boolean;
+  onToggle: () => void;
+  quiet?: boolean | undefined;
 }) {
   const [, statusAction] = useActionState(setAttemptStatusAction, EMPTY_FORM_STATE);
   const [, removeAction] = useActionState(deleteAttemptAction, EMPTY_FORM_STATE);
 
   const status = attempt.status as AttemptStatus;
-
-  // Open unless the exam is over and the answer is known. Somebody with eight
-  // years of attempts behind them should land on the two that are still live,
-  // not on a page they have to scroll past their own history to read.
-  const [open, setOpen] = useState(!SETTLED.has(status));
-
-  const today = useToday();
-
-  // A row tracked from a job page carries neither an exam nor a typed name —
-  // its subject is the notification, and the title lives there rather than
-  // being copied into `custom_name`, which is the field most likely to be
-  // corrected upstream.
   const name =
     attempt.exam?.name ?? attempt.custom_name ?? attempt.job?.title ?? "Untitled exam";
+  const org =
+    attempt.exam?.short_name ??
+    attempt.exam?.name.slice(0, 5) ??
+    attempt.job?.title.slice(0, 5) ??
+    "EXAM";
+  const orgFull = attempt.exam?.name ?? attempt.exam?.short_name ?? attempt.job?.title ?? "";
 
-  // Stage and short name read as one line of provenance: "Prelims · SSC CGL".
-  const sub = [attempt.stage, attempt.exam?.short_name].filter(Boolean).join(" · ");
+  const today = useToday();
+  const stages = useMemo(
+    () => computeStages(status, attempt.stage),
+    [status, attempt.stage],
+  );
 
-  const countdown = nextMilestone(today, attempt.exam_date, attempt.result_date);
-  const bodyId = `attempt-${attempt.id}`;
+  // Compute Next Event
+  const nextEvent = useMemo(() => {
+    if (status === "tracking" || status === "applied") {
+      return {
+        title: "Admit Card Release",
+        date: formatDate(attempt.exam_date) ?? "To be announced",
+      };
+    }
+    if (status === "admit_card") {
+      const days = today ? daysUntilFrom(today, attempt.exam_date) : null;
+      const countdown =
+        days !== null
+          ? days === 0
+            ? "Today"
+            : days > 0
+              ? `In ${String(days)} days`
+              : "Completed"
+          : null;
+      return {
+        title: attempt.stage ? `${attempt.stage} Examination` : "Written Examination",
+        date: [formatDate(attempt.exam_date), countdown].filter(Boolean).join(" · "),
+      };
+    }
+    if (status === "appeared") {
+      return {
+        title: "Result Declaration",
+        date: formatDate(attempt.result_date) ?? "Expected soon",
+      };
+    }
+    return null;
+  }, [status, attempt.exam_date, attempt.result_date, attempt.stage, today]);
+
+  // Key Dates
+  const keyDates = useMemo(() => {
+    const dates: { label: string; date: string }[] = [];
+    if (attempt.applied_at) {
+      dates.push({ label: "Application Submitted", date: formatDate(attempt.applied_at) ?? "" });
+    }
+    if (attempt.exam_date) {
+      dates.push({ label: "Exam Date", date: formatDate(attempt.exam_date) ?? "" });
+    }
+    if (attempt.result_date) {
+      dates.push({ label: "Result Declaration", date: formatDate(attempt.result_date) ?? "" });
+    }
+    return dates;
+  }, [attempt.applied_at, attempt.exam_date, attempt.result_date]);
+
+  // What to do next recommendations
+  const actionTips = useMemo(() => {
+    if (status === "tracking") {
+      return [
+        "Check eligibility criteria and syllabus requirements.",
+        "Keep application ID and scanned documents ready.",
+      ];
+    }
+    if (status === "applied") {
+      return [
+        "Monitor the official portal for admit card release.",
+        "Practice previous year question papers and mock tests.",
+      ];
+    }
+    if (status === "admit_card") {
+      return [
+        "Download and print 2 copies of your Admit Card in colour.",
+        "Verify your exam centre address and reporting shift timing.",
+        "Keep an original Govt Photo ID proof and 2 passport photos ready.",
+      ];
+    }
+    if (status === "appeared") {
+      return [
+        "Check unofficial and official answer keys when published.",
+        "Calculate estimated score and prepare for next stage / tier.",
+      ];
+    }
+    if (status === "passed") {
+      return ["Download official scorecard and prepare for document verification / appointment."];
+    }
+    return [];
+  }, [status]);
+
+  const panelId = `exam-${attempt.id}-panel`;
 
   return (
-    <li className="overflow-hidden rounded-lg border border-line bg-surface">
-      <div className="flex">
-        <span className={cn("w-1 shrink-0", SPINE[STATUS_TONE[status]])} aria-hidden />
+    <article
+      className={cn(
+        "overflow-hidden rounded-2xl border border-border bg-card shadow-card transition-all duration-200",
+        !quiet && "hover:shadow-card-hover",
+        quiet && "bg-card/70 shadow-none",
+        expanded && "shadow-card-hover ring-1 ring-brand/20",
+      )}
+    >
+      {/* Clickable Header */}
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        aria-controls={panelId}
+        className="flex w-full min-h-11 items-start gap-3 p-4 text-left transition-colors hover:bg-muted/40 active:bg-muted/60"
+      >
+        <OrganizationBadge org={org} size="sm" />
 
         <div className="min-w-0 flex-1">
-          {/* The whole head is the toggle, so the tap target is the card rather
-              than a 16px chevron. Every link that used to live up here moved
-              into the body for exactly that reason — a link inside a button is
-              not operable by keyboard. */}
-          <button
-            type="button"
-            onClick={() => {
-              setOpen((v) => !v);
-            }}
-            aria-expanded={open}
-            aria-controls={bodyId}
+          <h3
             className={cn(
-              "group flex w-full items-start gap-3 px-4 py-3 text-left",
-              "transition-colors duration-(--duration-fast) hover:bg-surface-2/50",
-              // Drawn inside the button rather than around it. The card clips
-              // its own overflow so the spine can take its rounded corner, and
-              // an outline at the default `+2px` offset would be clipped on
-              // three sides — a focus ring only a sighted mouse user could
-              // afford to miss.
-              "focus-visible:-outline-offset-2",
+              "line-clamp-2 text-base font-bold tracking-tight text-foreground",
+              quiet && "text-[15px] font-semibold text-muted-foreground",
             )}
           >
-            <span className="min-w-0 flex-1">
-              <span className="line-clamp-2 text-base leading-snug font-bold text-ink">
-                {name}
-              </span>
+            {name}
+          </h3>
+          <p className="mt-0.5 truncate text-[13px] text-muted-foreground">{orgFull}</p>
+          <StatusBadge status={status} className="mt-2.5" />
+        </div>
 
-              {sub ? (
-                <span className="cond mt-0.5 line-clamp-1 block text-xs text-ink-2">{sub}</span>
-              ) : null}
+        <ChevronDownIcon
+          className={cn(
+            "mt-1 size-5 shrink-0 text-muted-foreground transition-transform duration-200",
+            expanded && "rotate-180",
+          )}
+          aria-hidden="true"
+        />
+      </button>
 
-              <span className="mt-2 flex flex-wrap items-center gap-1.5">
-                <Badge tone={STATUS_TONE[status]}>{STATUS_LABELS[status]}</Badge>
-                {countdown ? (
-                  <Badge tone={countdown.tone} className="tabular">
-                    <ClockIcon className="size-3" />
-                    {countdown.label}
-                  </Badge>
-                ) : null}
-              </span>
-            </span>
+      {/* Visual Exam Progress Bar */}
+      <div className="px-4 pb-4">
+        <ExamProgress stages={stages} />
+      </div>
 
-            <span
-              className={cn(
-                "mt-0.5 shrink-0 rounded-md p-1 text-ink-3",
-                "transition-colors duration-(--duration-fast)",
-                "group-hover:bg-surface-2 group-hover:text-ink",
-              )}
-            >
-              <ChevronRightIcon
-                className={cn(
-                  "size-4 transition-transform duration-(--duration-fast)",
-                  open && "rotate-90",
-                )}
-              />
-              <span className="sr-only">{open ? `Collapse ${name}` : `Expand ${name}`}</span>
-            </span>
-          </button>
+      {/* Next Milestone Event Box */}
+      {nextEvent ? (
+        <div className="mx-4 mb-4 flex items-center gap-3 rounded-xl border border-border/70 bg-secondary/50 px-3.5 py-2.5">
+          <div className="min-w-0 flex-1">
+            <p className="section-label text-brand-deep">Next</p>
+            <p className="mt-0.5 truncate text-sm font-semibold text-foreground">
+              {nextEvent.title}
+            </p>
+            <p className="text-[12.5px] tabular-nums text-muted-foreground">{nextEvent.date}</p>
+          </div>
+          <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        </div>
+      ) : null}
 
-          <div id={bodyId} hidden={!open}>
-            <Dates attempt={attempt} today={today} />
+      {/* Collapsible Expansion Panel */}
+      <div
+        id={panelId}
+        aria-hidden={!expanded}
+        className={cn(
+          "grid transition-[grid-template-rows] duration-[250ms] ease-out",
+          expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+        )}
+      >
+        <div className="overflow-hidden">
+          <div className="px-4 pb-4 space-y-4 border-t border-border/70 pt-4">
+            {/* Exam Progress Detailed Checklist */}
+            <section aria-label="Exam Progress Details">
+              <h4 className="section-label mb-2.5">Exam Progress</h4>
+              <ul className="space-y-2">
+                {stages.map((stage: Stage) => {
+                  const done = stage.state === "completed";
+                  return (
+                    <li key={stage.key} className="flex items-center gap-2.5 text-sm">
+                      {done ? (
+                        <CheckCircleIcon
+                          className="size-4 shrink-0 text-brand"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <CircleIcon
+                          className="size-4 shrink-0 text-muted-foreground/40"
+                          aria-hidden="true"
+                        />
+                      )}
+                      <span
+                        className={
+                          done ? "font-medium text-foreground" : "text-muted-foreground"
+                        }
+                      >
+                        {stage.label}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
 
-            {attempt.notes ? (
-              <p className="border-t border-line px-4 py-3 text-sm leading-6 text-ink-2">
-                {attempt.notes}
-              </p>
+            {/* Key Dates */}
+            {keyDates.length > 0 ? (
+              <section className="border-t border-border/70 pt-3.5" aria-label="Key Dates">
+                <h4 className="section-label mb-2.5">Key Dates</h4>
+                <dl className="space-y-2">
+                  {keyDates.map((d) => (
+                    <div
+                      key={d.label}
+                      className="grid grid-cols-[minmax(0,8rem)_1fr] items-baseline gap-2 text-sm"
+                    >
+                      <dt className="font-semibold tabular-nums text-foreground">{d.date}</dt>
+                      <dd className="min-w-0 text-muted-foreground">{d.label}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
             ) : null}
 
-            {/* Back to the notification this was tracked from. Without it the
-                row is a dead end: someone checking their tracker for a deadline
-                then has to search for the listing by name. */}
+            {/* User Personal Notes */}
+            {attempt.notes ? (
+              <section className="border-t border-border/70 pt-3.5" aria-label="Your Notes">
+                <h4 className="section-label mb-1.5">Your Notes</h4>
+                <p className="text-xs italic leading-relaxed text-muted-foreground">
+                  &ldquo;{attempt.notes}&rdquo;
+                </p>
+              </section>
+            ) : null}
+
+            {/* Official AI Status Probe / Live Intelligence */}
+            <section className="border-t border-border/70 pt-3.5">
+              <StatusPanel attemptId={attempt.id} name={name} initial={report} />
+            </section>
+
+            {/* What to do next Recommendation Box */}
+            {actionTips.length > 0 ? (
+              <section className="rounded-xl bg-brand-soft p-3.5" aria-label="What to do next">
+                <h4 className="section-label text-brand-deep mb-2">What to do next</h4>
+                <ul className="space-y-1.5">
+                  {actionTips.map((tip) => (
+                    <li key={tip} className="flex items-start gap-2 text-xs text-brand-deep">
+                      <CheckIcon className="mt-0.5 size-3.5 shrink-0 stroke-[2.5]" aria-hidden="true" />
+                      <span className="min-w-0">{tip}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+
+            {/* Original notification link */}
             {attempt.job ? (
-              <p className="border-t border-line px-4 py-2.5">
+              <div className="pt-1">
                 <Link
                   href={`/jobs/${attempt.job.slug}`}
-                  className="inline-flex items-center gap-0.5 text-xs font-semibold text-accent hover:underline"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline"
                 >
-                  View the notification
-                  <ChevronRightIcon className="size-3.5" />
+                  <span>View official notification</span>
+                  <ArrowRightIcon className="size-3.5" aria-hidden="true" />
                 </Link>
-              </p>
+              </div>
             ) : null}
 
-            {/* Below the row's own facts rather than above them. The fields are
-                what its owner came to change; the researched answer is what
-                they came to read, and reading happens after the row has
-                identified itself. */}
-            <StatusPanel attemptId={attempt.id} name={name} initial={report} />
-
-            {/* The controls sit last and on a tinted ground, so a card reads as
-                content with a toolbar under it rather than as a form. */}
-            <div className="flex flex-wrap items-center gap-2 border-t border-line bg-surface-2/40 px-4 py-3">
-              {/* A form per row rather than one form with a row id: submitting
-                  the status of one exam must never carry another row's fields
-                  with it. */}
+            {/* Status Update & Delete Controls */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-3">
               <form action={statusAction} className="flex items-center gap-2">
                 <input type="hidden" name="id" value={attempt.id} />
                 <label htmlFor={`status-${attempt.id}`} className="sr-only">
@@ -261,17 +443,21 @@ function AttemptRow({
                   name="status"
                   options={STATUS_OPTIONS}
                   defaultValue={status}
-                  placeholder="Status"
-                  className="h-8 w-36 text-xs sm:w-44"
+                  className="h-8.5 w-36 rounded-lg text-xs"
                 />
-                <SubmitButton size="sm" pendingLabel="Saving…">
+                <SubmitButton size="sm" pendingLabel="Saving…" className="h-8.5 rounded-lg px-3 text-xs">
                   Update
                 </SubmitButton>
               </form>
 
               <form action={removeAction} className="ml-auto">
                 <input type="hidden" name="id" value={attempt.id} />
-                <SubmitButton variant="ghost" size="sm" pendingLabel="Removing…">
+                <SubmitButton
+                  variant="ghost"
+                  size="sm"
+                  pendingLabel="Removing…"
+                  className="h-8.5 rounded-lg text-xs text-muted-foreground hover:bg-danger-soft hover:text-danger"
+                >
                   Remove
                 </SubmitButton>
               </form>
@@ -279,114 +465,6 @@ function AttemptRow({
           </div>
         </div>
       </div>
-    </li>
+    </article>
   );
-}
-
-/* ── Dates ─────────────────────────────────────────────────────────────── */
-
-/**
- * The row's own dates, as separate objects rather than one grey sentence.
- *
- * They used to render as `Exam 12 Mar 2026 · Result 20 Apr 2026 · Roll 4410021`
- * in `text-ink-3` — three unrelated facts fused into a line that reads as
- * noise. A date is the thing this page exists to show, so each gets a label it
- * can be found by and a value set in the same weight as the exam's own name.
- */
-function Dates({ attempt, today }: { attempt: ExamAttempt; today: string | null }) {
-  const examDate = formatDate(attempt.exam_date);
-  const resultDate = formatDate(attempt.result_date);
-  const appliedAt = formatDate(attempt.applied_at);
-
-  const facts: { label: string; value: string; note?: string | null }[] = [];
-
-  if (examDate)
-    facts.push({ label: "Exam", value: examDate, note: relative(today, attempt.exam_date) });
-  if (resultDate)
-    facts.push({
-      label: "Result",
-      value: resultDate,
-      note: relative(today, attempt.result_date),
-    });
-  if (appliedAt) facts.push({ label: "Applied", value: appliedAt });
-  if (attempt.roll_number) facts.push({ label: "Roll number", value: attempt.roll_number });
-  if (attempt.score !== null) facts.push({ label: "Score", value: String(attempt.score) });
-
-  if (facts.length === 0) {
-    return (
-      <p className="border-t border-line px-4 py-3 text-xs text-ink-3">
-        No dates saved on this one yet. A status check below fills them in when it finds them.
-      </p>
-    );
-  }
-
-  return (
-    <dl className="flex flex-wrap gap-2 border-t border-line px-4 py-3">
-      {facts.map((fact) => (
-        <div
-          key={fact.label}
-          className="rounded-md border border-line bg-surface-2/60 px-3 py-1.5"
-        >
-          <dt className="cond text-2xs font-semibold tracking-wider text-ink-3 uppercase">
-            {fact.label}
-          </dt>
-          <dd className="tabular text-sm font-semibold whitespace-nowrap text-ink">
-            {fact.value}
-            {fact.note ? (
-              <span className="ml-1.5 text-2xs font-medium text-ink-3">{fact.note}</span>
-            ) : null}
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
-/* ── Countdowns ────────────────────────────────────────────────────────── */
-
-/**
- * The one date worth carrying in a collapsed head: the next thing to happen.
- *
- * The exam if it is still ahead, otherwise the result. Returns null before
- * hydration, when `today` is null — see `TodayProvider` for why the server
- * cannot know the reader's calendar day.
- */
-function nextMilestone(
-  today: string | null,
-  examDate: string | null,
-  resultDate: string | null,
-): { label: string; tone: NonNullable<BadgeProps["tone"]> } | null {
-  if (today === null) return null;
-
-  const toExam = daysUntilFrom(today, examDate);
-  if (toExam !== null && toExam >= 0) {
-    if (toExam === 0) return { label: "Exam today", tone: "criticalSolid" };
-    return {
-      label: `Exam in ${String(toExam)} ${toExam === 1 ? "day" : "days"}`,
-      tone: toExam <= 7 ? "warn" : "neutral",
-    };
-  }
-
-  const toResult = daysUntilFrom(today, resultDate);
-  if (toResult !== null && toResult >= 0) {
-    if (toResult === 0) return { label: "Result today", tone: "accent" };
-    return {
-      label: `Result in ${String(toResult)} ${toResult === 1 ? "day" : "days"}`,
-      tone: "accent",
-    };
-  }
-
-  return null;
-}
-
-/** "in 12 days" / "today" / "8 days ago", or null when it cannot be known yet. */
-function relative(today: string | null, date: string | null): string | null {
-  if (today === null) return null;
-
-  const days = daysUntilFrom(today, date);
-  if (days === null) return null;
-  if (days === 0) return "today";
-  if (days > 0) return `in ${String(days)} ${days === 1 ? "day" : "days"}`;
-  const ago = Math.abs(days);
-  return `${String(ago)} ${ago === 1 ? "day" : "days"} ago`;
 }

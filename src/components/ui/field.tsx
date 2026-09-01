@@ -16,7 +16,7 @@ import { cn } from "@/lib/cn";
  */
 
 const CONTROL = [
-  "w-full rounded-md border border-line bg-surface px-3 text-sm text-ink",
+  "w-full rounded-md border border-line bg-surface px-3 text-base text-ink",
   "placeholder:text-ink-3",
   "transition-[border-color,box-shadow] duration-(--duration-fast)",
   "focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25",
@@ -112,15 +112,17 @@ export function Select({
     <select
       id={id}
       name={props.name ?? id}
-      className={cn(CONTROL, "h-9.5 appearance-none pr-8", className)}
+      className={cn(CONTROL, "h-9.5 text-base", className)}
       {...aria(id, error, hint)}
       {...props}
     >
       {/* Empty value, so an untouched select posts "" and the action maps it to
           null rather than storing the placeholder text. */}
-      <option value="">{placeholder}</option>
+      <option value="" className="text-base">
+        {placeholder}
+      </option>
       {options.map((o) => (
-        <option key={o.value} value={o.value}>
+        <option key={o.value} value={o.value} className="text-base">
           {o.label}
         </option>
       ))}

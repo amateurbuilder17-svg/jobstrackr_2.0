@@ -146,7 +146,11 @@ export function toJobPayload(
   // The less essential end of each pair is dropped, not the row: `last_date`
   // (not `application_start_date`) drives status/expiry/sort, and `_min` (not
   // `_max`) is the more commonly cited figure for salary and age.
-  const applicationStartDate = dropIfWrongSideOf(toDate(row.application_start_date), lastDate, true);
+  const applicationStartDate = dropIfWrongSideOf(
+    toDate(row.application_start_date),
+    lastDate,
+    true,
+  );
   const salaryMin = toSalary(row.salary_min);
   const salaryMax = dropIfWrongSideOf(toSalary(row.salary_max), salaryMin, false);
   const ageMin = toInt(row.age_min);

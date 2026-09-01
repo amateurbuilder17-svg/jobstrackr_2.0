@@ -1,36 +1,29 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { ShieldIcon } from "@/components/icons";
-import { Skeleton } from "@/components/ui/skeleton";
 import { requireUser } from "@/lib/auth/session";
 import { listExamAttempts, listExams } from "@/lib/db/queries/attempts";
 import { listStatusReports } from "@/lib/db/queries/exam-status";
 import type { ExamStatusReport } from "@/lib/exams/report";
 import { subjectKeyFor } from "@/lib/exams/subject";
-import { AttemptForm } from "./attempt-form";
-import { AttemptList } from "./attempt-list";
+import { TrackerView } from "./tracker-view";
 
 export const metadata: Metadata = {
-  title: "My Exams",
+  title: "My Exams · Jobstrackr",
+  description:
+    "Track Indian government jobs and competitive exams in one place. See deadlines, admit cards, exam progress and what to do next.",
   robots: { index: false, follow: false },
 };
 
 /**
- * The tracker.
+ * The My Exams tracker page.
  *
- * Personal data throughout, so the shell is static and everything below it
- * streams — the same split as /profile, and for the same Cache Components
- * reason: reading cookies outside a Suspense boundary is a build error here.
+ * Built with progressive streaming SSR. Cookies are read within the
+ * Suspense boundary to maintain static shell performance.
  */
 export default function TrackerPage() {
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8 lg:px-6">
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">My Exams</h1>
-      <p className="mt-1 text-sm text-ink-2">
-        Everything you are sitting, and where each one has got to.
-      </p>
-
+    <div className="mx-auto w-full max-w-md px-4 pt-8 pb-32 sm:max-w-lg lg:max-w-xl">
       <Suspense fallback={<TrackerSkeleton />}>
         <Tracker />
       </Suspense>
@@ -41,50 +34,52 @@ export default function TrackerPage() {
 async function Tracker() {
   await requireUser("/tracker");
 
-  // The attempts are per-user and uncached; the exam list is public reference
-  // data and cached. Fetched together so the page waits once, not twice.
   const [attempts, exams] = await Promise.all([listExamAttempts(), listExams()]);
 
-  // A third round trip, and it has to be third: the subject keys are computed
-  // from the attempts. It is one query for the whole page — reports are shared
-  // between everyone tracking the same exam, so this reads the cache rather
-  // than anything per-user, and it never calls a model. Rendering this page
-  // costs nothing at Google.
   const keys = attempts.map(subjectKeyFor).filter((key): key is string => key !== null);
   const reports = await listStatusReports(keys);
-
-  // A plain object rather than the Map: it crosses into a Client Component,
-  // and an object is the shape that costs nothing to reason about there.
   const byKey: Record<string, ExamStatusReport> = Object.fromEntries(reports);
 
-  return (
-    <>
-      <AttemptList attempts={attempts} reports={byKey} />
-
-      {attempts.length > 0 ? (
-        // Once, at the foot of the list, rather than on every card. The old app
-        // repeated this warning per exam and it stopped being read.
-        <p className="mt-4 flex items-start gap-2 rounded-md border border-line bg-surface-2/50 px-3 py-2.5 text-2xs leading-4 text-ink-3">
-          <ShieldIcon className="mt-px size-3.5 shrink-0" />
-          <span>
-            Status answers are researched automatically and can be wrong or out of date. The
-            conducting body&rsquo;s own website is the only thing that decides an admit card, a
-            date or a result.
-          </span>
-        </p>
-      ) : null}
-
-      <AttemptForm exams={exams} />
-    </>
-  );
+  return <TrackerView attempts={attempts} exams={exams} reports={byKey} />;
 }
 
 function TrackerSkeleton() {
   return (
-    <div className="mt-6 flex flex-col gap-3">
-      {Array.from({ length: 3 }, (_, i) => (
-        <Skeleton key={i} className="h-20 w-full rounded-lg" />
-      ))}
+    <div className="space-y-6 animate-in fade-in duration-200" aria-hidden="true">
+      {/* Header skeleton */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+        <div className="space-y-2">
+          <div className="skeleton h-7 w-36" />
+          <div className="skeleton h-4 w-48" />
+        </div>
+        <div className="skeleton size-11 rounded-full shrink-0" />
+      </div>
+
+      {/* Tabs skeleton */}
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 py-1 no-scrollbar">
+        <div className="skeleton h-9 w-16 rounded-full" />
+        <div className="skeleton h-9 w-20 rounded-full" />
+        <div className="skeleton h-9 w-24 rounded-full" />
+        <div className="skeleton h-9 w-24 rounded-full" />
+      </div>
+
+      {/* Cards skeleton */}
+      <div className="space-y-3 pt-2">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="rounded-2xl border border-border bg-card p-4 shadow-card space-y-3">
+            <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3">
+              <div className="skeleton size-9 rounded-xl" />
+              <div className="space-y-1.5 flex-1">
+                <div className="skeleton h-4.5 w-3/4" />
+                <div className="skeleton h-3.5 w-1/2" />
+                <div className="skeleton h-5 w-20 rounded-full" />
+              </div>
+              <div className="skeleton size-5 rounded-xs mt-1" />
+            </div>
+            <div className="skeleton h-10 w-full rounded-xl" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

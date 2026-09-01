@@ -192,29 +192,38 @@ export async function acceptFieldsAction(
   const db = await sessionDb();
 
   const profilePatch: Record<string, string | number> = {};
+  const educationPatch: Record<string, string | number> = {};
+
   for (const s of chosen) {
-    if (!s.education && FIELD_MAP[s.key]) profilePatch[s.column] = s.value;
+    if (!s.education && FIELD_MAP[s.key]) {
+      profilePatch[s.column] = s.value;
+    } else if (s.education && FIELD_MAP[s.key]) {
+      educationPatch[s.column] = s.value;
+    }
   }
 
   if (Object.keys(profilePatch).length > 0) {
-    // The cast is at the boundary of a whitelist, not around one. Supabase
-    // types `update()` against the concrete row, and this object is built key
-    // by key from `FIELD_MAP` — a column name that is not in that map cannot
-    // reach here, which is the property that actually matters. Typing it as
-    // the row instead would mean either listing all 40 columns as optional or
-    // giving up the whitelist, and the whitelist is the security.
     const patch = profilePatch as never;
     const { error } = await db.from("profiles").update(patch).eq("id", user.id);
-    if (error) return { ok: false, message: "Could not save those." };
+    if (error) return { ok: false, message: "Could not save profile details." };
   }
 
-  // Education is deliberately not written here. A marksheet names one
-  // qualification and the table is keyed `(user_id, level)`, so writing it
-  // blind either overwrites an existing row or fails on the unique constraint.
-  // The review screen sends the reader to the profile's education section with
-  // the values in hand instead — a smaller feature that cannot silently
-  // replace a degree.
-  const educationCount = chosen.filter((s) => s.education).length;
+  if (Object.keys(educationPatch).length > 0) {
+    const level = (educationPatch.level as string) || "bachelor";
+    const { error } = await db.from("education_qualifications").upsert(
+      {
+        user_id: user.id,
+        level: level as never,
+        discipline: (educationPatch.discipline as string | undefined) ?? null,
+        institution: (educationPatch.institution as string | undefined) ?? null,
+        board_university: (educationPatch.board_university as string | undefined) ?? null,
+        year_of_passing: (educationPatch.year_of_passing as number | undefined) ?? null,
+        percentage: (educationPatch.percentage as number | undefined) ?? null,
+      },
+      { onConflict: "user_id,level" },
+    );
+    if (error) return { ok: false, message: "Could not save education details." };
+  }
 
   await db
     .from("documents")
@@ -224,14 +233,13 @@ export async function acceptFieldsAction(
   revalidatePath("/documents");
   revalidatePath("/my-details");
   revalidatePath("/profile");
+  revalidatePath("/for-you");
 
-  const saved = Object.keys(profilePatch).length;
+  const savedCount =
+    Object.keys(profilePatch).length + (Object.keys(educationPatch).length > 0 ? 1 : 0);
   return {
     ok: true,
-    message:
-      educationCount > 0
-        ? `Saved ${String(saved)} to your profile. Education fields need adding by hand — the values are above.`
-        : `Saved ${String(saved)} to your profile.`,
+    message: `Saved ${String(savedCount)} record${savedCount === 1 ? "" : "s"} to your profile.`,
   };
 }
 

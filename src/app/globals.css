@@ -49,7 +49,7 @@
      read as secondary and dark enough to stay legible. */
   --color-ink-3: oklch(53.9% 0.024 161);
 
-  /* ── Accent ───────────────────────────────────────────────────────────── */
+  /* ── Accent & Brand ─────────────────────────────────────────────────── */
   /* Seal green: the colour of official stamps, ledgers and PSU signage. Deep
      enough to carry white text, dark enough to be legible on the ground at AA
      without a separate text variant, and pointedly not the blue every job
@@ -59,6 +59,19 @@
   --color-accent-soft: oklch(93.4% 0.018 165);
   --color-accent-line: oklch(81.5% 0.044 164);
   --color-on-accent: oklch(100% 0 0);
+
+  --color-brand: oklch(0.44 0.09 163);
+  --color-brand-deep: oklch(0.36 0.08 163);
+  --color-brand-soft: oklch(0.955 0.02 163);
+  --color-primary: oklch(0.44 0.09 163);
+  --color-primary-foreground: oklch(0.99 0.005 160);
+  --color-secondary: oklch(0.96 0.008 160);
+  --color-secondary-foreground: oklch(0.28 0.02 160);
+  --color-card: oklch(100% 0 0);
+  --color-card-foreground: oklch(23% 0.021 163);
+  --color-border: oklch(88.6% 0.014 153);
+  --color-muted: oklch(94.1% 0.008 152);
+  --color-muted-foreground: oklch(53.9% 0.024 161);
 
   /* ── Semantic ─────────────────────────────────────────────────────────── */
   /* Reserved for state, never decoration. If a colour here appears on
@@ -74,6 +87,11 @@
   --color-warn-soft: oklch(95.5% 0.031 85);
   --color-critical: oklch(50.9% 0.165 34);
   --color-critical-soft: oklch(94.2% 0.023 37);
+
+  --color-warning: oklch(0.62 0.14 62);
+  --color-warning-soft: oklch(0.96 0.04 75);
+  --color-danger: oklch(0.56 0.17 25);
+  --color-danger-soft: oklch(0.96 0.03 25);
 
   /* ── Type ─────────────────────────────────────────────────────────────── */
   /* Archivo is a grotesque drawn for signage and functional typography; Archivo
@@ -106,6 +124,9 @@
   --radius-md: 0.25rem;
   --radius-lg: 0.375rem;
   --radius-xl: 0.5rem;
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.25rem;
+  --radius-4xl: 1.5rem;
 
   /* ── Elevation ────────────────────────────────────────────────────────── */
   /* Shadow is demoted to one job: surfaces that genuinely float above another
@@ -124,6 +145,9 @@
     0 1px 3px oklch(23% 0.021 163 / 0.07), 0 8px 24px -12px oklch(23% 0.021 163 / 0.18);
   --shadow-lg:
     0 2px 4px oklch(23% 0.021 163 / 0.06), 0 16px 40px -16px oklch(23% 0.021 163 / 0.22);
+  --shadow-card: 0 1px 2px oklch(0.3 0.03 160 / 0.04), 0 1px 12px oklch(0.3 0.03 160 / 0.03);
+  --shadow-card-hover: 0 2px 4px oklch(0.3 0.03 160 / 0.06), 0 8px 24px oklch(0.3 0.03 160 / 0.07);
+  --shadow-pill: 0 1px 2px oklch(0.3 0.03 160 / 0.12), 0 4px 10px oklch(0.3 0.03 160 / 0.12);
 
   /* ── Motion ───────────────────────────────────────────────────────────── */
   /* Fast enough to feel like a response rather than an animation. Anything
@@ -162,6 +186,19 @@
     --color-accent-line: oklch(42.9% 0.06 166);
     --color-on-accent: oklch(18.4% 0.011 163);
 
+    --color-brand: oklch(76.1% 0.107 163);
+    --color-brand-deep: oklch(85% 0.04 163);
+    --color-brand-soft: oklch(29.8% 0.041 169);
+    --color-primary: oklch(76.1% 0.107 163);
+    --color-primary-foreground: oklch(18.4% 0.011 163);
+    --color-secondary: oklch(26.2% 0.016 169);
+    --color-secondary-foreground: oklch(93.9% 0.01 155);
+    --color-card: oklch(22.1% 0.014 163);
+    --color-card-foreground: oklch(93.9% 0.01 155);
+    --color-border: oklch(30.7% 0.022 161);
+    --color-muted: oklch(26.2% 0.016 169);
+    --color-muted-foreground: oklch(66.2% 0.027 156);
+
     --color-good: oklch(76.1% 0.107 163);
     --color-good-soft: oklch(29.8% 0.041 169);
     --color-warn: oklch(78.7% 0.119 79);
@@ -169,10 +206,18 @@
     --color-critical: oklch(71.5% 0.13 34);
     --color-critical-soft: oklch(25.8% 0.045 35);
 
+    --color-warning: oklch(78.7% 0.119 79);
+    --color-warning-soft: oklch(28.1% 0.042 83);
+    --color-danger: oklch(71.5% 0.13 34);
+    --color-danger-soft: oklch(25.8% 0.045 35);
+
     --shadow-xs: 0 0 #0000;
     --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.5), 0 2px 8px -4px oklch(0% 0 0 / 0.6);
     --shadow-md: 0 1px 3px oklch(0% 0 0 / 0.5), 0 8px 24px -12px oklch(0% 0 0 / 0.7);
     --shadow-lg: 0 2px 4px oklch(0% 0 0 / 0.5), 0 16px 40px -16px oklch(0% 0 0 / 0.8);
+    --shadow-card: 0 1px 2px oklch(0% 0 0 / 0.4), 0 2px 8px -4px oklch(0% 0 0 / 0.5);
+    --shadow-card-hover: 0 2px 4px oklch(0% 0 0 / 0.5), 0 8px 24px -12px oklch(0% 0 0 / 0.6);
+    --shadow-pill: 0 1px 2px oklch(0% 0 0 / 0.4), 0 4px 10px oklch(0% 0 0 / 0.4);
   }
 }
 
@@ -301,3 +346,19 @@
   animation: jt-shimmer 1.6s linear infinite;
   border-radius: var(--radius-sm);
 }
+
+@utility section-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--color-ink-3);
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+

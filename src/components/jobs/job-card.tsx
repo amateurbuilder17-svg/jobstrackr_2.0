@@ -33,7 +33,7 @@ import { DeadlineBadge } from "./deadline-badge";
  */
 export function JobCard({
   job,
-  variant = "row",
+  variant = "card",
 }: {
   job: JobCardData;
   variant?: "row" | "card";
@@ -48,9 +48,10 @@ export function JobCard({
   const meta = [vacancies, salary, job.location].filter(Boolean);
 
   const Wrapper = variant === "card" ? CardInteractive : Row;
+  const padding = variant === "card" ? "p-4" : "px-4 py-2 lg:px-5 lg:py-2.5";
 
   return (
-    <Wrapper className="px-4 py-2 lg:px-5 lg:py-2.5">
+    <Wrapper className={padding}>
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           {/* Two lines, then ellipsis. Source titles run to sixty words —
@@ -62,15 +63,11 @@ export function JobCard({
           </h3>
 
           {eligibility ? (
-            <p className="cond mt-0.5 line-clamp-1 text-[0.8125rem] text-ink-2">
-              {eligibility}
-            </p>
+            <p className="cond mt-1 line-clamp-1 text-[0.8125rem] text-ink-2">{eligibility}</p>
           ) : null}
 
           {meta.length > 0 ? (
-            <p className="tabular mt-0.5 line-clamp-1 text-xs text-ink-3">
-              {meta.join("  ·  ")}
-            </p>
+            <p className="tabular mt-1 line-clamp-1 text-xs text-ink-3">{meta.join("  ·  ")}</p>
           ) : null}
         </div>
 
@@ -89,21 +86,26 @@ export function JobCard({
 /**
  * Loading placeholder.
  *
- * Deliberately the same box as the real row — same padding, a two-line head, an
+ * Deliberately the same box as the real row/card — same padding, a two-line head, an
  * eligibility line, a meta line. A skeleton of the wrong height is worse than
  * none: the content lands, everything below jumps, and the fallback meant to
  * smooth loading is what damages the layout-shift score.
  */
-export function JobCardSkeleton() {
+export function JobCardSkeleton({ variant = "card" }: { variant?: "row" | "card" } = {}) {
+  const containerClass =
+    variant === "card"
+      ? "rounded-lg border border-line bg-surface p-4"
+      : "border-b border-line bg-surface px-4 py-2 lg:px-5 lg:py-2.5";
+
   return (
-    <div className="border-b border-line bg-surface px-4 py-2 lg:px-5 lg:py-2.5">
+    <div className={containerClass}>
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="skeleton h-4 w-4/5" />
-          <div className="skeleton mt-1 h-3 w-3/5" />
-          <div className="skeleton mt-1 h-3 w-2/5" />
+          <div className="skeleton mt-1.5 h-3 w-3/5" />
+          <div className="skeleton mt-1.5 h-3 w-2/5" />
         </div>
-        <div className="skeleton h-5 w-20 rounded-full" />
+        <div className="skeleton h-5 w-20 rounded-full shrink-0" />
       </div>
     </div>
   );

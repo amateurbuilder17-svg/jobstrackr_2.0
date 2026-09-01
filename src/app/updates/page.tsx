@@ -3,8 +3,8 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { FilterChips } from "@/components/filters/filter-chips";
-import { SortToggle } from "@/components/filters/filter-bar";
-import { UpdateCard, UpdateCardSkeleton } from "@/components/updates/update-card";
+import { UpdateCardSkeleton } from "@/components/updates/update-card";
+import { InfiniteUpdateList } from "@/components/updates/infinite-update-list";
 import { listExamUpdates, toUpdateSort } from "@/lib/db/queries/exam-updates";
 import { PAGE_SIZE } from "@/lib/db/cursor";
 import { CATEGORY_FILTERS, type UpdateCategory } from "@/lib/updates/categories";
@@ -116,58 +116,18 @@ async function Results({ searchParams }: { searchParams: SearchParams }) {
     );
   }
 
-  // Carry the current filters onto the next page, or "Load more" silently drops
-  // them and pages through an entirely different result set.
-  const nextParams = new URLSearchParams();
-  if (category) nextParams.set("category", category);
-  if (examSlug) nextParams.set("exam", examSlug);
-  if (query) nextParams.set("q", query);
-  if (sort === "oldest") nextParams.set("sort", "oldest");
-  if (page.nextCursor) nextParams.set("after", page.nextCursor);
-
   return (
-    <>
-      <div className="mt-2 flex items-center justify-between gap-3 border-b border-line pb-1.5">
-        {/* Announced politely so a screen-reader user hears the list change
-            after a filter, rather than having to go looking for it. */}
-        <p aria-live="polite" className="tabular text-xs text-ink-3">
-          {page.nextCursor
-            ? `${String(page.items.length)}+ updates`
-            : `${String(page.items.length)} update${page.items.length === 1 ? "" : "s"}`}
-        </p>
-        <Suspense fallback={<div className="h-8" />}>
-          <SortToggle options={UPDATE_SORTS} label="Sort updates by" />
-        </Suspense>
-      </div>
-
-      <ul className="mt-4 flex flex-col gap-3">
-        {page.items.map((update) => (
-          <li key={update.id}>
-            <UpdateCard update={update} />
-          </li>
-        ))}
-      </ul>
-
-      {page.nextCursor ? (
-        <div className="mt-6 flex justify-center">
-          {/* A real link, not a button: it works without JavaScript, the next
-              page is shareable, and Next still navigates it client-side. */}
-          <Link
-            href={`/updates?${nextParams.toString()}`}
-            scroll={false}
-            className={
-              "inline-flex h-10 items-center rounded-md border border-line bg-surface px-5 " +
-              "text-sm font-medium text-ink transition-colors duration-(--duration-fast) " +
-              "hover:border-line-strong hover:bg-surface-2"
-            }
-          >
-            Load more
-          </Link>
-        </div>
-      ) : (
-        <p className="mt-6 text-center text-xs text-ink-3">That is every matching update.</p>
-      )}
-    </>
+    <InfiniteUpdateList
+      initialItems={page.items}
+      initialCursor={page.nextCursor}
+      filterParams={{
+        category,
+        exam: examSlug,
+        q: query,
+        sort,
+      }}
+      sortOptions={UPDATE_SORTS}
+    />
   );
 }
 
