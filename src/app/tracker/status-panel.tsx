@@ -11,16 +11,11 @@ import { cn } from "@/lib/cn";
 import { daysUntilFrom, formatDate } from "@/lib/format/deadline";
 import {
   EVENT_LABELS,
-  EXAM_STAGES,
-  STAGE_LABELS,
   examDateOf,
   hasSecondPhase,
-  isConfident,
   isStale,
   phaseOf,
-  progressOf,
   resultDateOf,
-  type ExamStage,
   type ExamStatusReport,
   type StatusPhase,
 } from "@/lib/exams/report";
@@ -40,6 +35,18 @@ interface RefreshResponse {
   message?: string;
   retryAfter?: number;
   report?: ExamStatusReport;
+}
+
+function shortenPhaseName(name: string): string {
+  const lower = name.toLowerCase();
+  if (lower.includes("prelim")) return "Prelims";
+  if (lower.includes("main")) return "Mains";
+  if (lower.includes("tier 3") || lower.includes("tier iii")) return "Tier 3";
+  if (lower.includes("tier 2") || lower.includes("tier ii")) return "Tier 2";
+  if (lower.includes("tier 1") || lower.includes("tier i")) return "Tier 1";
+  if (lower.includes("interview") || lower.includes("personality")) return "Interview";
+  if (name.length > 20) return name.slice(0, 18) + "…";
+  return name;
 }
 
 export function StatusPanel({ attemptId, name, initial }: Props) {
@@ -146,6 +153,7 @@ export function StatusPanel({ attemptId, name, initial }: Props) {
         <Summary
           report={report}
           expanded={expanded}
+          name={name}
           onToggle={() => {
             setExpanded((open) => !open);
           }}
@@ -156,7 +164,7 @@ export function StatusPanel({ attemptId, name, initial }: Props) {
         </p>
       )}
 
-      {expanded && report ? <Detail report={report} name={name} /> : null}
+      {expanded && report ? <Detail report={report} /> : null}
 
       <div className="mt-4 flex flex-wrap items-center gap-2.5">
         <Button
@@ -192,105 +200,20 @@ function Summary({
   report,
   expanded,
   onToggle,
+  name,
 }: {
   report: ExamStatusReport;
   expanded: boolean;
   onToggle: () => void;
+  name: string;
 }) {
-  const stage = report.report.stage;
-
-  return (
-    <div className="mt-3">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Badge tone={toneForStage(stage)} className="font-semibold shadow-2xs">
-          {STAGE_LABELS[stage]}
-        </Badge>
-
-        {!isConfident(report.confidence) ? (
-          <Badge tone="warn" title="The sources for this were thin or out of date.">
-            Uncertain
-          </Badge>
-        ) : null}
-
-        {!report.grounded ? (
-          <Badge tone="neutral" title="Answered without a live web search.">
-            Not searched
-          </Badge>
-        ) : null}
-      </div>
-
-      <StageRail stage={stage} report={report} />
-
-      {report.report.summary ? (
-        <div className="mt-3 rounded-xl border border-line/70 bg-surface/90 p-3 shadow-2xs dark:border-white/5 dark:bg-surface/60">
-          <p className={cn("text-xs leading-relaxed text-ink-2", !expanded && "line-clamp-3")}>
-            {report.report.summary}
-          </p>
-        </div>
-      ) : null}
-
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={expanded}
-        className="mt-2.5 inline-flex items-center gap-1 text-xs font-semibold text-accent hover:underline"
-      >
-        <span>{expanded ? "Hide detailed breakdown" : "Show detailed breakdown"}</span>
-        <ChevronRightIcon
-          className={cn(
-            "size-3.5 transition-transform duration-200",
-            expanded && "rotate-90",
-          )}
-        />
-      </button>
-    </div>
-  );
-}
-
-function StageRail({ stage, report }: { stage: ExamStage; report: ExamStatusReport }) {
-  const reached = EXAM_STAGES.indexOf(stage);
-
-  return (
-    <div
-      className="mt-3 flex gap-1.5"
-      role="progressbar"
-      aria-valuenow={progressOf(report.report)}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-label={`Progress: ${STAGE_LABELS[stage]}`}
-    >
-      {EXAM_STAGES.map((step, i) => (
-        <span
-          key={step}
-          className={cn(
-            "h-2 flex-1 rounded-full transition-all duration-300",
-            i <= reached
-              ? "bg-gradient-to-r from-accent to-accent-hover shadow-2xs"
-              : "bg-surface-3/80 dark:bg-surface-3/50",
-          )}
-        />
-      ))}
-    </div>
-  );
-}
-
-function toneForStage(stage: ExamStage): "neutral" | "accent" | "warn" | "good" {
-  if (stage === "result_declared") return "good";
-  if (stage === "admit_card_available") return "warn";
-  if (stage === "registration_open") return "accent";
-  return "neutral";
-}
-
-/* ── Expanded ──────────────────────────────────────────────────────────── */
-
-function Detail({ report, name }: { report: ExamStatusReport; name: string }) {
   const [phase, setPhase] = useState<1 | 2>(1);
   const twoPhases = hasSecondPhase(report.report);
   const active = phaseOf(report.report, phase);
-  const today = useToday();
 
   return (
-    <div className="mt-4.5 flex flex-col gap-4.5">
+    <div className="mt-3">
+      {/* Phase tabs */}
       {twoPhases ? (
         <div
           className="inline-flex rounded-xl border border-line/70 bg-surface-2/80 p-1 gap-1 shadow-2xs dark:border-white/10 dark:bg-surface-3/50"
@@ -322,12 +245,53 @@ function Detail({ report, name }: { report: ExamStatusReport; name: string }) {
         </div>
       ) : null}
 
+      {/* Phase facts (admit card, exam date, result) */}
       {active ? <PhaseFacts report={report} phase={phase} data={active} /> : null}
+
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        className="mt-2.5 inline-flex items-center gap-1 text-xs font-semibold text-accent hover:underline"
+      >
+        <span>{expanded ? "Hide detailed breakdown" : "Show detailed breakdown"}</span>
+        <ChevronRightIcon
+          className={cn(
+            "size-3.5 transition-transform duration-200",
+            expanded && "rotate-90",
+          )}
+        />
+      </button>
+    </div>
+  );
+}
+
+
+
+/* ── Expanded ──────────────────────────────────────────────────────────── */
+
+function Detail({ report }: { report: ExamStatusReport }) {
+  const twoPhases = hasSecondPhase(report.report);
+  const today = useToday();
+
+  return (
+    <div className="mt-4.5 flex flex-col gap-4.5">
+      {/* AI summary text */}
+      {report.report.summary ? (
+        <div className="rounded-xl border border-line/70 bg-surface/90 p-3 shadow-2xs dark:border-white/5 dark:bg-surface/60">
+          <p className="text-xs leading-relaxed text-ink-2">
+            {report.report.summary}
+          </p>
+        </div>
+      ) : null}
 
       {report.report.events.length > 0 ? (
         <Section title="Key dates timeline">
           <ol className="relative ml-2 flex flex-col gap-3 border-l-2 border-line/80 pl-4">
-            {report.report.events.map((event) => {
+            {[...report.report.events]
+              .sort((a, b) => a.date.localeCompare(b.date))
+              .filter((ev, i, arr) => i === 0 || ev.date >= arr[i - 1]!.date)
+              .map((event) => {
               const days = today === null ? null : daysUntilFrom(today, event.date);
               const ahead = days !== null && days >= 0;
 
@@ -345,13 +309,13 @@ function Detail({ report, name }: { report: ExamStatusReport; name: string }) {
                   />
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="text-xs font-medium text-ink-2">
-                      {EVENT_LABELS[event.type]}
                       {event.phase !== null && twoPhases ? (
-                        <span className="text-ink-3">
-                          {" "}
-                          · {phaseOf(report.report, event.phase === 2 ? 2 : 1)?.name ?? ""}
-                        </span>
+                        <>
+                          {shortenPhaseName(phaseOf(report.report, event.phase === 2 ? 2 : 1)?.name ?? "")}
+                          {" · "}
+                        </>
                       ) : null}
+                      {EVENT_LABELS[event.type]}
                     </span>
                     <span className="tabular shrink-0 text-right text-xs sm:text-sm font-bold text-ink">
                       {formatDate(event.date)}

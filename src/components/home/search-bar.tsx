@@ -61,17 +61,17 @@ export function SearchBar({
   }, [open]);
 
   return (
-    <div ref={containerRef} className="relative space-y-2.5">
-      <div className="flex items-center gap-2.5">
+    <div ref={containerRef} className="relative space-y-2">
+      <div className="flex items-center gap-2">
         {/* Search Input Box */}
         <div
           className={cn(
-            "group flex h-12 flex-1 items-center gap-2.5 rounded-2xl border border-border bg-card px-3.5 shadow-card transition-all duration-200",
+            "group flex h-10 flex-1 items-center gap-2 rounded-xl border border-border bg-card px-3 shadow-xs transition-all duration-200",
             "focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/15 focus-within:shadow-card-hover",
           )}
         >
           <SearchIcon
-            className="size-[18px] shrink-0 text-muted-foreground transition-colors duration-200 group-focus-within:text-brand"
+            className="size-4 shrink-0 text-muted-foreground transition-colors duration-200 group-focus-within:text-brand"
             aria-hidden="true"
           />
 
@@ -97,9 +97,9 @@ export function SearchBar({
                 onChange("");
               }}
               aria-label="Clear search text"
-              className="grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              className="grid size-5 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             >
-              <CloseIcon className="size-3.5" aria-hidden="true" />
+              <CloseIcon className="size-3" aria-hidden="true" />
             </button>
           ) : null}
         </div>
@@ -113,13 +113,13 @@ export function SearchBar({
           aria-expanded={open}
           aria-controls={panelId}
           className={cn(
-            "inline-flex h-12 shrink-0 items-center gap-2 rounded-2xl border border-border bg-card px-4 text-sm font-bold shadow-card transition-all duration-200 active:scale-95",
+            "inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-border bg-card px-3.5 text-xs font-bold shadow-xs transition-all duration-200 active:scale-95",
             open || filters.length > 0
               ? "border-brand bg-brand text-primary-foreground shadow-sm"
               : "text-foreground hover:border-brand/30 hover:bg-surface-2",
           )}
         >
-          <SlidersHorizontalIcon className="size-4 shrink-0" aria-hidden="true" />
+          <SlidersHorizontalIcon className="size-3.5 shrink-0" aria-hidden="true" />
           <span>Filters</span>
           {filters.length > 0 ? (
             <span
@@ -145,7 +145,7 @@ export function SearchBar({
           {filters.map((filter) => (
             <span
               key={filter}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-brand/20 bg-brand-soft px-2.5 py-1 text-xs font-bold text-brand-deep shadow-xs animate-in fade-in duration-150"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-brand/20 bg-brand-soft px-2.5 py-0.5 text-xs font-bold text-brand-deep shadow-xs animate-in fade-in duration-150"
             >
               {filter}
               <button
@@ -182,9 +182,9 @@ export function SearchBar({
       {open ? (
         <div
           id={panelId}
-          className="absolute inset-x-0 top-[calc(100%+4px)] z-30 rounded-2xl border border-border bg-card p-4 shadow-card-hover animate-in fade-in zoom-in-95 duration-150"
+          className="absolute inset-x-0 top-[calc(100%+4px)] z-30 rounded-xl border border-border bg-card p-3.5 shadow-card-hover animate-in fade-in zoom-in-95 duration-150"
         >
-          <div className="flex items-center justify-between border-b border-border/60 pb-3">
+          <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
             <div className="flex items-center gap-2">
               <span className="section-label">Filter & Refine</span>
               {filters.length > 0 ? (
@@ -217,18 +217,18 @@ export function SearchBar({
                 onClick={() => {
                   setOpen(false);
                 }}
-                className="grid size-7 place-items-center rounded-full text-muted-foreground hover:bg-muted transition-colors"
+                className="grid size-6 place-items-center rounded-full text-muted-foreground hover:bg-muted transition-colors"
               >
-                <CloseIcon className="size-4" aria-hidden="true" />
+                <CloseIcon className="size-3.5" aria-hidden="true" />
               </button>
             </div>
           </div>
 
-          <div className="mt-3.5 space-y-3.5">
+          <div className="mt-3 space-y-3">
             {FILTER_GROUPS.map((group) => (
               <div key={group.label}>
                 <p className="text-xs font-bold text-foreground">{group.label}</p>
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                <div className="mt-1 flex flex-wrap gap-1.5">
                   {group.options.map((option) => {
                     const isSelected = filters.includes(option);
                     return (
@@ -240,7 +240,7 @@ export function SearchBar({
                           onToggleFilter(option);
                         }}
                         className={cn(
-                          "inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-150 active:scale-95",
+                          "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold transition-all duration-150 active:scale-95",
                           isSelected
                             ? "bg-brand text-primary-foreground shadow-xs"
                             : "bg-secondary text-secondary-foreground hover:bg-muted hover:text-foreground",
@@ -258,13 +258,13 @@ export function SearchBar({
             ))}
           </div>
 
-          <div className="mt-4 pt-3 border-t border-border/60 flex justify-end">
+          <div className="mt-3.5 pt-2.5 border-t border-border/60 flex justify-end">
             <button
               type="button"
               onClick={() => {
                 setOpen(false);
               }}
-              className="rounded-xl bg-brand px-4 py-2 text-xs font-bold text-primary-foreground shadow-pill hover:bg-brand-deep transition-colors active:scale-95"
+              className="rounded-lg bg-brand px-3.5 py-1.5 text-xs font-bold text-primary-foreground shadow-pill hover:bg-brand-deep transition-colors active:scale-95"
             >
               Done
             </button>

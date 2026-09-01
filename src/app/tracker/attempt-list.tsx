@@ -6,11 +6,9 @@ import { useActionState, useMemo, useState } from "react";
 import { OrganizationBadge } from "@/components/home/primitives";
 import {
   ArrowRightIcon,
-  CheckCircleIcon,
   CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
-  CircleIcon,
   TrackerIcon,
 } from "@/components/icons";
 import { useToday } from "@/components/jobs/today-provider";
@@ -21,17 +19,22 @@ import { cn } from "@/lib/cn";
 import type { ExamAttempt } from "@/lib/db/queries/attempts";
 import type { ExamStatusReport } from "@/lib/exams/report";
 import { subjectKeyFor } from "@/lib/exams/subject";
-import { daysUntilFrom, formatDate } from "@/lib/format/deadline";
 import { deleteAttemptAction, setAttemptStatusAction } from "@/lib/tracker/actions";
 import {
   ATTEMPT_STATUSES,
   STATUS_LABELS,
   type AttemptStatus,
 } from "@/lib/tracker/enums";
-import { computeStages, ExamProgress, type Stage } from "./exam-progress";
+import {
+  computeNextEvent,
+  computeStages,
+  ExamProgress,
+} from "./exam-progress";
 import { FilterTabs, type FilterKey } from "./filter-tabs";
 import { StatusBadge } from "./status-badge";
 import { StatusPanel } from "./status-panel";
+
+
 
 const STATUS_OPTIONS = ATTEMPT_STATUSES.map((s) => ({
   value: s,
@@ -181,56 +184,17 @@ function ExamCardItem({
 
   const today = useToday();
   const stages = useMemo(
-    () => computeStages(status, attempt.stage),
-    [status, attempt.stage],
+    () => computeStages(status, attempt, report),
+    [status, attempt, report],
   );
 
   // Compute Next Event
-  const nextEvent = useMemo(() => {
-    if (status === "tracking" || status === "applied") {
-      return {
-        title: "Admit Card Release",
-        date: formatDate(attempt.exam_date) ?? "To be announced",
-      };
-    }
-    if (status === "admit_card") {
-      const days = today ? daysUntilFrom(today, attempt.exam_date) : null;
-      const countdown =
-        days !== null
-          ? days === 0
-            ? "Today"
-            : days > 0
-              ? `In ${String(days)} days`
-              : "Completed"
-          : null;
-      return {
-        title: attempt.stage ? `${attempt.stage} Examination` : "Written Examination",
-        date: [formatDate(attempt.exam_date), countdown].filter(Boolean).join(" · "),
-      };
-    }
-    if (status === "appeared") {
-      return {
-        title: "Result Declaration",
-        date: formatDate(attempt.result_date) ?? "Expected soon",
-      };
-    }
-    return null;
-  }, [status, attempt.exam_date, attempt.result_date, attempt.stage, today]);
+  const nextEvent = useMemo(
+    () => computeNextEvent(status, attempt, report, today),
+    [status, attempt, report, today],
+  );
 
-  // Key Dates
-  const keyDates = useMemo(() => {
-    const dates: { label: string; date: string }[] = [];
-    if (attempt.applied_at) {
-      dates.push({ label: "Application Submitted", date: formatDate(attempt.applied_at) ?? "" });
-    }
-    if (attempt.exam_date) {
-      dates.push({ label: "Exam Date", date: formatDate(attempt.exam_date) ?? "" });
-    }
-    if (attempt.result_date) {
-      dates.push({ label: "Result Declaration", date: formatDate(attempt.result_date) ?? "" });
-    }
-    return dates;
-  }, [attempt.applied_at, attempt.exam_date, attempt.result_date]);
+
 
   // What to do next recommendations
   const actionTips = useMemo(() => {
@@ -313,17 +277,49 @@ function ExamCardItem({
         <ExamProgress stages={stages} />
       </div>
 
-      {/* Next Milestone Event Box */}
+      {/* Interactive Next Milestone Event Box */}
       {nextEvent ? (
-        <div className="mx-4 mb-4 flex items-center gap-3 rounded-xl border border-border/70 bg-secondary/50 px-3.5 py-2.5">
-          <div className="min-w-0 flex-1">
-            <p className="section-label text-brand-deep">Next</p>
-            <p className="mt-0.5 truncate text-sm font-semibold text-foreground">
-              {nextEvent.title}
-            </p>
-            <p className="text-[12.5px] tabular-nums text-muted-foreground">{nextEvent.date}</p>
-          </div>
-          <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <div className="mx-4 mb-4">
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={expanded}
+            aria-controls={panelId}
+            className="flex w-full items-center justify-between gap-3 rounded-xl border border-border/70 bg-secondary/40 p-3 text-left transition-all duration-200 hover:bg-secondary/70 hover:border-brand/30 active:scale-[0.99]"
+          >
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="section-label text-brand-deep text-[11px] font-bold tracking-wider">
+                  NEXT MILESTONE
+                </span>
+                {nextEvent.tone === "warn" ? (
+                  <span className="size-2 rounded-full bg-warning animate-pulse" />
+                ) : null}
+              </div>
+              <p className="mt-0.5 truncate text-sm font-bold text-foreground">
+                {nextEvent.title}
+              </p>
+              <p className="text-xs font-semibold tabular-nums text-brand-deep">
+                {nextEvent.date}
+              </p>
+              {nextEvent.subtitle ? (
+                <p className="mt-0.5 text-[11.5px] text-muted-foreground truncate">
+                  {nextEvent.subtitle}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0 text-xs font-medium text-brand">
+              <span className="hidden sm:inline">Details</span>
+              <ChevronRightIcon
+                className={cn(
+                  "size-4 transition-transform duration-200 text-muted-foreground",
+                  expanded && "rotate-90 text-brand",
+                )}
+                aria-hidden="true"
+              />
+            </div>
+          </button>
         </div>
       ) : null}
 
@@ -338,55 +334,28 @@ function ExamCardItem({
       >
         <div className="overflow-hidden">
           <div className="px-4 pb-4 space-y-4 border-t border-border/70 pt-4">
-            {/* Exam Progress Detailed Checklist */}
-            <section aria-label="Exam Progress Details">
-              <h4 className="section-label mb-2.5">Exam Progress</h4>
-              <ul className="space-y-2">
-                {stages.map((stage: Stage) => {
-                  const done = stage.state === "completed";
-                  return (
-                    <li key={stage.key} className="flex items-center gap-2.5 text-sm">
-                      {done ? (
-                        <CheckCircleIcon
-                          className="size-4 shrink-0 text-brand"
-                          aria-hidden="true"
-                        />
-                      ) : (
-                        <CircleIcon
-                          className="size-4 shrink-0 text-muted-foreground/40"
-                          aria-hidden="true"
-                        />
-                      )}
-                      <span
-                        className={
-                          done ? "font-medium text-foreground" : "text-muted-foreground"
-                        }
-                      >
-                        {stage.label}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
 
-            {/* Key Dates */}
-            {keyDates.length > 0 ? (
-              <section className="border-t border-border/70 pt-3.5" aria-label="Key Dates">
-                <h4 className="section-label mb-2.5">Key Dates</h4>
-                <dl className="space-y-2">
-                  {keyDates.map((d) => (
-                    <div
-                      key={d.label}
-                      className="grid grid-cols-[minmax(0,8rem)_1fr] items-baseline gap-2 text-sm"
-                    >
-                      <dt className="font-semibold tabular-nums text-foreground">{d.date}</dt>
-                      <dd className="min-w-0 text-muted-foreground">{d.label}</dd>
+            {/* Candidate Details (Roll Number / Score) */}
+            {attempt.roll_number || attempt.score !== null ? (
+              <section className="border-t border-border/70 pt-3.5" aria-label="Candidate Credentials">
+                <h4 className="section-label mb-2.5">Your Details</h4>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {attempt.roll_number ? (
+                    <div className="rounded-xl border border-border/70 bg-muted/30 p-2.5">
+                      <p className="text-muted-foreground">Roll / Reg No.</p>
+                      <p className="mt-0.5 font-bold tabular-nums text-foreground">{attempt.roll_number}</p>
                     </div>
-                  ))}
-                </dl>
+                  ) : null}
+                  {attempt.score !== null && attempt.score !== undefined ? (
+                    <div className="rounded-xl border border-border/70 bg-muted/30 p-2.5">
+                      <p className="text-muted-foreground">Score / Marks</p>
+                      <p className="mt-0.5 font-bold tabular-nums text-foreground">{String(attempt.score)}</p>
+                    </div>
+                  ) : null}
+                </div>
               </section>
             ) : null}
+
 
             {/* User Personal Notes */}
             {attempt.notes ? (
