@@ -47,7 +47,7 @@ export function BottomNav() {
   const slotWidthPercent = 100 / (navCount || 1);
 
   return (
-    <nav className={styles.navWrapper} aria-label="Primary">
+    <nav data-shell="bottom-nav" className={styles.navWrapper} aria-label="Primary">
       <div className={styles.navContainer}>
         <div className={styles.navBar}>
           {/* Animated sliding cutout and bubble layer */}

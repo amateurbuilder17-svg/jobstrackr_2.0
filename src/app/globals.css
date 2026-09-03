@@ -401,3 +401,41 @@
     display: none;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Full-bleed routes
+   ═══════════════════════════════════════════════════════════════════════════
+   The credential screens are a full-viewport takeover: brand artwork on the
+   left, a single card on the right, and nothing else. That is a deliberate
+   choice rather than a decorative one — a person on `/sign-in` is doing one
+   thing, and a nav bar offering thirteen other things is the competition.
+
+   Hiding the chrome from *inside* the route is the awkward half. `AppShell`
+   lives in the root layout, and a layout cannot read the pathname on the
+   server; the two textbook fixes both cost more than they buy. A second root
+   layout under a `(app)` route group means every navigation across the group
+   boundary is a full document load — sign-in → home would stop being a client
+   transition. Reading the path in a client component means the shell can no
+   longer prerender, on all 694 static pages, to serve four.
+
+   So the route marks itself and this rule answers. `:has()` is a single
+   subtree test the style engine already performs for `:focus-within`, it costs
+   nothing on the routes that do not match, and `display: none` takes the
+   chrome out of the accessibility tree as well as off the screen — which
+   `visibility` or an overlay would not.
+
+   `#content` loses its bottom padding here because that padding exists to
+   clear the mobile bottom bar, which is one of the things now hidden.
+
+   Unlayered on purpose. Tailwind's `utilities` layer beats `base`, and the
+   sidebar carries `lg:flex` while `#content` carries `pb-24 lg:pb-0` — inside
+   `@layer base` both rules below would lose to the very utilities they exist
+   to override. Rules outside every layer win against all of them, which is
+   exactly the precedence a route-level override wants. */
+body:has([data-fullbleed]) [data-shell] {
+  display: none;
+}
+
+body:has([data-fullbleed]) #content {
+  padding-bottom: 0;
+}

@@ -64,7 +64,10 @@ export function TopBar() {
   const isHome = pathname === "/";
 
   return (
-    <header className="sticky top-0 z-30 border-b border-line bg-bg/85 backdrop-blur-md">
+    <header
+      data-shell="top-bar"
+      className="sticky top-0 z-30 border-b border-line bg-bg/85 backdrop-blur-md"
+    >
       <div className="flex h-13 items-center gap-2 px-4 sm:gap-3 lg:px-6">
         <MenuButton />
 

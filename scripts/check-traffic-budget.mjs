@@ -106,6 +106,20 @@ const PAYLOAD = {
   statusRefreshKb: 12,
   // The tracker's own read: one page of attempts plus their cached reports.
   trackerPageKb: 18,
+  // Brand artwork: the home splash and the credential screens. Pre-encoded
+  // AVIF served as static files, so this is Vercel bandwidth and nothing else
+  // — it never reaches Supabase and it never invokes a function.
+  //
+  // Measured from `public/brand` after `node scripts/build-brand-art.mjs`:
+  // a cold `/` fetches the ridge band and the emblem (5.9 + 7.0 kB) and a cold
+  // `/sign-in` the artwork and the emblem (14.5 + 7.0 kB at desktop widths,
+  // 5.6 + 7.0 on a phone). 22 is the heavier of the two, which is the one to
+  // model.
+  //
+  // It is deliberately NOT folded into `pageFirstLoadKb`: these are immutable
+  // files on their own URLs, so a visitor fetches them once and every
+  // subsequent view — including every other route — costs nothing.
+  brandArtKb: 22,
 };
 
 /* ── Stored rows ───────────────────────────────────────────────────────── */
@@ -141,7 +155,12 @@ const totalPageViews = humanPageViews + TRAFFIC.crawlerPagesPerMonth;
 // quarter of them (new visitors, cold cache), document only for the rest.
 const vercelKb =
   totalPageViews * 0.25 * PAYLOAD.pageFirstLoadKb +
-  totalPageViews * 0.75 * PAYLOAD.pageDocumentKb;
+  totalPageViews * 0.75 * PAYLOAD.pageDocumentKb +
+  // Counted against every cold visit, which over-counts on purpose: a crawler
+  // walking 5,552 job pages fetches the artwork on none of them, and the
+  // splash only renders on `/`. Being wrong in this direction is the point of
+  // the exercise.
+  totalPageViews * 0.25 * PAYLOAD.brandArtKb;
 
 // Supabase egress: only what actually reaches the database. Static pages are
 // served from the CDN and cost nothing here — that is the entire architecture,

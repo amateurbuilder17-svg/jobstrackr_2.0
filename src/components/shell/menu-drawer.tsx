@@ -112,7 +112,7 @@ export function MenuDrawer({ children }: { children: ReactNode }) {
   return (
     // `lg:hidden` on the whole thing: above `lg` the sidebar is the navigation
     // and this panel has no reason to exist, let alone to be tabbable.
-    <div className="lg:hidden" aria-hidden={!open || undefined}>
+    <div data-shell="menu-drawer" className="lg:hidden" aria-hidden={!open || undefined}>
       {/* Backdrop. A plain div with a click handler rather than a button — it
           is not an action anyone should be able to tab to, and Escape already
           gives the keyboard the same exit. */}

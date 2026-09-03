@@ -1,0 +1,680 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Launch splash
+   ═══════════════════════════════════════════════════════════════════════════
+   The whole sequence is CSS. Not for elegance — because of what a splash on the
+   web actually is: a full-screen overlay that covers the page a person came
+   for. Anything that has to load before it can get out of the way is a delay
+   the visitor pays for, so there is no timer, no React state and no component
+   in any route's JavaScript bundle. The markup is server-rendered into the home
+   document, the timeline is `animation`, and the end state — hidden, inert —
+   is the last keyframe with `forwards` fill.
+
+   That also means it works with JavaScript disabled, and with a bundle that
+   never arrives. The one script involved (see `SplashGate`) runs before paint
+   and only ever *removes* the overlay early; if it fails, the animation still
+   ends the same way, 1.9 seconds later.
+
+   Reduced motion is handled for free and correctly. `globals.css` caps every
+   animation at 0.01ms under `prefers-reduced-motion: reduce`, so the sequence
+   jumps straight to its final keyframe: the overlay is hidden on the first
+   frame and nobody who asked not to be animated at is animated at.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Hidden unless the gate says otherwise. See `SplashGate` for why the default
+   is off rather than on. */
+.overlay {
+  display: none;
+}
+
+:global(html[data-splash="show"]) .overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  overflow: hidden;
+  background-color: oklch(8% 0.012 163);
+  color: oklch(100% 0 0);
+  /* A colour scheme, not a `.dark` dependency: the splash is dark in both
+     themes, and the form controls behind it must not inherit this. */
+  color-scheme: dark;
+  animation: splash-dismiss 2.5s var(--ease-out-quart) forwards;
+}
+
+/* The dismissal. `visibility` rather than `display` so the fade actually
+   renders, and `pointer-events: none` from the moment the fade begins — a
+   fading overlay that still swallows taps is worse than no fade at all. */
+@keyframes splash-dismiss {
+  0%,
+  72% {
+    opacity: 1;
+    transform: scale(1);
+    visibility: visible;
+  }
+  76% {
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: none;
+  }
+  99% {
+    opacity: 0;
+    transform: scale(1.04);
+    visibility: visible;
+    pointer-events: none;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.04);
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+
+/* ── Background ──────────────────────────────────────────────────────────
+   The gradient is what paints on frame one; the photograph fades in over it
+   when it arrives. On a cold cache that ordering is the difference between a
+   branded screen and a black rectangle, and on a warm one the two are
+   indistinguishable because the image is already decoded. */
+.sky {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(
+      ellipse 120% 55% at 50% 100%,
+      oklch(62% 0.13 156 / 0.55) 0%,
+      oklch(30% 0.07 160 / 0.35) 35%,
+      transparent 70%
+    ),
+    linear-gradient(
+      180deg,
+      oklch(8% 0.012 163) 0%,
+      oklch(14% 0.03 160) 55%,
+      oklch(20% 0.05 158) 100%
+    );
+}
+
+/* The landscape is a band pinned to the bottom, not a full-bleed cover. The
+   source is a 946px-wide portrait crop of ridge line and road; stretched to
+   cover a desktop viewport it would scale to width and push the mountains
+   entirely off-screen. As a band it is composed the way it was drawn at every
+   aspect ratio, and the mask dissolves its top edge into the gradient sky
+   above so there is no seam to line up. */
+.ridge {
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 0;
+  height: clamp(9rem, 42%, 24rem);
+  overflow: hidden;
+  mask-image: linear-gradient(180deg, transparent 0%, #000 34%);
+}
+
+/* A scrim over the landscape, under the copy. Light by default — on a phone
+   the composition is the mockup's, with the wordmark on empty sky and the
+   mountains below it, and nothing overlaps. */
+.ridge::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    oklch(8% 0.012 163 / 0.4) 0%,
+    oklch(8% 0.012 163 / 0.15) 45%,
+    transparent 100%
+  );
+}
+
+/* Landscape and desktop, where that composition cannot hold: the band is the
+   same near-square image at full width, so it rises into the text however
+   short it is made. The landscape is dimmed where the words are and left alone
+   at the bottom, where the road's glow is the point.
+
+   Keyed on aspect ratio rather than width, because the thing that breaks is
+   the shape of the viewport and not the size of the device — a phone held
+   sideways has the desktop's problem. */
+@media (min-aspect-ratio: 1 / 1) {
+  .ridge::after {
+    background: linear-gradient(
+      180deg,
+      oklch(8% 0.012 163 / 0.9) 0%,
+      oklch(8% 0.012 163 / 0.62) 42%,
+      oklch(8% 0.012 163 / 0.2) 76%,
+      transparent 100%
+    );
+  }
+}
+
+/* See the note in `auth.module.css`: the `<picture>` wrapper is layout-neutral
+   so the rules can address the `<img>` directly. */
+.overlay picture {
+  display: contents;
+}
+
+.photo {
+  object-fit: cover;
+  /* 60% down, not `bottom`. The master is near-square, so on a wide viewport
+     `cover` scales it to width and the band shows only a slice — anchored to
+     the bottom that slice is the dark valley floor, with the ridge line and
+     the road cropped out entirely. 60% puts the horizon glow and the road's
+     first bend inside the band at desktop aspect ratios. On a phone the image
+     is height-constrained instead, so the whole of it shows and this has no
+     effect. */
+  object-position: 50% 60%;
+  opacity: 0;
+  animation: splash-photo-in 0.9s ease-out 0.1s forwards;
+}
+
+/* The glow the road runs into. Sits above the photograph, below the copy. */
+.aurora {
+  position: absolute;
+  bottom: 26%;
+  left: 50%;
+  z-index: 1;
+  width: 11rem;
+  height: 6rem;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at center,
+    oklch(80% 0.16 158 / 0.25) 0%,
+    transparent 70%
+  );
+  filter: blur(16px);
+  animation: splash-aurora 4s ease-in-out infinite alternate;
+}
+
+@keyframes splash-aurora {
+  from {
+    opacity: 0.5;
+    transform: translateX(-50%) scale(0.9);
+  }
+  to {
+    opacity: 0.9;
+    transform: translateX(-50%) scale(1.15);
+  }
+}
+
+@keyframes splash-photo-in {
+  to {
+    opacity: 0.9;
+  }
+}
+
+/* Light bloom behind the emblem. */
+.bloom {
+  position: absolute;
+  top: 32%;
+  left: 50%;
+  z-index: 1;
+  width: min(34rem, 130vw);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  background: radial-gradient(
+    circle at center,
+    oklch(70% 0.16 158 / 0.18) 0%,
+    oklch(40% 0.09 160 / 0.08) 35%,
+    transparent 70%
+  );
+  filter: blur(25px);
+  animation: splash-bloom 8s ease-in-out infinite alternate;
+}
+
+@keyframes splash-bloom {
+  from {
+    transform: translate(-50%, -50%) scale(0.92);
+    opacity: 0.8;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(1.08);
+    opacity: 1;
+  }
+}
+
+/* Sunburst rays. `repeating-conic-gradient` masked to a ring, so 24 beams cost
+   one element and no SVG. */
+.rays {
+  position: absolute;
+  top: 32%;
+  left: 50%;
+  z-index: 1;
+  width: min(30rem, 115vw);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  background: repeating-conic-gradient(
+    from 0deg,
+    oklch(80% 0.15 158 / 0.045) 0deg 10deg,
+    transparent 10deg 24deg
+  );
+  mask-image: radial-gradient(circle at center, #000 15%, transparent 68%);
+  animation: splash-spin 120s linear infinite;
+}
+
+@keyframes splash-spin {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+/* ── Orbital hub ─────────────────────────────────────────────────────────
+   The mockup drove the starfield from a `requestAnimationFrame` canvas loop.
+   It is gone: 55 particles redrawn at 60fps for 1.9 seconds is a busy main
+   thread during the exact window the page underneath is hydrating, and the
+   effect it produced is indistinguishable from the twinkling nodes below. */
+.hub {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(23.75rem, 92vw);
+  aspect-ratio: 1;
+  margin-top: clamp(1rem, 6vh, 3rem);
+}
+
+.orbits {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  filter: drop-shadow(0 0 6px oklch(78% 0.13 162 / 0.35));
+  animation: splash-orbit-pulse 12s ease-in-out infinite alternate;
+}
+
+@keyframes splash-orbit-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.018) rotate(1.2deg);
+    opacity: 1;
+  }
+}
+
+.ringOuter,
+.ringInner {
+  fill: none;
+  stroke: oklch(80% 0.14 160 / 0.26);
+  stroke-width: 1.25;
+}
+
+.ringInner {
+  stroke: oklch(80% 0.14 160 / 0.2);
+  stroke-width: 1.1;
+}
+
+.node {
+  fill: oklch(84% 0.18 155);
+  animation: splash-sparkle 3s ease-in-out infinite alternate;
+}
+
+@keyframes splash-sparkle {
+  from {
+    opacity: 0.4;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ── Emblem ──────────────────────────────────────────────────────────── */
+.disc {
+  position: relative;
+  z-index: 25;
+  display: flex;
+  width: 9.625rem;
+  height: 9.625rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 30%,
+    oklch(38% 0.08 160 / 0.45) 0%,
+    oklch(16% 0.03 162 / 0.8) 75%
+  );
+  backdrop-filter: blur(12px);
+  animation: splash-float 6s ease-in-out infinite alternate;
+}
+
+@keyframes splash-float {
+  0% {
+    transform: translateY(0);
+    box-shadow:
+      0 0 30px -5px oklch(78% 0.19 158 / 0.3),
+      inset 0 0 16px oklch(78% 0.13 162 / 0.15);
+  }
+  50% {
+    transform: translateY(-7px) scale(1.02);
+    box-shadow:
+      0 0 48px 2px oklch(78% 0.19 158 / 0.45),
+      inset 0 0 24px oklch(78% 0.13 162 / 0.25);
+  }
+  100% {
+    transform: translateY(0);
+    box-shadow:
+      0 0 30px -5px oklch(78% 0.19 158 / 0.3),
+      inset 0 0 16px oklch(78% 0.13 162 / 0.15);
+  }
+}
+
+.emblem {
+  width: 6.75rem;
+  height: auto;
+  filter: drop-shadow(0 6px 14px oklch(0% 0 0 / 0.4))
+    drop-shadow(0 0 16px oklch(85% 0.14 158 / 0.28));
+}
+
+/* ── Orbiting badges ─────────────────────────────────────────────────────
+   Five, each emerging from behind the emblem in turn. Position is set in
+   percentages of the hub rather than pixels, so the ring scales with the
+   viewport instead of colliding with the emblem on a 320px phone — which is
+   what the mockup's fixed `top: 10px; left: 51.5%` did.
+
+   The emergence and the float are two animations on one element: the first
+   runs once with `backwards` fill so the badge is invisible until its turn,
+   the second loops. Keeping them separate is what lets each badge float on its
+   own period without the arrival timings drifting apart. */
+.badge {
+  position: absolute;
+  z-index: 18;
+  display: flex;
+  width: 3.625rem;
+  height: 3.625rem;
+  align-items: center;
+  justify-content: center;
+  border: 1.2px solid oklch(85% 0.15 160 / 0.42);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 35%,
+    oklch(32% 0.07 160 / 0.85) 0%,
+    oklch(18% 0.04 160 / 0.92) 100%
+  );
+  box-shadow:
+    0 0 18px oklch(78% 0.19 158 / 0.4),
+    inset 0 0 10px oklch(78% 0.13 162 / 0.22),
+    0 6px 16px oklch(0% 0 0 / 0.6);
+  backdrop-filter: blur(8px);
+  color: oklch(92% 0.09 160);
+}
+
+.badge svg {
+  width: 1.75rem;
+  height: 1.75rem;
+  filter: drop-shadow(0 0 5px oklch(88% 0.13 160 / 0.55));
+}
+
+.badge1 {
+  top: 2%;
+  left: 50%;
+  margin-left: -1.8125rem;
+  animation:
+    splash-emerge 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.25s backwards,
+    splash-drift-a 5.6s ease-in-out 1s infinite alternate;
+}
+
+.badge2 {
+  top: 20%;
+  left: 4%;
+  animation:
+    splash-emerge 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.45s backwards,
+    splash-drift-b 6.4s ease-in-out 1.2s infinite alternate;
+}
+
+.badge3 {
+  top: 32%;
+  right: 3%;
+  animation:
+    splash-emerge 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.65s backwards,
+    splash-drift-c 5.1s ease-in-out 1.4s infinite alternate;
+}
+
+.badge4 {
+  bottom: 12%;
+  left: 0%;
+  animation:
+    splash-emerge 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.85s backwards,
+    splash-drift-b 6.8s ease-in-out 1.6s infinite alternate;
+}
+
+.badge5 {
+  bottom: 3%;
+  right: 8%;
+  animation:
+    splash-emerge 0.75s cubic-bezier(0.16, 1, 0.3, 1) 1.05s backwards,
+    splash-drift-a 5.8s ease-in-out 1.8s infinite alternate;
+}
+
+/* One emergence keyframe for all five. The mockup had five near-identical
+   copies, each with hand-measured pixel offsets back to the emblem; scaling
+   from zero at the badge's own position reads the same and cannot fall out of
+   sync with the layout. */
+@keyframes splash-emerge {
+  0% {
+    opacity: 0;
+    transform: scale(0.1);
+    filter: blur(4px);
+  }
+  30% {
+    opacity: 0.9;
+    filter: blur(0);
+  }
+  75% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes splash-drift-a {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(4px, -8px) rotate(2deg);
+  }
+  100% {
+    transform: translate(-3px, -4px) rotate(-1deg);
+  }
+}
+
+@keyframes splash-drift-b {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(-6px, -7px) rotate(-2deg);
+  }
+  100% {
+    transform: translate(3px, -3px) rotate(1deg);
+  }
+}
+
+@keyframes splash-drift-c {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(6px, -6px) rotate(2.5deg);
+  }
+  100% {
+    transform: translate(-2px, -5px) rotate(-1.5deg);
+  }
+}
+
+/* ── Wordmark ────────────────────────────────────────────────────────── */
+.brand {
+  position: relative;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 1.5rem;
+  text-align: center;
+  animation: splash-rise 0.7s var(--ease-out-quart) 0.35s backwards;
+}
+
+@keyframes splash-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.title {
+  margin-bottom: 0.4375rem;
+  font-size: clamp(1.75rem, 8vw, 2.125rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: oklch(100% 0 0);
+}
+
+.titleDot {
+  color: oklch(84% 0.21 155);
+  text-shadow: 0 0 12px oklch(84% 0.21 155 / 0.8);
+}
+
+.tagline {
+  margin-bottom: 0.75rem;
+  font-size: 1.03rem;
+  font-weight: 600;
+  color: oklch(82% 0.15 162);
+  text-shadow: 0 0 12px oklch(78% 0.19 158 / 0.4);
+}
+
+.blurb {
+  max-width: 16rem;
+  font-size: 0.89rem;
+  line-height: 1.45;
+  color: oklch(72% 0.03 158);
+}
+
+/* ── Progress ────────────────────────────────────────────────────────────
+   Decorative, and labelled as such. It is not reporting anything — the page
+   underneath is already rendered — so it carries no `progressbar` role and no
+   value: announcing a fake completion percentage to a screen reader would be a
+   lie told in an accessible way. */
+.dock {
+  position: relative;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.625rem;
+  margin-bottom: clamp(2rem, 8vh, 3.5rem);
+  animation: splash-rise 0.7s var(--ease-out-quart) 0.5s backwards;
+}
+
+.track {
+  position: relative;
+  width: 6.875rem;
+  height: 3.5px;
+  border-radius: 999px;
+  background: oklch(100% 0 0 / 0.09);
+}
+
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, oklch(62% 0.14 160 / 0.4), oklch(80% 0.16 158));
+  box-shadow: 0 0 10px oklch(80% 0.16 158 / 0.5);
+  animation: splash-fill 1.75s var(--ease-out-quart) forwards;
+}
+
+@keyframes splash-fill {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+.fill::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: -3px;
+  width: 6.5px;
+  height: 6.5px;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: oklch(93% 0.07 160);
+  box-shadow:
+    0 0 10px oklch(80% 0.16 158),
+    0 0 18px oklch(70% 0.16 158);
+}
+
+/* The status line cross-fades through four messages. Four absolutely
+   positioned spans sharing one grid cell, each with the same keyframe at a
+   different delay — no JavaScript, and no layout shift as the text changes
+   width. */
+.status {
+  position: relative;
+  height: 1rem;
+  min-width: 13rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: oklch(66% 0.025 158);
+}
+
+.status > span {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  animation: splash-status 1.75s linear forwards;
+}
+
+/* Each message is visible for a quarter of the run, fading at the seams. */
+@keyframes splash-status {
+  0%,
+  22% {
+    opacity: 1;
+  }
+  27%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.status > span:nth-child(2) {
+  animation-delay: 0.42s;
+}
+.status > span:nth-child(3) {
+  animation-delay: 0.84s;
+}
+/* The last one holds rather than fading, so the screen does not go wordless
+   during the dismissal. */
+.status > span:nth-child(4) {
+  animation-name: splash-status-last;
+  animation-delay: 1.26s;
+}
+
+@keyframes splash-status-last {
+  0% {
+    opacity: 0;
+  }
+  20%,
+  100% {
+    opacity: 1;
+  }
+}

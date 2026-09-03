@@ -25,7 +25,7 @@ const LINKS = [
 
 export function SiteFooter() {
   return (
-    <footer className="mt-auto border-t border-line bg-surface">
+    <footer data-shell="site-footer" className="mt-auto border-t border-line bg-surface">
       <div className="mx-auto w-full max-w-6xl px-4 py-7 sm:px-6">
         <nav aria-label="Footer">
           <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm">

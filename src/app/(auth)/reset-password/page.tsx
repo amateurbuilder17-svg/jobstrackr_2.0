@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { AuthHeader } from "../auth-ui";
 import { ResetPasswordForm } from "./reset-password-form";
 
 export const metadata: Metadata = {
@@ -10,18 +11,20 @@ export const metadata: Metadata = {
 /**
  * Reached from the recovery email by way of `/auth/callback`, which exchanges
  * the link's code for a session before redirecting here. So a visitor on this
- * page is already authenticated — which is why the middleware's "signed-in
- * users do not belong on auth pages" rule deliberately skips this route.
+ * page is already authenticated — which is why the proxy's "signed-in users do
+ * not belong on auth pages" rule deliberately skips this route.
+ *
+ * No tabs and no "back to sign in": both would be dead ends for someone who is
+ * already signed in and one field away from finishing.
  */
 export default function ResetPasswordPage() {
   return (
     <>
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">
-          Choose a new password
-        </h1>
-        <p className="mt-1 text-sm text-ink-2">You will stay signed in on this device.</p>
-      </header>
+      <AuthHeader
+        title="Choose a new"
+        accent="password"
+        subtitle="You will stay signed in on this device."
+      />
 
       <ResetPasswordForm />
     </>

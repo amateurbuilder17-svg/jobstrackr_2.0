@@ -1,23 +1,29 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState } from "react";
 
 import { signInAction } from "@/lib/auth/actions";
 import { EMPTY_FORM_STATE } from "@/lib/auth/form-state";
-import { GoogleAuth } from "@/components/auth/google-auth";
-import { Field, FormError, Input } from "@/components/ui/field";
-import { SubmitButton } from "@/components/ui/submit-button";
+import { AuthSubmit } from "../auth-submit";
+import { AuthBody, AuthField, AuthFormError, AuthInput, AuthLink, MailIcon } from "../auth-ui";
+import { PasswordInput } from "../password-input";
 
+/**
+ * Only the form is a Client Component.
+ *
+ * The tabs, the heading, the Google block and the footer around it are
+ * server-rendered by the page — they have no state, and pulling them in here
+ * would put four components and their markup into this route's client bundle
+ * to no purpose. What genuinely needs the boundary is `useActionState`: the
+ * per-field errors the action returns have to re-render the fields that
+ * produced them.
+ */
 export function SignInForm({
   next,
   initialError,
-  google,
 }: {
   next?: string | undefined;
   initialError?: string | undefined;
-  /** False when the project has no Google provider configured — see providers.ts. */
-  google: boolean;
 }) {
   const [state, formAction] = useActionState(signInAction, EMPTY_FORM_STATE);
 
@@ -26,49 +32,39 @@ export function SignInForm({
   const formError = state.errors?.form ?? initialError;
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* Google first when it exists: one click against three fields, and most
-          returning users took that path originally. Hidden rather than
-          disabled when the provider is off — a button that always fails is
-          worse than no button. */}
-      {google ? <GoogleAuth next={next} /> : null}
-
-      <form action={formAction} className="flex flex-col gap-4">
+    <form action={formAction}>
+      <AuthBody>
         <input type="hidden" name="next" value={next ?? ""} />
 
-        <FormError>{formError}</FormError>
+        <AuthFormError>{formError}</AuthFormError>
 
-        <Field id="email" label="Email" error={state.errors?.email}>
-          <Input
+        <AuthField id="email" label="Email" error={state.errors?.email}>
+          <AuthInput
             id="email"
             type="email"
+            icon={<MailIcon />}
+            placeholder="name@example.com"
             autoComplete="email"
             required
             error={state.errors?.email}
           />
-        </Field>
+        </AuthField>
 
-        <Field id="password" label="Password" error={state.errors?.password}>
-          <Input
+        <AuthField
+          id="password"
+          label="Password"
+          error={state.errors?.password}
+          action={<AuthLink href="/forgot-password">Forgot password?</AuthLink>}
+        >
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="current-password"
-            required
             error={state.errors?.password}
           />
-        </Field>
+        </AuthField>
 
-        <SubmitButton variant="primary" size="lg" className="w-full" pendingLabel="Signing in…">
-          Sign in
-        </SubmitButton>
-      </form>
-
-      <Link
-        href="/forgot-password"
-        className="text-center text-sm text-ink-2 hover:text-ink hover:underline"
-      >
-        Forgot your password?
-      </Link>
-    </div>
+        <AuthSubmit pendingLabel="Signing in…">Sign in</AuthSubmit>
+      </AuthBody>
+    </form>
   );
 }

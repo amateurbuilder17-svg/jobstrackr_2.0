@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
 import { enabledOAuthProviders } from "@/lib/auth/providers";
-import { GoogleAuth } from "@/components/auth/google-auth";
+import { AuthFooter, AuthHeader, AuthLink, BackToSignIn } from "../auth-ui";
+import { GoogleAuth } from "../google-auth";
 import { ForgotPasswordForm } from "./forgot-password-form";
 
 export const metadata: Metadata = {
@@ -13,29 +13,33 @@ export const metadata: Metadata = {
 /**
  * Google belongs here more than on any other screen: an account created with
  * Google has no password, so a reset link is the one thing that cannot help
- * the person who ends up here. The page still prerenders — the provider probe
- * is cached, not per-request — so no Suspense boundary is needed.
+ * the person who ends up here.
+ *
+ * No Suspense boundary and no tabs — this page reads no search params, and the
+ * provider probe is cached rather than per-request, so the whole card
+ * prerenders.
  */
 export default async function ForgotPasswordPage() {
   const { google } = await enabledOAuthProviders();
 
   return (
     <>
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">Reset your password</h1>
-        <p className="mt-1 text-sm text-ink-2">We will email you a link to choose a new one.</p>
-      </header>
+      <BackToSignIn />
 
-      <div className="flex flex-col gap-5">
-        {google ? <GoogleAuth /> : null}
-        <ForgotPasswordForm />
-      </div>
+      <AuthHeader
+        title="Reset"
+        accent="password"
+        subtitle="Enter your email address and we will send you a link to choose a new one."
+      />
 
-      <p className="mt-6 text-center text-sm text-ink-2">
-        <Link href="/sign-in" className="font-medium text-accent hover:underline">
-          Back to sign in
-        </Link>
-      </p>
+      <ForgotPasswordForm />
+
+      {google ? <GoogleAuth /> : null}
+
+      <AuthFooter>
+        Remember your password?
+        <AuthLink href="/sign-in">Sign in</AuthLink>
+      </AuthFooter>
     </>
   );
 }

@@ -4,48 +4,46 @@ import { useActionState } from "react";
 
 import { updatePasswordAction } from "@/lib/auth/actions";
 import { EMPTY_FORM_STATE } from "@/lib/auth/form-state";
-import { Field, FormError, Input } from "@/components/ui/field";
-import { SubmitButton } from "@/components/ui/submit-button";
+import { AuthSubmit } from "../auth-submit";
+import { AuthBody, AuthField, AuthFormError } from "../auth-ui";
+import { PasswordInput } from "../password-input";
 
 export function ResetPasswordForm() {
   const [state, formAction] = useActionState(updatePasswordAction, EMPTY_FORM_STATE);
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
-      <FormError>{state.errors?.form}</FormError>
+    <form action={formAction}>
+      <AuthBody>
+        <AuthFormError>{state.errors?.form}</AuthFormError>
 
-      <Field
-        id="password"
-        label="New password"
-        error={state.errors?.password}
-        hint="At least 8 characters."
-      >
-        <Input
+        <AuthField
           id="password"
-          type="password"
-          autoComplete="new-password"
-          required
+          label="New password"
           error={state.errors?.password}
-        />
-      </Field>
+          hint="At least 8 characters."
+        >
+          <PasswordInput
+            id="password"
+            autoComplete="new-password"
+            error={state.errors?.password}
+            hint="At least 8 characters."
+          />
+        </AuthField>
 
-      <Field
-        id="confirmPassword"
-        label="Confirm new password"
-        error={state.errors?.confirmPassword}
-      >
-        <Input
+        <AuthField
           id="confirmPassword"
-          type="password"
-          autoComplete="new-password"
-          required
+          label="Confirm password"
           error={state.errors?.confirmPassword}
-        />
-      </Field>
+        >
+          <PasswordInput
+            id="confirmPassword"
+            autoComplete="new-password"
+            error={state.errors?.confirmPassword}
+          />
+        </AuthField>
 
-      <SubmitButton variant="primary" size="lg" className="w-full" pendingLabel="Saving…">
-        Save new password
-      </SubmitButton>
+        <AuthSubmit pendingLabel="Saving…">Save password</AuthSubmit>
+      </AuthBody>
     </form>
   );
 }

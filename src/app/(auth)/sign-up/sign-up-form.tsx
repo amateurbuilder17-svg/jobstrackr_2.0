@@ -4,71 +4,74 @@ import { useActionState } from "react";
 
 import { signUpAction } from "@/lib/auth/actions";
 import { EMPTY_FORM_STATE } from "@/lib/auth/form-state";
-import { GoogleAuth } from "@/components/auth/google-auth";
-import { Field, FormError, FormNotice, Input } from "@/components/ui/field";
-import { SubmitButton } from "@/components/ui/submit-button";
+import { AuthSubmit } from "../auth-submit";
+import {
+  AuthBody,
+  AuthField,
+  AuthFormError,
+  AuthFormNotice,
+  AuthInput,
+  MailIcon,
+  PersonIcon,
+} from "../auth-ui";
+import { PasswordInput } from "../password-input";
 
-export function SignUpForm({
-  next,
-  google,
-}: {
-  next?: string | undefined;
-  /** False when the project has no Google provider configured — see providers.ts. */
-  google: boolean;
-}) {
+export function SignUpForm({ next }: { next?: string | undefined }) {
   const [state, formAction] = useActionState(signUpAction, EMPTY_FORM_STATE);
 
   // Success here is "we sent you an email", not a session — so the form is
   // replaced by the notice rather than sitting under it inviting a resubmit.
   if (state.ok && state.message) {
-    return <FormNotice>{state.message}</FormNotice>;
+    return <AuthFormNotice>{state.message}</AuthFormNotice>;
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      {google ? <GoogleAuth next={next} label="Sign up with Google" /> : null}
+    <form action={formAction}>
+      <AuthBody>
+        <input type="hidden" name="next" value={next ?? ""} />
 
-      <form action={formAction} className="flex flex-col gap-4">
-        <FormError>{state.errors?.form}</FormError>
+        <AuthFormError>{state.errors?.form}</AuthFormError>
 
-        <Field id="fullName" label="Full name" error={state.errors?.fullName}>
-          <Input id="fullName" autoComplete="name" required error={state.errors?.fullName} />
-        </Field>
+        <AuthField id="fullName" label="Full name" error={state.errors?.fullName}>
+          <AuthInput
+            id="fullName"
+            icon={<PersonIcon />}
+            placeholder="Your name"
+            autoComplete="name"
+            required
+            error={state.errors?.fullName}
+          />
+        </AuthField>
 
-        <Field id="email" label="Email" error={state.errors?.email}>
-          <Input
+        <AuthField id="email" label="Email" error={state.errors?.email}>
+          <AuthInput
             id="email"
             type="email"
+            icon={<MailIcon />}
+            placeholder="name@example.com"
             autoComplete="email"
             required
             error={state.errors?.email}
           />
-        </Field>
+        </AuthField>
 
-        <Field
+        <AuthField
           id="password"
           label="Password"
           error={state.errors?.password}
           hint="At least 8 characters."
         >
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="new-password"
-            required
+            placeholder="Create a password"
             error={state.errors?.password}
+            hint="At least 8 characters."
           />
-        </Field>
+        </AuthField>
 
-        <SubmitButton
-          variant="primary"
-          size="lg"
-          className="w-full"
-          pendingLabel="Creating account…"
-        >
-          Create account
-        </SubmitButton>
-      </form>
-    </div>
+        <AuthSubmit pendingLabel="Creating account…">Create account</AuthSubmit>
+      </AuthBody>
+    </form>
   );
 }

@@ -3,6 +3,7 @@ import { Archivo, Archivo_Narrow } from "next/font/google";
 
 import { AppShell } from "@/components/shell/app-shell";
 import { ThemeScript } from "@/components/shell/theme-script";
+import { SplashGate } from "@/components/splash/splash-gate";
 import "./globals.css";
 
 // Self-hosted at build time by next/font: no runtime request to Google, so no
@@ -57,6 +58,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <body className={`${archivo.variable} ${archivoNarrow.variable}`}>
         <ThemeScript />
+        {/* Decides before first paint whether the home page's launch splash
+            runs. Here rather than on `/` because `beforeInteractive` belongs in
+            the root layout, and because "once per session" has to mean the
+            session's first page load whichever route that was. */}
+        <SplashGate />
         {/* Visible only on focus. The first thing a keyboard user meets should
             be a way past the navigation, not thirteen links they must tab
             through on every page. */}

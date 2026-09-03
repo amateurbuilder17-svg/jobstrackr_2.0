@@ -21,6 +21,7 @@ import {
   PopularExamsSkeleton,
   TrackedExamsSkeleton,
 } from "@/components/home/skeletons";
+import { AppSplash } from "@/components/splash/app-splash";
 import { getUser } from "@/lib/auth/session";
 import { listExamAttempts } from "@/lib/db/queries/attempts";
 import { listPopularExams } from "@/lib/db/queries/exams";
@@ -44,49 +45,58 @@ export const metadata = {
  */
 export default function Home() {
   return (
-    <div className="mx-auto w-full max-w-md space-y-6 px-4 pt-4 pb-28 sm:max-w-2xl sm:space-y-7 lg:max-w-4xl">
-      <HomeSearchProvider>
-        <HomeSearchBar />
+    <>
+      {/* The launch splash. Rendered here rather than in the shell because
+          this is the route a cold open lands on — and because the shell is
+          carried by all 694 static pages, where 1.4 kB of overlay markup on a
+          job detail page buys nothing. It costs no JavaScript on any route:
+          see `AppSplash`. */}
+      <AppSplash />
 
-        {/* 1. Tracked Exams (Personal dynamic row) */}
-        <Suspense fallback={<TrackedExamsSkeleton />}>
-          <TrackedExamsSection />
-        </Suspense>
+      <div className="mx-auto w-full max-w-md space-y-6 px-4 pt-4 pb-28 sm:max-w-2xl sm:space-y-7 lg:max-w-4xl">
+        <HomeSearchProvider>
+          <HomeSearchBar />
 
-        {/* 2. Matched to your profile (Personal, signed-in only) */}
-        <Suspense fallback={<MatchedForYouSkeleton />}>
-          <MatchedForYouSection />
-        </Suspense>
+          {/* 1. Tracked Exams (Personal dynamic row) */}
+          <Suspense fallback={<TrackedExamsSkeleton />}>
+            <TrackedExamsSection />
+          </Suspense>
 
-        {/* 3. Closing Soon (Lead spotlight) */}
-        <Suspense fallback={<ClosingSoonSkeleton />}>
-          <ClosingSoonSection />
-        </Suspense>
+          {/* 2. Matched to your profile (Personal, signed-in only) */}
+          <Suspense fallback={<MatchedForYouSkeleton />}>
+            <MatchedForYouSection />
+          </Suspense>
 
-        {/* 4. Just Published */}
-        <Suspense fallback={<JustPublishedSkeleton />}>
-          <JustPublishedSection />
-        </Suspense>
+          {/* 3. Closing Soon (Lead spotlight) */}
+          <Suspense fallback={<ClosingSoonSkeleton />}>
+            <ClosingSoonSection />
+          </Suspense>
 
-        {/* 5. Popular Exams */}
-        <Suspense fallback={<PopularExamsSkeleton />}>
-          <PopularExamsSection />
-        </Suspense>
+          {/* 4. Just Published */}
+          <Suspense fallback={<JustPublishedSkeleton />}>
+            <JustPublishedSection />
+          </Suspense>
 
-        {/* 6. Latest Updates */}
-        <Suspense fallback={<LatestUpdatesSkeleton />}>
-          <LatestUpdatesSection />
-        </Suspense>
+          {/* 5. Popular Exams */}
+          <Suspense fallback={<PopularExamsSkeleton />}>
+            <PopularExamsSection />
+          </Suspense>
 
-        {/* Dynamic Empty Search Results (when searching/filtering) */}
-        <HomeEmptySearchResults />
+          {/* 6. Latest Updates */}
+          <Suspense fallback={<LatestUpdatesSkeleton />}>
+            <LatestUpdatesSection />
+          </Suspense>
 
-        {/* 7. Guest sign-up CTA for visitors */}
-        <Suspense fallback={null}>
-          <SignedOutOnly />
-        </Suspense>
-      </HomeSearchProvider>
-    </div>
+          {/* Dynamic Empty Search Results (when searching/filtering) */}
+          <HomeEmptySearchResults />
+
+          {/* 7. Guest sign-up CTA for visitors */}
+          <Suspense fallback={null}>
+            <SignedOutOnly />
+          </Suspense>
+        </HomeSearchProvider>
+      </div>
+    </>
   );
 }
 

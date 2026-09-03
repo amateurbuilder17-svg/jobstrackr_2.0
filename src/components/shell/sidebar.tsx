@@ -24,7 +24,10 @@ import { ThemeToggle } from "./theme-toggle";
  */
 export function Sidebar() {
   return (
-    <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 border-r border-line bg-surface lg:flex lg:flex-col">
+    <aside
+      data-shell="sidebar"
+      className="sticky top-0 hidden h-dvh w-64 shrink-0 border-r border-line bg-surface lg:flex lg:flex-col"
+    >
       {/* ── Brand ──────────────────────────────────────────────────────────── */}
       <div className="shrink-0 px-5 pt-6 pb-4">
         <Link href="/" className="group inline-flex items-center gap-2">

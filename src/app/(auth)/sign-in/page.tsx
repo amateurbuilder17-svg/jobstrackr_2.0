@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Suspense } from "react";
 
 import { enabledOAuthProviders } from "@/lib/auth/providers";
+import { AuthCardSkeleton, AuthFooter, AuthHeader, AuthLink, AuthTabs } from "../auth-ui";
+import { GoogleAuth } from "../google-auth";
 import { SignInForm } from "./sign-in-form";
 
 export const metadata: Metadata = {
@@ -16,30 +17,25 @@ export const metadata: Metadata = {
 type SearchParams = Promise<{ next?: string; error?: string }>;
 
 /**
- * The page never awaits `searchParams`, so the heading and links prerender as
- * static and arrive from the CDN. Only `<Credentials>` awaits them, inside a
- * Suspense boundary — with Cache Components enabled, reading runtime data
- * outside one is a build error, not merely a slower route.
+ * The page never awaits `searchParams` itself, so the surrounding layout — the
+ * artwork, the editorial column, the card frame — prerenders as static and
+ * arrives from the CDN. Only `<Credentials>` awaits them, inside a Suspense
+ * boundary; with Cache Components enabled, reading runtime data outside one is
+ * a build error rather than merely a slower route.
+ *
+ * The whole card interior is inside that boundary rather than just the form,
+ * and the reason is the tabs: "Sign up" has to carry `next` across, or a
+ * visitor bounced out of `/tracker` who decides to register lands on
+ * `/profile` afterwards instead of where they were going. Nothing behind the
+ * boundary does I/O — `searchParams` is already resolved and the provider
+ * probe is `use cache` — so it resolves in the same tick and the skeleton is
+ * rarely seen at all.
  */
 export default function SignInPage({ searchParams }: { searchParams: SearchParams }) {
   return (
-    <>
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">Welcome back</h1>
-        <p className="mt-1 text-sm text-ink-2">Sign in to pick up where you left off.</p>
-      </header>
-
-      <Suspense fallback={<FormFallback />}>
-        <Credentials searchParams={searchParams} />
-      </Suspense>
-
-      <p className="mt-6 text-center text-sm text-ink-2">
-        New here?{" "}
-        <Link href="/sign-up" className="font-medium text-accent hover:underline">
-          Create an account
-        </Link>
-      </p>
-    </>
+    <Suspense fallback={<AuthCardSkeleton lines={2} />}>
+      <Credentials searchParams={searchParams} />
+    </Suspense>
   );
 }
 
@@ -48,10 +44,27 @@ async function Credentials({ searchParams }: { searchParams: SearchParams }) {
     searchParams,
     enabledOAuthProviders(),
   ]);
-  return <SignInForm next={next} initialError={error} google={providers.google} />;
-}
 
-/** Matches the form's height so the boundary resolving does not shift the page. */
-function FormFallback() {
-  return <div className="h-[22rem]" aria-hidden />;
+  return (
+    <>
+      <AuthTabs active="signin" next={next} />
+
+      <AuthHeader title="Welcome" accent="back" subtitle="Sign in to continue to JobsTrackr." />
+
+      <SignInForm next={next} initialError={error} />
+
+      {/* Google first in importance, second in position: one click against
+          three fields, and most returning users took that path originally.
+          Hidden rather than disabled when the provider is off — a button that
+          always fails is worse than no button. */}
+      {providers.google ? <GoogleAuth next={next} /> : null}
+
+      <AuthFooter>
+        New to JobsTrackr?
+        <AuthLink href={next ? `/sign-up?next=${encodeURIComponent(next)}` : "/sign-up"}>
+          Create account
+        </AuthLink>
+      </AuthFooter>
+    </>
+  );
 }
