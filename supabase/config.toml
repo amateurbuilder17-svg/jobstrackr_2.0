@@ -124,12 +124,23 @@ enabled = true
 # left every emailed link — signup confirmation, password recovery — pointing at
 # a port nothing listens on, so the flows could not be exercised locally.
 site_url = "http://localhost:3100"
-# A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-# The callback route is listed explicitly because this list is matched exactly.
+# URLs that auth providers are permitted to redirect to post authentication.
+#
+# Matched as globs, so an entry with no wildcard matches that URL and nothing
+# longer — a bare `.../auth/callback` would not cover the
+# `.../auth/callback?next=/reset-password` this app asks for. The `/**` entries
+# make the local list the same shape as the hosted project's, which has always
+# had them, rather than relying on that distinction never coming up.
+#
+# Worth knowing if a redirect ever does get refused: the app's flows are PKCE,
+# which carries the redirect in the flow state, so this list is not what they
+# depend on. It is the implicit path — a script, an admin tool, a hand-rolled
+# request — that this governs.
 additional_redirect_urls = [
   "http://localhost:3100",
-  "http://localhost:3100/auth/callback",
+  "http://localhost:3100/**",
   "http://127.0.0.1:3100",
+  "http://127.0.0.1:3100/**",
 ]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
@@ -156,7 +167,13 @@ password_requirements = ""
 
 [auth.rate_limit]
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
-email_sent = 2
+#
+# This is the CLI default, and the default assumes the local stack throws its
+# mail away — which it did until the SMTP block below was filled in. With a real
+# sender attached the limit becomes real too, and two an hour is fewer than one
+# pass over the signup and recovery flows takes. Matched to the hosted project's
+# 30 so local testing fails the same way production would, rather than sooner.
+email_sent = 30
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30
 # Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
@@ -220,15 +237,36 @@ otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
-# Use a production-ready SMTP server
-# [auth.email.smtp]
-# enabled = true
-# host = "smtp.sendgrid.net"
-# port = 587
-# user = "apikey"
-# pass = "env(SENDGRID_API_KEY)"
-# admin_email = "admin@email.com"
-# sender_name = "Admin"
+# ── Outgoing mail ───────────────────────────────────────────────────────────
+# Real mail, from the local stack, through the same sender production uses.
+#
+# The default local setup captures everything in the mailbox viewer on port
+# 54424 and delivers nothing. That is the safer default and it is why the CLI
+# ships it — but it also means a reset link cannot be tested where it actually
+# has to work, which is a real inbox and a real mail client. The failure it
+# produces is not an error; it is silence, and silence reads as a broken mailer
+# rather than as a mailbox you have not opened.
+#
+# Consequences worth knowing before running `supabase start` with this on:
+#
+#   - Mail sent from a dev machine reaches real addresses. Typing someone else's
+#     address into the signup form on localhost now emails them.
+#   - It spends the Resend quota (100/day on the free tier) that production
+#     shares. A retry loop in dev is a production outage.
+#   - `[auth.rate_limit] email_sent` above stops being decorative.
+#
+# `pass` is read from the environment, never written here — the CLI picks up
+# `.env.local`, which is where the key already lives and is gitignored.
+[auth.email.smtp]
+enabled = true
+host = "smtp.resend.com"
+port = 587
+user = "resend"
+pass = "env(RESEND_API_KEY)"
+# The verified sender on the Resend side. An address on an unverified domain is
+# accepted by the API and then silently not delivered.
+admin_email = "noreply@jobstrackr.in"
+sender_name = "jobstrackr"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]

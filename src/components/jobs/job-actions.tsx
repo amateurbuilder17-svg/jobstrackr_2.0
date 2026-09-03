@@ -85,18 +85,18 @@ export function JobActions(props: JobActionsProps) {
         "lg:rounded-lg lg:border-transparent",
       )}
     >
-      <div className="mx-auto flex max-w-3xl items-center gap-2">
+      <div className="mx-auto flex max-w-3xl items-center gap-2 sm:gap-2.5">
         {primary ? (
           <a
             href={primary.href}
             target="_blank"
             rel="noopener noreferrer nofollow"
             className={cn(
-              "inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg px-5",
+              "inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-5",
               "text-sm font-semibold transition-colors duration-(--duration-fast)",
               expired
                 ? "border border-line bg-surface text-ink hover:bg-surface-2"
-                : "bg-accent text-on-accent hover:bg-accent-hover",
+                : "bg-brand text-white shadow-xs hover:bg-brand-deep",
             )}
           >
             <span className="truncate">{primary.label}</span>
@@ -105,7 +105,7 @@ export function JobActions(props: JobActionsProps) {
         ) : (
           <span
             className={cn(
-              "inline-flex h-11 min-w-0 flex-1 items-center justify-center rounded-lg px-5",
+              "inline-flex h-11 min-w-0 flex-1 items-center justify-center rounded-xl px-5",
               "border border-dashed border-line text-sm font-medium text-ink-3",
             )}
           >
@@ -116,10 +116,8 @@ export function JobActions(props: JobActionsProps) {
         <button
           type="button"
           aria-pressed={tracked}
+          aria-label={tracked ? `Stop tracking ${title}` : `Track ${title}`}
           onClick={() => {
-            // A guest is sent to sign-in rather than being told no. `next`
-            // brings them back to this job, which is the only reason they
-            // pressed it.
             if (!signedIn) {
               router.push(`/sign-in?next=${encodeURIComponent(`/jobs/${slug}`)}`);
               return;
@@ -127,7 +125,7 @@ export function JobActions(props: JobActionsProps) {
             toggleTracked(jobId);
           }}
           className={cn(
-            "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-lg border px-3.5",
+            "inline-flex size-11 shrink-0 items-center justify-center rounded-xl border",
             "text-sm font-medium transition-colors duration-(--duration-fast)",
             tracked
               ? "border-accent-line bg-accent-soft text-accent"
@@ -135,8 +133,7 @@ export function JobActions(props: JobActionsProps) {
             pendingTrack && "opacity-60",
           )}
         >
-          {tracked ? <CheckIcon className="size-4" /> : <BellIcon className="size-4" />}
-          <span className="hidden sm:inline">{tracked ? "Tracking" : "Track"}</span>
+          {tracked ? <CheckIcon className="size-4.5" /> : <BellIcon className="size-4.5" />}
         </button>
 
         <button
@@ -147,7 +144,7 @@ export function JobActions(props: JobActionsProps) {
             toggle(jobId);
           }}
           className={cn(
-            "inline-flex size-11 shrink-0 items-center justify-center rounded-lg border",
+            "inline-flex size-11 shrink-0 items-center justify-center rounded-xl border",
             "transition-colors duration-(--duration-fast)",
             saved
               ? "border-accent-line bg-accent-soft text-accent"
@@ -175,7 +172,7 @@ function ShareButton({ slug, title }: { slug: string; title: string }) {
           void share();
         }}
         className={cn(
-          "inline-flex size-11 shrink-0 items-center justify-center rounded-lg border border-line",
+          "inline-flex size-11 shrink-0 items-center justify-center rounded-xl border border-line",
           "bg-surface text-ink-2 transition-colors duration-(--duration-fast)",
           "hover:border-line-strong hover:text-ink",
         )}

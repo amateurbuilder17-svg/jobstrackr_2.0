@@ -1,32 +1,47 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { PlusIcon, ShieldIcon } from "@/components/icons";
-import type { ExamAttempt, ExamOption } from "@/lib/db/queries/attempts";
+import { useToday } from "@/components/jobs/today-provider";
+import type { ExamAttempt } from "@/lib/db/queries/attempts";
+import type { ExamUpdateSignal } from "@/lib/db/queries/exam-updates";
 import type { ExamStatusReport } from "@/lib/exams/report";
+import { subjectKeyFor } from "@/lib/exams/subject";
 import { AttemptForm } from "./attempt-form";
 import { AttemptList } from "./attempt-list";
+import { categorizeAttempts, countByCategory } from "./categorize";
 
 export function TrackerView({
   attempts,
-  exams,
   reports,
+  signals,
+  today: serverToday,
 }: {
   attempts: ExamAttempt[];
-  exams: ExamOption[];
   reports: Record<string, ExamStatusReport>;
+  signals: Record<string, ExamUpdateSignal[]>;
+  /** Today in India as the server saw it; see the comment at the call site. */
+  today: string;
 }) {
   const [formOpen, setFormOpen] = useState(false);
 
+  // The provider's value wins once it exists, so a tab left open overnight
+  // regroups at IST midnight along with the countdowns inside the cards.
+  const clientToday = useToday();
+  const today = clientToday ?? serverToday;
+
+  // Grouped once, here, because the header's "need attention" count and the
+  // section a card lands in have to be the same answer. They were computed
+  // separately before, from two different rules, and disagreed.
+  const items = useMemo(
+    () => categorizeAttempts(attempts, reports, signals, today, subjectKeyFor),
+    [attempts, reports, signals, today],
+  );
+  const counts = useMemo(() => countByCategory(items), [items]);
+
   const trackedCount = attempts.length;
-  const attentionCount = attempts.filter((a) => {
-    return (
-      a.status === "admit_card" ||
-      a.status === "tracking" ||
-      a.status === "applied"
-    );
-  }).length;
+  const attentionCount = counts.action;
 
   return (
     <>
@@ -54,7 +69,7 @@ export function TrackerView({
 
       {/* Main Attempts List with Category Sections & Accordion */}
       <div className="mt-6">
-        <AttemptList attempts={attempts} reports={reports} />
+        <AttemptList items={items} counts={counts} />
       </div>
 
       {/* Verified Commission Signal Footnote */}
@@ -62,14 +77,15 @@ export function TrackerView({
         <div className="mt-8 flex items-start gap-2.5 rounded-xl border border-border bg-card/60 p-3.5 text-xs leading-relaxed text-muted-foreground shadow-card">
           <ShieldIcon className="mt-0.5 size-4 shrink-0 text-brand" />
           <p>
-            Status updates are automatically verified via official commission portals and web signals. The conducting commission&rsquo;s official portal remains the sole legal authority.
+            Status updates are automatically verified via official commission portals and web
+            signals. The conducting commission&rsquo;s official portal remains the sole legal
+            authority.
           </p>
         </div>
       ) : null}
 
       {/* Track Another Exam Modal */}
       <AttemptForm
-        exams={exams}
         open={formOpen}
         onClose={() => {
           setFormOpen(false);

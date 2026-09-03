@@ -18,7 +18,12 @@ function mockAttempt(overrides: Partial<ExamAttempt> = {}): ExamAttempt {
     score: null,
     notes: null,
     job_id: null,
-    exam: { slug: "upsc-cse", name: "UPSC Civil Services", short_name: "UPSC CSE" },
+    exam: {
+      slug: "upsc-cse",
+      name: "UPSC Civil Services",
+      short_name: "UPSC CSE",
+      organization: null,
+    },
     job: null,
     ...overrides,
   };
@@ -83,7 +88,13 @@ describe("computeStages", () => {
   it("defaults to 5 stages when no report is passed", () => {
     const stages = computeStages("tracking", null, null);
     expect(stages).toHaveLength(5);
-    expect(stages.map((s) => s.shortLabel)).toEqual(["Apply", "Admit", "Prelims", "Mains", "Result"]);
+    expect(stages.map((s) => s.shortLabel)).toEqual([
+      "Apply",
+      "Admit",
+      "Prelims",
+      "Mains",
+      "Result",
+    ]);
   });
 
   it("marks Apply as current when status is tracking without applied_at", () => {
@@ -122,9 +133,9 @@ describe("computeStages", () => {
     const stages = computeStages("appeared", null, null);
     expect(stages[0]?.state).toBe("completed"); // Apply
     expect(stages[1]?.state).toBe("completed"); // Admit
-    expect(stages[2]?.state).toBe("current");   // Prelims — sat for it, waiting for result
-    expect(stages[3]?.state).toBe("upcoming");  // Mains
-    expect(stages[4]?.state).toBe("upcoming");  // Result
+    expect(stages[2]?.state).toBe("current"); // Prelims — sat for it, waiting for result
+    expect(stages[3]?.state).toBe("upcoming"); // Mains
+    expect(stages[4]?.state).toBe("upcoming"); // Result
   });
 
   // Bug (e) fix: appeared for Mains advances to Final Result
@@ -141,7 +152,7 @@ describe("computeStages", () => {
     expect(stages[1]?.state).toBe("completed"); // Admit
     expect(stages[2]?.state).toBe("completed"); // Prelims
     expect(stages[3]?.state).toBe("completed"); // Mains
-    expect(stages[4]?.state).toBe("current");   // Final Result
+    expect(stages[4]?.state).toBe("current"); // Final Result
   });
 
   it("marks phase 2 as current when passed without stage hint (defaults to passed-prelims on 2-phase)", () => {
@@ -151,8 +162,8 @@ describe("computeStages", () => {
     expect(stages[0]?.state).toBe("completed"); // Apply
     expect(stages[1]?.state).toBe("completed"); // Admit
     expect(stages[2]?.state).toBe("completed"); // Prelims
-    expect(stages[3]?.state).toBe("current");   // Mains
-    expect(stages[4]?.state).toBe("upcoming");  // Result
+    expect(stages[3]?.state).toBe("current"); // Mains
+    expect(stages[4]?.state).toBe("upcoming"); // Result
   });
 
   it("marks phase 2 as current when user passed prelims of a two-phase exam", () => {
@@ -167,8 +178,8 @@ describe("computeStages", () => {
     expect(stages[0]?.state).toBe("completed"); // Apply
     expect(stages[1]?.state).toBe("completed"); // Admit
     expect(stages[2]?.state).toBe("completed"); // Tier 1
-    expect(stages[3]?.state).toBe("current");   // Tier 2
-    expect(stages[4]?.state).toBe("upcoming");  // Result
+    expect(stages[3]?.state).toBe("current"); // Tier 2
+    expect(stages[4]?.state).toBe("upcoming"); // Result
   });
 
   it("builds 4 stages for single-phase exams", () => {
@@ -302,12 +313,35 @@ describe("computeStages", () => {
     expect(stages[1]?.state).toBe("completed"); // Admit
     expect(stages[2]?.state).toBe("completed"); // Prelims
     expect(stages[3]?.state).toBe("completed"); // Mains
-    expect(stages[4]?.state).toBe("current");   // Result
+    expect(stages[4]?.state).toBe("current"); // Result
   });
 });
 
 describe("computeNextEvent", () => {
   const today = "2026-09-01";
+
+  it("falls back to the job's closing date when no report has one", () => {
+    const attempt = mockAttempt({
+      status: "tracking",
+      exam_id: null,
+      job_id: "job-1",
+      job: {
+        slug: "ssc-cgl-2026",
+        title: "SSC CGL 2026",
+        last_date: "2026-09-04",
+        application_start_date: "2026-08-01",
+        status: "published",
+        organization: null,
+      },
+    });
+
+    const next = computeNextEvent("tracking", attempt, null, today);
+
+    expect(next?.title).toBe("Application Deadline");
+    expect(next?.date).toContain("4 Sept 2026");
+    expect(next?.date).toContain("In 3 days");
+    expect(next?.tone).toBe("warn");
+  });
 
   it("returns Result as next milestone when exam date is in the past", () => {
     const pastExamReport = mockReport({
@@ -468,4 +502,3 @@ describe("computeNextEvent", () => {
     expect(next?.date).toContain("15 Nov 2026");
   });
 });
-

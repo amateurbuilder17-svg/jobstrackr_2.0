@@ -160,7 +160,8 @@ export function StatusPanel({ attemptId, name, initial }: Props) {
         />
       ) : (
         <p className="mt-2.5 text-xs leading-5 text-ink-3">
-          No automated status report yet. Click below to verify admit cards, exam dates, and official announcements.
+          No automated status report yet. Click below to verify admit cards, exam dates, and
+          official announcements.
         </p>
       )}
 
@@ -256,17 +257,12 @@ function Summary({
       >
         <span>{expanded ? "Hide detailed breakdown" : "Show detailed breakdown"}</span>
         <ChevronRightIcon
-          className={cn(
-            "size-3.5 transition-transform duration-200",
-            expanded && "rotate-90",
-          )}
+          className={cn("size-3.5 transition-transform duration-200", expanded && "rotate-90")}
         />
       </button>
     </div>
   );
 }
-
-
 
 /* ── Expanded ──────────────────────────────────────────────────────────── */
 
@@ -279,9 +275,7 @@ function Detail({ report }: { report: ExamStatusReport }) {
       {/* AI summary text */}
       {report.report.summary ? (
         <div className="rounded-xl border border-line/70 bg-surface/90 p-3 shadow-2xs dark:border-white/5 dark:bg-surface/60">
-          <p className="text-xs leading-relaxed text-ink-2">
-            {report.report.summary}
-          </p>
+          <p className="text-xs leading-relaxed text-ink-2">{report.report.summary}</p>
         </div>
       ) : null}
 
@@ -290,52 +284,56 @@ function Detail({ report }: { report: ExamStatusReport }) {
           <ol className="relative ml-2 flex flex-col gap-3 border-l-2 border-line/80 pl-4">
             {[...report.report.events]
               .sort((a, b) => a.date.localeCompare(b.date))
-              .filter((ev, i, arr) => i === 0 || ev.date >= arr[i - 1]!.date)
+              .filter((ev, i, arr) => i === 0 || ev.date >= (arr[i - 1]?.date ?? ev.date))
               .map((event) => {
-              const days = today === null ? null : daysUntilFrom(today, event.date);
-              const ahead = days !== null && days >= 0;
+                const days = today === null ? null : daysUntilFrom(today, event.date);
+                const ahead = days !== null && days >= 0;
 
-              return (
-                <li
-                  key={`${event.type}-${event.date}-${String(event.phase ?? 0)}`}
-                  className="relative"
-                >
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "absolute top-1.5 -left-[21px] size-2.5 rounded-full ring-4 ring-surface dark:ring-surface",
-                      ahead ? "bg-accent" : "bg-line-strong",
-                    )}
-                  />
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-xs font-medium text-ink-2">
-                      {event.phase !== null && twoPhases ? (
-                        <>
-                          {shortenPhaseName(phaseOf(report.report, event.phase === 2 ? 2 : 1)?.name ?? "")}
-                          {" · "}
-                        </>
-                      ) : null}
-                      {EVENT_LABELS[event.type]}
-                    </span>
-                    <span className="tabular shrink-0 text-right text-xs sm:text-sm font-bold text-ink">
-                      {formatDate(event.date)}
-                      {event.certainty === "low" ? (
-                        <span className="ml-1 text-2xs font-normal text-ink-3">(expected)</span>
-                      ) : null}
-                    </span>
-                  </div>
-                  {days !== null ? (
-                    <p className="tabular text-[11px] font-medium text-ink-3 mt-0.5">
-                      {days === 0
-                        ? "today"
-                        : ahead
-                          ? `in ${String(days)} ${days === 1 ? "day" : "days"}`
-                          : `${String(Math.abs(days))} ${Math.abs(days) === 1 ? "day" : "days"} ago`}
-                    </p>
-                  ) : null}
-                </li>
-              );
-            })}
+                return (
+                  <li
+                    key={`${event.type}-${event.date}-${String(event.phase ?? 0)}`}
+                    className="relative"
+                  >
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "absolute top-1.5 -left-[21px] size-2.5 rounded-full ring-4 ring-surface dark:ring-surface",
+                        ahead ? "bg-accent" : "bg-line-strong",
+                      )}
+                    />
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-xs font-medium text-ink-2">
+                        {event.phase !== null && twoPhases ? (
+                          <>
+                            {shortenPhaseName(
+                              phaseOf(report.report, event.phase === 2 ? 2 : 1)?.name ?? "",
+                            )}
+                            {" · "}
+                          </>
+                        ) : null}
+                        {EVENT_LABELS[event.type]}
+                      </span>
+                      <span className="tabular shrink-0 text-right text-xs sm:text-sm font-bold text-ink">
+                        {formatDate(event.date)}
+                        {event.certainty === "low" ? (
+                          <span className="ml-1 text-2xs font-normal text-ink-3">
+                            (expected)
+                          </span>
+                        ) : null}
+                      </span>
+                    </div>
+                    {days !== null ? (
+                      <p className="tabular text-[11px] font-medium text-ink-3 mt-0.5">
+                        {days === 0
+                          ? "today"
+                          : ahead
+                            ? `in ${String(days)} ${days === 1 ? "day" : "days"}`
+                            : `${String(Math.abs(days))} ${Math.abs(days) === 1 ? "day" : "days"} ago`}
+                      </p>
+                    ) : null}
+                  </li>
+                );
+              })}
           </ol>
         </Section>
       ) : null}
@@ -359,7 +357,10 @@ function Detail({ report }: { report: ExamStatusReport }) {
         <Section title="Recommended next steps">
           <ul className="flex flex-col gap-2 rounded-xl border border-accent-line/80 bg-gradient-to-br from-accent-soft/90 to-accent-soft/40 p-3.5 sm:p-4 shadow-2xs">
             {report.report.recommendations.map((line) => (
-              <li key={line} className="flex items-start gap-2.5 text-xs leading-relaxed text-ink-2">
+              <li
+                key={line}
+                className="flex items-start gap-2.5 text-xs leading-relaxed text-ink-2"
+              >
                 <CheckIcon className="mt-0.5 size-3.5 shrink-0 text-accent" />
                 <span>{line}</span>
               </li>
@@ -390,7 +391,8 @@ function Detail({ report }: { report: ExamStatusReport }) {
 
       <p className="text-[11px] leading-4 text-ink-3">
         Researched automatically by {report.model}
-        {report.grounded ? " with real-time web verification" : ""}. Always verify details on the conducting body&rsquo;s official portal.
+        {report.grounded ? " with real-time web verification" : ""}. Always verify details on
+        the conducting body&rsquo;s official portal.
       </p>
     </div>
   );
@@ -469,7 +471,9 @@ function Fact({
         {term}
       </dt>
       <dd className="flex min-w-0 items-center gap-2 text-right">
-        {detail ? <span className="truncate text-xs text-ink-3 font-medium">{detail}</span> : null}
+        {detail ? (
+          <span className="truncate text-xs text-ink-3 font-medium">{detail}</span>
+        ) : null}
         <Badge tone={tone} className="tabular font-medium shadow-2xs">
           {value}
         </Badge>

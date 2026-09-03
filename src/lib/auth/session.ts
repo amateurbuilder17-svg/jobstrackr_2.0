@@ -75,6 +75,40 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
 });
 
 /**
+ * Whether this account already has a password.
+ *
+ * There is no direct answer to this question on the client. `encrypted_password`
+ * lives in `auth.users`, which is not an exposed schema, and — the part that
+ * makes this awkward — setting a password on an account that signed up with
+ * Google changes *nothing* observable in the session. The identity row stays
+ * `google`, `app_metadata.providers` stays `["google"]`, and the JWT is
+ * byte-for-byte the shape it was before. Verified against the local stack
+ * rather than assumed.
+ *
+ * So the answer is assembled from the two things that *are* visible:
+ *
+ *   - `providers` contains `email` — signed up with an address and a password,
+ *     so there has always been one.
+ *   - `user_metadata.has_password` — written by `updatePasswordAction` at the
+ *     moment a password is set, precisely because nothing else records it.
+ *
+ * `user_metadata` is user-writable, so a determined person can make this return
+ * true when it is false. That is worth being explicit about and is fine here:
+ * the only thing downstream of this is which of two words a button uses. It
+ * gates no access and reveals nothing — the reset flow behaves identically
+ * either way. Never widen it into something that does.
+ *
+ * The remaining wrong answer is honest rather than forged: a password set
+ * outside this app — the Supabase dashboard, a direct admin call — leaves no
+ * metadata behind, so the button keeps offering to set one. It still works.
+ */
+export function userHasPassword(user: User): boolean {
+  const providers = user.app_metadata.providers;
+  if (Array.isArray(providers) && providers.includes("email")) return true;
+  return user.user_metadata.has_password === true;
+}
+
+/**
  * Who the top bar is drawing, and nothing else.
  *
  * Deliberately not `getProfile()`. That selects thirteen columns to render the
@@ -98,6 +132,8 @@ export interface Identity {
   /** Null when there is no name and no address to derive one from. */
   initials: string | null;
   isAdmin: boolean;
+  /** Whether this account can be signed into with a password. See `userHasPassword`. */
+  hasPassword: boolean;
 }
 
 export async function getIdentity(): Promise<Identity | null> {
@@ -117,7 +153,13 @@ export async function getIdentity(): Promise<Identity | null> {
   const name = nameResult.data?.full_name ?? null;
   const email = user.email ?? null;
 
-  return { name, email, initials: initialsFrom(name, email), isAdmin: admin };
+  return {
+    name,
+    email,
+    initials: initialsFrom(name, email),
+    isAdmin: admin,
+    hasPassword: userHasPassword(user),
+  };
 }
 
 /**

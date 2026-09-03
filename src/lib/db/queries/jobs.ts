@@ -180,7 +180,8 @@ export async function listJobs(options: JobListOptions = {}): Promise<Page<JobCa
   // matched almost nothing: the Tamil Nadu chip found 1 job where 20 named the
   // state. `location_state` is the generated, normalised answer; see migration
   // 0023.
-  if (options.state && options.state !== "All India") query = query.eq("location_state", options.state);
+  if (options.state && options.state !== "All India")
+    query = query.eq("location_state", options.state);
 
   // Both are typed enums the ingest path already derives, so these filter on
   // real data rather than on `tags`, which is populated on 129 rows out of

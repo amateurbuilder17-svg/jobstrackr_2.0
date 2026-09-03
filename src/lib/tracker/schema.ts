@@ -1,69 +1,63 @@
 import { z } from "zod";
 
-import { ATTEMPT_STATUSES } from "./enums";
-
 /**
- * What the tracker form accepts.
+ * What the tracker's add form accepts.
  *
- * Mirrors `exam_attempts_has_subject` and `exam_attempts_status_known` from the
- * migrations. The subject rule is the interesting one: a row must name an exam
- * this app knows, or carry free text, and enforcing that only in Postgres would
- * surface as an opaque constraint violation in the form.
+ * ── Why this is two fields ────────────────────────────────────────────────
+ * It used to be ten: an exam picker, a free-text name, status, stage, three
+ * dates, a roll number, a score and a notes box. Every one of them asked the
+ * user for something the app already knows or is about to find out — the
+ * notification carries its own dates and deadline, and the AI status report
+ * (Module 19) is what fills in where the exam has actually got to. Asking for
+ * them anyway meant a wall of empty inputs standing between "I want to track
+ * SSC CGL" and a tracked exam, and the answers typed into it went stale the
+ * moment the commission moved a date.
+ *
+ * So the form asks the one question only the user can answer — *which* exam —
+ * and everything else is derived. Status still exists on the row; it defaults
+ * to 'tracking' in the schema and is changed by the inline control on each
+ * card, which is one tap rather than a round trip through a dialog.
+ *
+ * Mirrors `exam_attempts_has_subject`: a row must name a job this app knows or
+ * carry free text. Enforcing that only in Postgres would surface as an opaque
+ * constraint violation under the input.
  */
-
-const optional = (max: number) =>
-  z
-    .string()
-    .trim()
-    .max(max, `Keep this under ${String(max)} characters.`)
-    .transform((v) => (v === "" ? null : v))
-    .nullable();
-
-const optionalDate = z
-  .string()
-  .trim()
-  .transform((v) => (v === "" ? null : v))
-  .nullable()
-  .refine((v) => v === null || !Number.isNaN(Date.parse(v)), {
-    message: "Enter a valid date.",
-  });
 
 export const attemptSchema = z
   .object({
-    examId: z
+    /**
+     * The notification the user picked from the suggestions.
+     *
+     * When this is set the row needs nothing else: `listExamAttempts` joins the
+     * job for its title, closing date and application window, and the status
+     * panel keys its AI report on `job:<id>`.
+     */
+    jobId: z
       .string()
       .trim()
       .transform((v) => (v === "" ? null : v))
       .nullable()
       .refine((v) => v === null || z.uuid().safeParse(v).success, {
-        message: "Pick an exam from the list.",
+        message: "Pick an exam from the suggestions, or type its name.",
       }),
 
-    customName: optional(160),
-    stage: optional(80),
-    status: z.enum(ATTEMPT_STATUSES),
-
-    appliedAt: optionalDate,
-    examDate: optionalDate,
-    resultDate: optionalDate,
-
-    rollNumber: optional(60),
-
-    score: z
-      .union([z.string(), z.number()])
-      .transform((v) => (v === "" ? null : Number(v)))
-      .nullable()
-      .refine((v) => v === null || (Number.isFinite(v) && v >= 0 && v <= 999999), {
-        message: "Enter a number.",
-      }),
-
-    notes: optional(2000),
+    /**
+     * What they typed, kept when it matched nothing.
+     *
+     * The suggestions only cover notifications this app has ingested, and
+     * telling somebody their exam does not exist is absurd — a state exam we
+     * have not scraped yet is still an exam they are sitting. The AI status
+     * refresh works from the name alone.
+     */
+    customName: z
+      .string()
+      .trim()
+      .max(160, "Keep this under 160 characters.")
+      .transform((v) => (v === "" ? null : v))
+      .nullable(),
   })
-  .refine((v) => v.examId !== null || v.customName !== null, {
-    // Without a subject the row means nothing, and the database refuses it.
-    // Reported on `customName` because that is the field someone can always
-    // fill in — the exam list may simply not contain what they are sitting.
-    message: "Choose an exam, or type its name.",
+  .refine((v) => v.jobId !== null || v.customName !== null, {
+    message: "Type an exam name, or pick one from the suggestions.",
     path: ["customName"],
   });
 

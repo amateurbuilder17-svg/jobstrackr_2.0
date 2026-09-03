@@ -1472,6 +1472,7 @@ export type Database = {
           vacancies_display: string
         }[]
       }
+      merge_duplicate_jobs: { Args: never; Returns: number }
       popular_exams: {
         Args: { p_limit?: number }
         Returns: {

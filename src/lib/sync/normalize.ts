@@ -147,13 +147,29 @@ export function toJson<T>(value: unknown, fallback: T): T {
   }
 }
 
-/** A text[] column, from either an array or a comma-separated cell. */
+/** A text[] column, from an array, a JSON-array cell, or a comma-separated one. */
 export function toStringArray(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.map((v) => cellText(v) ?? "").filter(Boolean);
   }
   const text = cellText(value);
   if (text === null) return [];
+
+  // A cell holding a JSON array, which is what a script that builds one in
+  // memory and writes it without joining leaves behind. Comma-splitting that
+  // produces `["[]"]` for an empty array — a badge reading "[]", which is what
+  // 5,978 exam_updates rows carried — and `['["a"', '"b"]']` for a full one.
+  // Handled here rather than at a call site, because any cell this function
+  // reads can arrive in that shape.
+  if (text.startsWith("[")) {
+    try {
+      const parsed: unknown = JSON.parse(text);
+      if (Array.isArray(parsed)) return parsed.map((v) => cellText(v) ?? "").filter(Boolean);
+    } catch {
+      // Not JSON after all — fall through to the comma split.
+    }
+  }
+
   return text
     .split(",")
     .map((v) => v.trim())

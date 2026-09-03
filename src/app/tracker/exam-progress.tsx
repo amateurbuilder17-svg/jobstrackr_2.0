@@ -2,7 +2,13 @@ import { CheckIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import type { ExamAttempt } from "@/lib/db/queries/attempts";
 import { daysUntilFrom, formatDate } from "@/lib/format/deadline";
-import { examDateOf, hasSecondPhase, phaseOf, resultDateOf, type ExamStatusReport } from "@/lib/exams/report";
+import {
+  examDateOf,
+  hasSecondPhase,
+  phaseOf,
+  resultDateOf,
+  type ExamStatusReport,
+} from "@/lib/exams/report";
 import type { AttemptStatus } from "@/lib/tracker/enums";
 
 export interface Stage {
@@ -14,10 +20,7 @@ export interface Stage {
   link?: string | null;
 }
 
-type AttemptStageInfo = Pick<
-  ExamAttempt,
-  "stage" | "applied_at" | "exam_date" | "result_date"
->;
+type AttemptStageInfo = Pick<ExamAttempt, "stage" | "applied_at" | "exam_date" | "result_date">;
 
 function shortenLabel(label: string): string {
   const l = label.trim();
@@ -30,8 +33,10 @@ function shortenLabel(label: string): string {
   if (lower.includes("written")) return "Exam";
   if (lower.includes("cbt") || lower.includes("computer based")) return "CBT";
   if (lower.includes("interview") || lower.includes("personality")) return "Interview";
-  if (lower.includes("physical") || lower.includes("pet") || lower.includes("pst")) return "Physical";
-  if (lower.includes("skill") || lower.includes("typing") || lower.includes("trade")) return "Skill Test";
+  if (lower.includes("physical") || lower.includes("pet") || lower.includes("pst"))
+    return "Physical";
+  if (lower.includes("skill") || lower.includes("typing") || lower.includes("trade"))
+    return "Skill Test";
   if (l.length > 8) return l.slice(0, 8);
   return l;
 }
@@ -71,13 +76,13 @@ export function computeStages(
   const phase2Name = phase2?.name ?? "Mains / Tier 2";
 
   // Build stage templates based on whether the exam has 1 or 2 examination phases
-  type StageTemplate = {
+  interface StageTemplate {
     key: string;
     label: string;
     shortLabel: string;
     detail?: string | null;
     link?: string | null;
-  };
+  }
 
   const applyDetail = attempt?.applied_at
     ? `Applied ${formatDate(attempt.applied_at) ?? ""}`
@@ -119,11 +124,10 @@ export function computeStages(
   const finalPhase = twoPhases ? phase2 : phase1;
   const finalPhaseNum: 1 | 2 = twoPhases ? 2 : 1;
   const finalResultDate =
-    (rep ? resultDateOf(rep, finalPhaseNum) : null) ??
-    finalPhase?.resultDate ??
-    null;
+    (rep ? resultDateOf(rep, finalPhaseNum) : null) ?? finalPhase?.resultDate ?? null;
   const finalResultDetail =
-    finalPhase?.resultAvailable || (status === "passed" && !isStage2(attempt?.stage) && !twoPhases) ||
+    finalPhase?.resultAvailable ||
+    (status === "passed" && !isStage2(attempt?.stage) && !twoPhases) ||
     (status === "passed" && twoPhases && isStage2(attempt?.stage))
       ? "Declared"
       : finalResultDate
@@ -131,8 +135,7 @@ export function computeStages(
         : null;
 
   // Phase 1 result info — shown on the Phase 1 stage card for 2-phase exams
-  const phase1ResultDate =
-    (rep ? resultDateOf(rep, 1) : null) ?? phase1?.resultDate ?? null;
+  const phase1ResultDate = (rep ? resultDateOf(rep, 1) : null) ?? phase1?.resultDate ?? null;
   const phase1ResultDetail =
     phase1?.resultAvailable || (status === "passed" && !isStage2(attempt?.stage) && twoPhases)
       ? "Result declared"
@@ -267,10 +270,7 @@ export function computeStages(
         phase1?.admitCardAvailable
       ) {
         reportIndex = 2; // at prelims
-      } else if (
-        rep.stage === "registration_closed" ||
-        rep.stage === "exam_scheduled"
-      ) {
+      } else if (rep.stage === "registration_closed" || rep.stage === "exam_scheduled") {
         reportIndex = 1;
       }
     } else {
@@ -284,10 +284,7 @@ export function computeStages(
         phase1?.admitCardAvailable
       ) {
         reportIndex = 2;
-      } else if (
-        rep.stage === "registration_closed" ||
-        rep.stage === "exam_scheduled"
-      ) {
+      } else if (rep.stage === "registration_closed" || rep.stage === "exam_scheduled") {
         reportIndex = 1;
       }
     }
@@ -302,9 +299,7 @@ export function computeStages(
       state = "completed";
     } else if (idx === activeIndex) {
       state =
-        activeIndex >= templates.length ||
-        status === "failed" ||
-        status === "withdrawn"
+        activeIndex >= templates.length || status === "failed" || status === "withdrawn"
           ? "completed"
           : "current";
     } else {
@@ -317,13 +312,7 @@ export function computeStages(
   });
 }
 
-export function ExamProgress({
-  stages,
-  className,
-}: {
-  stages: Stage[];
-  className?: string;
-}) {
+export function ExamProgress({ stages, className }: { stages: Stage[]; className?: string }) {
   return (
     <ol className={cn("flex w-full items-start gap-0", className)} aria-label="Exam progress">
       {stages.map((stage, i) => (
@@ -574,7 +563,8 @@ export function computeNextEvent(
     const countdown = formatCountdown(p1ResultDays);
     return {
       title: twoPhases ? `${p1Name} Result Declaration` : "Result Declaration",
-      date: [formatDate(p1ResultDate), countdown].filter(Boolean).join(" · ") || "Expected soon",
+      date:
+        [formatDate(p1ResultDate), countdown].filter(Boolean).join(" · ") || "Expected soon",
       subtitle: `${twoPhases ? p1Name : "Exam"} completed · Awaiting result`,
       tone: "accent",
     };
@@ -652,8 +642,14 @@ export function computeNextEvent(
   }
 
   // 5. Status is tracking
+  //
+  // The report's own closing date first, then the one on the notification the
+  // attempt came from. Without that fallback a row the tracker has just filed
+  // under "Applications closing" — which it can do from `job.last_date` alone
+  // — showed "Official Notification & Dates · To be announced" in the box
+  // underneath, contradicting the section it was sitting in.
   const appCloseEvent = rep?.events.find((e) => e.type === "application_close");
-  const appCloseDate = appCloseEvent?.date ?? null;
+  const appCloseDate = appCloseEvent?.date ?? attempt.job?.last_date ?? null;
   if (appCloseDate) {
     const days = today ? daysUntilFrom(today, appCloseDate) : null;
     const appClosed = days !== null && days < 0;
@@ -674,11 +670,7 @@ export function computeNextEvent(
 
     if (!appClosed) {
       const countdown =
-        days !== null
-          ? days === 0
-            ? "Last day today!"
-            : `In ${String(days)} days`
-          : null;
+        days !== null ? (days === 0 ? "Last day today!" : `In ${String(days)} days`) : null;
       return {
         title: "Application Deadline",
         date: [formatDate(appCloseDate), countdown].filter(Boolean).join(" · "),
@@ -705,4 +697,3 @@ export function computeNextEvent(
     tone: "neutral",
   };
 }
-

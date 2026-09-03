@@ -27,13 +27,22 @@ const ROW =
   "disabled:pointer-events-none disabled:opacity-60";
 
 export function MenuSessionActions() {
-  const { ready, signedIn } = useSession();
+  const { ready, signedIn, identity } = useSession();
   const [resetState, resetAction, resetting] = useActionState(
     resetOwnPasswordAction,
     EMPTY_FORM_STATE,
   );
 
   if (!ready || !signedIn) return null;
+
+  // Someone who signed in with Google has no password to reset, and offering to
+  // reset one implies they have something they do not. The flow behind both
+  // labels is the same — the link sets whatever is there, or is not.
+  //
+  // Defaults to the reset wording when identity has not resolved: `signedIn` is
+  // true a beat before it arrives, and of the two labels that could flicker
+  // there, the one that was always shown is the safer thing to show first.
+  const hasPassword = identity?.hasPassword ?? true;
 
   return (
     <div className="flex flex-col gap-0.5 border-t border-line pt-2">
@@ -42,10 +51,12 @@ export function MenuSessionActions() {
           <KeyIcon className="size-[1.15rem] shrink-0 text-ink-3" />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-medium text-ink">
-              {resetting ? "Sending…" : "Reset password"}
+              {resetting ? "Sending…" : hasPassword ? "Reset password" : "Set a password"}
             </span>
             <span className="block truncate text-xs text-ink-3">
-              We email you a link to set a new one
+              {hasPassword
+                ? "We email you a link to set a new one"
+                : "Sign in with an email and password too"}
             </span>
           </span>
         </button>

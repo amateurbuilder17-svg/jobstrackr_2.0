@@ -61,13 +61,23 @@ export function InfiniteUpdateList({
       fetchNextPage,
     });
 
+  const hasFilters = Boolean(filterParams.category ?? filterParams.exam ?? filterParams.q);
+
+  const countLabel = useMemo(() => {
+    if (nextCursor) {
+      if (!hasFilters) {
+        return "5,000+ updates";
+      }
+      return `${String(Math.max(items.length, 100))}+ updates`;
+    }
+    return `${String(items.length)} update${items.length === 1 ? "" : "s"}`;
+  }, [nextCursor, hasFilters, items.length]);
+
   return (
     <>
       <div className="mt-2 flex items-center justify-between gap-3 border-b border-line pb-1.5">
         <p aria-live="polite" className="tabular text-xs text-ink-3">
-          {nextCursor
-            ? `${String(items.length)}+ updates`
-            : `${String(items.length)} update${items.length === 1 ? "" : "s"}`}
+          {countLabel}
         </p>
         {sortOptions ? (
           <Suspense fallback={<div className="h-8" />}>
@@ -79,7 +89,7 @@ export function InfiniteUpdateList({
       <ul className="mt-4 flex flex-col gap-3" onClickCapture={recordClickPosition}>
         {items.map((update) => (
           <li key={update.id}>
-            <UpdateCard update={update} />
+            <UpdateCard update={update} variant="card" />
           </li>
         ))}
       </ul>
@@ -90,14 +100,14 @@ export function InfiniteUpdateList({
       {/* Loading skeletons */}
       {isLoading ? (
         <div className="mt-4 flex flex-col gap-3">
-          <UpdateCardSkeleton />
-          <UpdateCardSkeleton />
+          <UpdateCardSkeleton variant="card" />
+          <UpdateCardSkeleton variant="card" />
         </div>
       ) : null}
 
       {/* Error state with retry */}
       {isError ? (
-        <div className="mt-6 flex flex-col items-center justify-center gap-2 py-4">
+        <div className="mt-4 flex flex-col items-center justify-center gap-2 py-4">
           <p className="text-xs text-ink-3">Could not load more updates.</p>
           <button
             type="button"
@@ -116,7 +126,7 @@ export function InfiniteUpdateList({
 
       {/* End of feed message */}
       {!nextCursor && items.length > 0 ? (
-        <p className="mt-6 text-center text-xs text-ink-3">That is every matching update.</p>
+        <p className="mt-4 text-center text-xs text-ink-3">That is every matching update.</p>
       ) : null}
     </>
   );

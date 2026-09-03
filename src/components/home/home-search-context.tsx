@@ -102,7 +102,8 @@ export function HomeEmptySearchResults() {
     <div className="rounded-2xl border border-border bg-card p-8 text-center shadow-card animate-in fade-in duration-200">
       <p className="text-base font-bold text-foreground">No matches found</p>
       <p className="mt-1 text-sm text-muted-foreground">
-        No exams, jobs, or updates match {query ? `"${query}"` : "the selected filters"}. Try adjusting your keywords or filters.
+        No exams, jobs, or updates match {query ? `"${query}"` : "the selected filters"}. Try
+        adjusting your keywords or filters.
       </p>
     </div>
   );

@@ -30,25 +30,6 @@ const UPDATE_SORTS = [
  * from the CDN; only `<Results>` reads them, inside Suspense. Same structure as
  * /jobs, and for the same reason — the filters and heading paint immediately
  * while the query runs.
- *
- * ── What this replaces ────────────────────────────────────────────────────
- * The old "Trending" page had a search box, eight category tabs, two dropdown
- * filters, a Latest toggle, active filter pills and a 24-hour section. It did
- * all of it in the browser, over the newest 100 rows it had downloaded, with a
- * second whole-table search bolted on beside it and a Framer-animated bar that
- * hid itself as you scrolled.
- *
- * This does the finding in Postgres against a GIN index, keeps every choice in
- * the URL so a filtered feed is shareable, and drops two things on purpose:
- *
- *   **The refresh button.** Content arrives here by tag invalidation. A button
- *   that cannot fetch anything newer than the CDN already holds is a lie about
- *   how the system works.
- *
- *   **The location filter.** The old one matched state names and their
- *   abbreviations against an exam's name and description, and returned
- *   confident nonsense. Exam updates carry no state column. It comes back when
- *   there is something real to filter on.
  */
 export default function UpdatesPage({ searchParams }: { searchParams: SearchParams }) {
   return (
@@ -61,7 +42,7 @@ export default function UpdatesPage({ searchParams }: { searchParams: SearchPara
       {/* Search lives in the top bar on this route — see `TopBar`. Suspense
           because these read useSearchParams, which would otherwise opt the
           whole route out of static rendering. */}
-      <Suspense fallback={<div className="h-9" />}>
+      <Suspense fallback={<div className="h-10" />}>
         <FilterChips param="category" label="Filter by type" options={CATEGORY_FILTERS} />
       </Suspense>
 
@@ -95,12 +76,17 @@ async function Results({ searchParams }: { searchParams: SearchParams }) {
   if (page.items.length === 0) {
     // Names what was searched rather than shrugging. "No updates match those
     // filters" tells someone nothing they did not already know.
-    const applied = [query ? `“${query}”` : null, category, examSlug]
+    const applied = [
+      query ? `“${query}”` : null,
+      category ? (CATEGORY_FILTERS.find((f) => f.value === category)?.label ?? category) : null,
+      examSlug,
+      sort !== "newest" ? "Oldest" : null,
+    ]
       .filter(Boolean)
       .join(" · ");
 
     return (
-      <div className="mt-8 rounded-lg border border-dashed border-line px-6 py-12 text-center">
+      <div className="mt-6 rounded-lg border border-dashed border-line px-6 py-12 text-center">
         <p className="font-semibold text-ink">Nothing here{applied ? ` for ${applied}` : ""}</p>
         <p className="mt-1 text-sm text-ink-2">
           Updates are collected from official sources as they are announced. Try a broader
@@ -110,7 +96,7 @@ async function Results({ searchParams }: { searchParams: SearchParams }) {
           href="/updates"
           className="mt-4 inline-block text-sm font-semibold text-accent hover:underline"
         >
-          Show everything
+          Clear all filters
         </Link>
       </div>
     );
@@ -149,7 +135,7 @@ function ResultsSkeleton() {
       <ul className="mt-4 flex flex-col gap-3" aria-busy="true" aria-label="Loading updates">
         {Array.from({ length: 6 }, (_, i) => (
           <li key={i}>
-            <UpdateCardSkeleton />
+            <UpdateCardSkeleton variant="card" />
           </li>
         ))}
       </ul>

@@ -24,7 +24,13 @@ const contentSecurityPolicy = [
   // 'unsafe-inline' in both; see above.
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https:",
+  // Named, not `https:`. The blanket form let this app load an image from
+  // anywhere on the web and — because it is a *scheme* match — silently refused
+  // the one origin it actually needs in development, where Supabase is
+  // http://127.0.0.1. Organisation logos are served from the storage bucket, so
+  // every remote image this app draws comes from the origin below; nothing else
+  // has any business being rendered here. Same reasoning as `connect-src`.
+  `img-src 'self' data: blob: ${supabaseOrigin}`,
   "font-src 'self' data:",
   `connect-src 'self' ${supabaseOrigin} https://*.supabase.co wss://*.supabase.co`,
   "frame-ancestors 'none'",

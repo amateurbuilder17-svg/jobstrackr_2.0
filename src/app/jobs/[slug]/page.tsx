@@ -3,8 +3,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
+import { BuildingIcon } from "@/components/icons";
+import { OrganizationLogo } from "@/components/home/organization-logo";
+import { toInitials } from "@/components/home/monogram";
 import { ChangeLog } from "@/components/jobs/change-log";
-import { DeadlineBadge } from "@/components/jobs/deadline-badge";
+import { JobDeadlineChip } from "@/components/jobs/job-deadline-chip";
+import { JobDetailGrid } from "@/components/jobs/job-detail-grid";
 import {
   ApplicationFees,
   ImportantDates,
@@ -19,7 +23,6 @@ import {
 import { JobActions } from "@/components/jobs/job-actions";
 import { JobCard, JobCardSkeleton } from "@/components/jobs/job-card";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { env } from "@/lib/env";
 import {
   formatCount,
@@ -28,7 +31,8 @@ import {
   formatSalary,
   formatVacancies,
 } from "@/lib/format/deadline";
-import { maxFee, toFeeRows } from "@/lib/jobs/detail-shape";
+import { maxFee, toFeeRows, toImportantDates } from "@/lib/jobs/detail-shape";
+import { sectorLabel } from "@/lib/jobs/sectors";
 import {
   getJobBySlug,
   listJobChanges,
@@ -121,16 +125,21 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
         ? `₹${String(job.application_fee)}`
         : formatFallbackFee(detail?.application_fees ?? null);
 
-  const facts = [
-    { label: "Vacancies", value: vacancies },
-    { label: "Salary", value: salary },
-    { label: "Qualification", value: job.qualification_summary },
-    { label: "Age limit", value: formatAgeLimit(job.age_min, job.age_max) },
-    { label: "Location", value: job.location },
-    { label: "Application fee", value: fee },
-    { label: "Opens", value: formatDate(job.application_start_date) },
-    { label: "Closes", value: formatDeadlineText(job.last_date_display, job.last_date) },
-  ].filter((f) => f.value);
+  const importantDates = toImportantDates(detail?.important_dates ?? null);
+  const admitCardEntry = importantDates.find((d) =>
+    /admit[\s-]?card|hall[\s-]?ticket/i.test(d.event),
+  );
+  const examEntry = importantDates.find((d) => /exam/i.test(d.event));
+  const admitCardDate =
+    admitCardEntry?.date ?? (examEntry ? `Exam: ${examEntry.date}` : null);
+
+  const orgName = job.organization?.name.trim();
+  const orgShort = job.organization?.short_name?.trim();
+  const orgTitle =
+    orgName && orgShort && orgName.toLowerCase() !== orgShort.toLowerCase()
+      ? `${orgName} (${orgShort})`
+      : (orgName ?? orgShort ?? null);
+  const initials = toInitials(orgShort ?? orgName ?? "GOVT");
 
   const documents: QuickLink[] = detail?.notification_pdf
     ? [{ label: "Official notification (PDF)", url: detail.notification_pdf }]
@@ -140,7 +149,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
     // `relative` so the share confirmation can position against this column
     // rather than against the viewport. `pb-28` on mobile clears the fixed
     // action bar; without it the last section sits underneath it.
-    <div className="relative mx-auto max-w-3xl px-4 pt-8 pb-28 lg:px-6 lg:pb-12">
+    <div className="relative mx-auto max-w-3xl px-4 pt-6 pb-28 lg:px-6 lg:pb-12">
       {/* Emitted server-side so a crawler sees it in the initial HTML. */}
       <script
         type="application/ld+json"
@@ -150,30 +159,58 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
         }}
       />
 
-      <nav aria-label="Breadcrumb" className="text-xs text-ink-3">
-        <Link href="/jobs" className="hover:text-ink-2 hover:underline">
-          Jobs
+      {/* Top back navigation */}
+      <div className="flex items-center justify-between">
+        <Link
+          href="/jobs"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-ink transition-colors hover:text-ink-2"
+        >
+          <span className="text-base font-bold" aria-hidden="true">
+            ←
+          </span>
+          <span>Job Details</span>
         </Link>
-        <span aria-hidden> / </span>
-        <span className="text-ink-2">
-          {job.organization?.short_name ?? job.organization?.name ?? "Listing"}
-        </span>
-      </nav>
+      </div>
 
-      <header className="mt-3">
-        {job.organization ? (
-          <p className="cond text-2xs font-medium tracking-wide text-ink-3 uppercase">
-            {job.organization.name}
-          </p>
-        ) : null}
-        <h1 className="mt-1.5 text-2xl leading-tight font-semibold tracking-tight text-ink lg:text-3xl">
-          {job.title}
-        </h1>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <DeadlineBadge date={job.last_date} />
-          {job.tags.map((tag) => (
-            <Badge key={tag}>{tag}</Badge>
-          ))}
+      {/* Hero Header */}
+      <header className="mt-4 flex items-start gap-3.5 sm:gap-5">
+        {/* Left: Logo Squircle */}
+        <div
+          className="relative flex size-16 sm:size-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-line/70 bg-logo-plate p-2 shadow-xs"
+          aria-hidden="true"
+        >
+          <span className="cond select-none text-base sm:text-lg font-extrabold tracking-wider text-ink-2">
+            {initials}
+          </span>
+          {job.organization?.logo_path ? (
+            <OrganizationLogo path={job.organization.logo_path} />
+          ) : null}
+        </div>
+
+        {/* Right: Info */}
+        <div className="min-w-0 flex-1">
+          {orgTitle ? (
+            <div className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-brand">
+              <BuildingIcon className="size-4 shrink-0" aria-hidden="true" />
+              <span className="line-clamp-1">{orgTitle}</span>
+            </div>
+          ) : null}
+
+          <h1 className="mt-1 text-xl sm:text-2xl lg:text-3xl font-extrabold leading-tight tracking-tight text-ink">
+            {job.title}
+          </h1>
+
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <JobDeadlineChip date={job.last_date} />
+            {job.tags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center rounded-full border border-line bg-surface-2 px-2.5 py-0.5 text-xs font-medium text-ink-2 leading-normal"
+              >
+                {sectorLabel(tag)}
+              </span>
+            ))}
+          </div>
         </div>
       </header>
 
@@ -187,16 +224,18 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
         lastDateDisplay={job.last_date_display}
       />
 
-      <Card className="mt-6 p-0">
-        <dl className="divide-y divide-line">
-          {facts.map((fact) => (
-            <div key={fact.label} className="flex gap-4 px-4 py-3 text-sm">
-              <dt className="w-32 shrink-0 text-ink-3">{fact.label}</dt>
-              <dd className="tabular min-w-0 text-ink">{fact.value}</dd>
-            </div>
-          ))}
-        </dl>
-      </Card>
+      {/* 3x3 Key Facts Table Card */}
+      <JobDetailGrid
+        vacancies={vacancies}
+        salary={salary}
+        qualification={job.qualification_summary}
+        ageLimit={formatAgeLimit(job.age_min, job.age_max)}
+        location={job.location ?? job.state}
+        fee={fee}
+        opensOn={formatDate(job.application_start_date)}
+        closesOn={formatDeadlineText(job.last_date_display, job.last_date)}
+        admitCard={admitCardDate}
+      />
 
       {/* Above the prose deliberately: someone returning to a listing they
           saved is asking what moved, not what the post is. */}

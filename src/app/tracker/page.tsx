@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import { requireUser } from "@/lib/auth/session";
-import { listExamAttempts, listExams } from "@/lib/db/queries/attempts";
+import { listExamAttempts } from "@/lib/db/queries/attempts";
 import { listStatusReports } from "@/lib/db/queries/exam-status";
+import { listUpdateSignals, type ExamUpdateSignal } from "@/lib/db/queries/exam-updates";
 import type { ExamStatusReport } from "@/lib/exams/report";
 import { subjectKeyFor } from "@/lib/exams/subject";
+import { todayInIndia } from "@/lib/format/deadline";
 import { TrackerView } from "./tracker-view";
 
 export const metadata: Metadata = {
@@ -34,13 +36,37 @@ export default function TrackerPage() {
 async function Tracker() {
   await requireUser("/tracker");
 
-  const [attempts, exams] = await Promise.all([listExamAttempts(), listExams()]);
+  // `listExams()` used to ride along here to fill the add-form's picker. The
+  // picker is gone (the table holds no rows, and the form suggests live
+  // notifications instead), so this page makes one fewer read per view.
+  const attempts = await listExamAttempts();
 
   const keys = attempts.map(subjectKeyFor).filter((key): key is string => key !== null);
-  const reports = await listStatusReports(keys);
-  const byKey: Record<string, ExamStatusReport> = Object.fromEntries(reports);
 
-  return <TrackerView attempts={attempts} exams={exams} reports={byKey} />;
+  // Both reads are keyed on the same subjects and neither depends on the
+  // other, so they go together rather than one after the next.
+  const [reports, signals] = await Promise.all([
+    listStatusReports(keys),
+    listUpdateSignals(
+      attempts.map((a) => a.exam_id).filter((id): id is string => id !== null),
+      attempts.map((a) => a.job_id).filter((id): id is string => id !== null),
+    ),
+  ]);
+
+  const byKey: Record<string, ExamStatusReport> = Object.fromEntries(reports);
+  const signalsByKey: Record<string, ExamUpdateSignal[]> = Object.fromEntries(signals);
+
+  return (
+    <TrackerView
+      attempts={attempts}
+      reports={byKey}
+      signals={signalsByKey}
+      // Computed here rather than read from the client clock, so the grouping
+      // the server renders is the grouping that hydrates. `useToday` still
+      // drives the live countdowns, and takes over at IST midnight.
+      today={todayInIndia()}
+    />
+  );
 }
 
 function TrackerSkeleton() {
@@ -66,7 +92,10 @@ function TrackerSkeleton() {
       {/* Cards skeleton */}
       <div className="space-y-3 pt-2">
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="rounded-2xl border border-border bg-card p-4 shadow-card space-y-3">
+          <div
+            key={i}
+            className="rounded-2xl border border-border bg-card p-4 shadow-card space-y-3"
+          >
             <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3">
               <div className="skeleton size-9 rounded-xl" />
               <div className="space-y-1.5 flex-1">

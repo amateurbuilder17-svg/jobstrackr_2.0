@@ -52,7 +52,7 @@ export function Monogram({
  * untouched, so an all-caps input is returned as-is rather than having its own
  * first letters taken — which would turn "UPSC" into "U".
  */
-function toInitials(name: string | null | undefined): string | null {
+export function toInitials(name: string | null | undefined): string | null {
   const value = name?.trim();
   if (!value) return null;
 

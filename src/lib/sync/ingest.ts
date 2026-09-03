@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 
 import { adminDb } from "@/lib/db/clients";
+import { sectorTagsOf } from "@/lib/jobs/sectors";
 import type { Database } from "@/lib/db/database.types";
 import { CHANGE_SELECT, diffWatched, type ComparableRow, type JobChange } from "./changes";
 import {
@@ -13,16 +14,7 @@ import {
 } from "./details";
 import { resolveOrganizations } from "./organizations";
 import { uniqueSlugs } from "./slugs";
-import {
-  toDate,
-  toInt,
-  toSalary,
-  toSlug,
-  toStringArray,
-  toText,
-  toVacancies,
-  toVector,
-} from "./normalize";
+import { toDate, toInt, toSalary, toSlug, toText, toVacancies, toVector } from "./normalize";
 
 /**
  * The diff.
@@ -193,7 +185,16 @@ export function toJobPayload(
       // Kept as typed, because "TBD" is a real answer this column must carry
       // without the date column inventing one.
       last_date_display: toText(row.last_date_display),
-      tags: toStringArray(row.tags),
+      // Derived here, not carried from the feed.
+      //
+      // The feed does not send tags for jobs — 6,692 of 6,821 rows had none —
+      // and the 129 that did were backfilled from the old project's
+      // `generateTags`, whose unanchored `includes()` matching filed a PSC
+      // exam under railways and tagged 59 unrelated rows `insurance` because
+      // "public" contains "lic". `sectorTagsOf` reads the title and the
+      // employer and emits `SECTORS` values, which is the only vocabulary the
+      // sector chips and `preferred_sectors` can match against.
+      tags: sectorTagsOf({ title, organization: organisation }),
       embedding: toVector(row.embedding) as string | null,
     },
   };

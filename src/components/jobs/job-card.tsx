@@ -1,35 +1,91 @@
 import Link from "next/link";
 
-import { CardInteractive, Row } from "@/components/ui/card";
+import { UserIcon } from "@/components/icons";
+import { OrganizationLogo } from "@/components/home/organization-logo";
+import { toInitials } from "@/components/home/monogram";
 import type { JobCard as JobCardData } from "@/lib/db/queries/jobs";
 import { formatSalary, formatVacancies } from "@/lib/format/deadline";
-import { DeadlineBadge } from "./deadline-badge";
+import { JobBookmarkButton } from "./job-bookmark-button";
+import { JobCardMeta } from "./job-card-meta";
+import { JobDeadlineChip } from "./job-deadline-chip";
+
+/** Formats organization name + abbreviation (e.g. "Institute of Banking Personnel Selection (IBPS)") */
+function formatOrgSubtitle(
+  org?: { name?: string | null; short_name?: string | null } | null,
+): string | null {
+  if (!org) return null;
+  const name = org.name?.trim();
+  const short = org.short_name?.trim();
+
+  if (name && short && name.toLowerCase() !== short.toLowerCase()) {
+    if (!name.toLowerCase().includes(`(${short.toLowerCase()})`)) {
+      return `${name} (${short})`;
+    }
+    return name;
+  }
+  return name ?? short ?? null;
+}
+
+/** Formats qualification into a clean pill label */
+function formatQualification(raw?: string | null): string | null {
+  if (!raw) return null;
+  const text = raw.trim();
+  if (!text) return null;
+
+  if (/^eligibility differs/i.test(text)) {
+    return "Check Eligibility";
+  }
+
+  const first = text.split(/[|\n;]/)[0]?.trim();
+  if (first && first.length <= 32) {
+    return first;
+  }
+
+  const commaClause = text.split(/[,]/)[0]?.trim();
+  if (commaClause && commaClause.length <= 25) {
+    return commaClause;
+  }
+
+  if (text.length > 30) {
+    return text.slice(0, 28).trim() + "…";
+  }
+
+  return text;
+}
+
+/** Formats location label (e.g. "All India") */
+function formatLocation(location?: string | null, state?: string | null): string {
+  const loc = location?.trim();
+  const st = state?.trim();
+
+  if (loc && /all[\s-]?india/i.test(loc)) return "All India";
+  if (st && /all[\s-]?india/i.test(st)) return "All India";
+
+  if (st && (!loc || loc.toLowerCase() === st.toLowerCase())) {
+    return st;
+  }
+
+  if (loc) {
+    if (st && !loc.includes(st)) {
+      return `${loc}, ${st}`;
+    }
+    return loc;
+  }
+
+  return st ?? "All India";
+}
 
 /**
- * One job in a list.
+ * One job in a list matching the clean, card-based visual design.
  *
- * A Server Component. The only thing that crosses into the client bundle is the
- * deadline badge, which has to, because a countdown cannot be computed at build
- * time on a page that is served from the CDN for days. Twenty rows therefore
- * ship one badge component, not twenty copies of a row.
- *
- * The whole row is clickable via a stretched pseudo-element on the title link
- * rather than by wrapping everything in one anchor. Wrapping means a screen
- * reader announces the entire row — organisation, deadline, salary, vacancy
- * count — as the link text, which is unusable. This way the accessible name is
- * the job title, and the click target is still the row.
- *
- * ── Why this order ────────────────────────────────────────────────────────
- * Title first and loudest, because it is what someone scanning a list is
- * matching against. The organisation used to hold that position, set in
- * uppercase above the title, where it truncated mid-word on anything as long as
- * "Indian Institute of Information Technology Design and Manufacturing
- * Kancheepuram" — the most prominent line on the row was the one nobody was
- * looking for, rendered unreadably. It now sits below the title in the
- * condensed face, which fits it.
- *
- * Then one eligibility line, then the muted meta. The deadline is the only
- * coloured thing, which is the whole point of the palette.
+ * Designed to match the app's Gazette theme:
+ * - Left: Logo plate with graceful monogram/initials fallback.
+ * - Right:
+ *   - Header row with [New] badge, relative posted time, and top-right bookmark button.
+ *   - Bold title linked via stretched pseudo-element.
+ *   - Organization subtitle with acronym.
+ *   - Meta stats: Vacancies with User icon • Salary range in Indian currency format.
+ *   - Bottom pill rail: Qualification chip (green), Location chip (neutral), Deadline chip (urgency-colored with clock icon).
  */
 export function JobCard({
   job,
@@ -40,72 +96,137 @@ export function JobCard({
 }) {
   const vacancies = formatVacancies(job.vacancies_display, job.vacancies);
   const salary = job.salary_display ?? formatSalary(job.salary_min, job.salary_max);
-  const org = job.organization?.short_name ?? job.organization?.name;
+  const orgSubtitle = formatOrgSubtitle(job.organization);
+  const initials = toInitials(job.organization?.short_name ?? job.organization?.name ?? "GOVT");
+  const qualification = formatQualification(job.qualification_summary);
+  const location = formatLocation(job.location, job.state);
 
-  // Organisation and qualification read as one sentence — "who, and what you
-  // need" — so they share a line rather than each claiming their own.
-  const eligibility = [org, job.qualification_summary].filter(Boolean).join(" · ");
-  const meta = [vacancies, salary, job.location].filter(Boolean);
-
-  const Wrapper = variant === "card" ? CardInteractive : Row;
-  const padding = variant === "card" ? "p-4" : "px-4 py-2 lg:px-5 lg:py-2.5";
+  const containerClass =
+    variant === "card"
+      ? "relative rounded-2xl border border-line/80 bg-surface p-4 sm:p-5 shadow-xs transition-all duration-200 hover:border-line-strong hover:shadow-sm focus-within:border-accent-line"
+      : "relative border-b border-line bg-surface p-4 sm:px-5 sm:py-4 transition-colors duration-150 hover:bg-surface-2/70 focus-within:bg-surface-2/70";
 
   return (
-    <Wrapper className={padding}>
-      <div className="flex items-start gap-3">
+    <article className={containerClass}>
+      <div className="flex items-start gap-3.5 sm:gap-4">
+        {/* Left Column: Organization Logo Slot */}
+        <div
+          className="relative flex size-12 sm:size-14 shrink-0 items-center justify-center overflow-hidden rounded-xl sm:rounded-2xl border border-line/70 bg-logo-plate p-1 shadow-2xs"
+          aria-hidden="true"
+        >
+          <span className="cond select-none text-xs sm:text-sm font-extrabold tracking-wide text-ink-2">
+            {initials}
+          </span>
+          {job.organization?.logo_path ? (
+            <OrganizationLogo path={job.organization.logo_path} />
+          ) : null}
+        </div>
+
+        {/* Right Column: Main Content */}
         <div className="min-w-0 flex-1">
-          {/* Two lines, then ellipsis. Source titles run to sixty words —
-              unclamped, one row filled half a phone screen. */}
-          <h3 className="line-clamp-2 text-[0.9375rem] leading-snug font-bold text-ink">
-            <Link href={`/jobs/${job.slug}`} className="after:absolute after:inset-0">
+          {/* Header Row: [New] + Posted date on left, Bookmark on right */}
+          <div className="flex items-center justify-between gap-2">
+            <JobCardMeta
+              publishedAt={job.published_at}
+              isFeatured={job.is_featured}
+            />
+            <JobBookmarkButton jobId={job.id} title={job.title} />
+          </div>
+
+          {/* Job Title */}
+          <h3 className="mt-1.5 text-[0.9375rem] sm:text-base font-bold leading-snug tracking-tight text-ink line-clamp-2">
+            <Link
+              href={`/jobs/${job.slug}`}
+              className="after:absolute after:inset-0 hover:text-accent transition-colors"
+            >
               {job.title}
             </Link>
           </h3>
 
-          {eligibility ? (
-            <p className="cond mt-1 line-clamp-1 text-[0.8125rem] text-ink-2">{eligibility}</p>
+          {/* Organization Subtitle */}
+          {orgSubtitle ? (
+            <p className="mt-0.5 text-xs sm:text-sm text-ink-2 line-clamp-1">
+              {orgSubtitle}
+            </p>
           ) : null}
 
-          {meta.length > 0 ? (
-            <p className="tabular mt-1 line-clamp-1 text-xs text-ink-3">{meta.join("  ·  ")}</p>
+          {/* Meta stats row: Vacancies and Salary */}
+          {vacancies || salary ? (
+            <div className="mt-2 flex items-center gap-1.5 text-xs text-ink-3 tabular">
+              {vacancies ? (
+                <>
+                  <UserIcon className="size-3.5 shrink-0 text-ink-3" aria-hidden="true" />
+                  <span>{vacancies}</span>
+                </>
+              ) : null}
+              {vacancies && salary ? (
+                <span className="text-ink-3/50" aria-hidden="true">•</span>
+              ) : null}
+              {salary ? <span>{salary}</span> : null}
+            </div>
           ) : null}
+
+          {/* Bottom Chips / Pills Row */}
+          <div className="mt-3.5 flex flex-wrap items-center gap-2">
+            {qualification ? (
+              <span className="inline-flex max-w-[200px] truncate items-center rounded-full border border-good/20 bg-good-soft px-2.5 py-0.5 text-xs font-medium text-good leading-normal">
+                {qualification}
+              </span>
+            ) : null}
+
+            {location ? (
+              <span className="inline-flex max-w-[150px] truncate items-center rounded-full border border-line bg-surface-2 px-2.5 py-0.5 text-xs font-medium text-ink-2 leading-normal">
+                {location}
+              </span>
+            ) : null}
+
+            <JobDeadlineChip date={job.last_date} />
+          </div>
         </div>
-
-        {/* Deadline only. The save control used to sit under it, which stacked
-            two elements down the right edge and cost the row an entire line of
-            height — on a phone that is the difference between five jobs above
-            the fold and six. Saving lives on the detail page, where the
-            decision to save is actually made, and it is not a 44px target
-            wedged inside a scrolling row where it invites mis-taps. */}
-        <DeadlineBadge date={job.last_date} />
       </div>
-    </Wrapper>
+    </article>
   );
 }
 
 /**
- * Loading placeholder.
- *
- * Deliberately the same box as the real row/card — same padding, a two-line head, an
- * eligibility line, a meta line. A skeleton of the wrong height is worse than
- * none: the content lands, everything below jumps, and the fallback meant to
- * smooth loading is what damages the layout-shift score.
+ * Loading placeholder matching the new card shape.
  */
 export function JobCardSkeleton({ variant = "card" }: { variant?: "row" | "card" } = {}) {
   const containerClass =
     variant === "card"
-      ? "rounded-lg border border-line bg-surface p-4"
-      : "border-b border-line bg-surface px-4 py-2 lg:px-5 lg:py-2.5";
+      ? "rounded-2xl border border-line bg-surface p-4 sm:p-5 shadow-xs"
+      : "border-b border-line bg-surface p-4 sm:px-5 sm:py-4";
 
   return (
     <div className={containerClass}>
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3.5 sm:gap-4">
+        {/* Logo slot skeleton */}
+        <div className="skeleton size-12 sm:size-14 rounded-xl sm:rounded-2xl shrink-0" />
+
+        {/* Content column skeleton */}
         <div className="min-w-0 flex-1">
-          <div className="skeleton h-4 w-4/5" />
-          <div className="skeleton mt-1.5 h-3 w-3/5" />
-          <div className="skeleton mt-1.5 h-3 w-2/5" />
+          {/* Header row skeleton */}
+          <div className="flex items-center justify-between">
+            <div className="skeleton h-3.5 w-28 rounded-full" />
+            <div className="skeleton size-5 rounded-md" />
+          </div>
+
+          {/* Title skeleton */}
+          <div className="skeleton mt-2 h-4 sm:h-5 w-4/5" />
+
+          {/* Subtitle skeleton */}
+          <div className="skeleton mt-1.5 h-3.5 w-3/5" />
+
+          {/* Meta skeleton */}
+          <div className="skeleton mt-2 h-3 w-2/5" />
+
+          {/* Bottom chips skeleton */}
+          <div className="mt-3.5 flex flex-wrap gap-2">
+            <div className="skeleton h-5 w-24 rounded-full" />
+            <div className="skeleton h-5 w-16 rounded-full" />
+            <div className="skeleton h-5 w-28 rounded-full" />
+          </div>
         </div>
-        <div className="skeleton h-5 w-20 rounded-full shrink-0" />
       </div>
     </div>
   );

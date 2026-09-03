@@ -70,6 +70,14 @@
   --color-card: oklch(100% 0 0);
   --color-card-foreground: oklch(23% 0.021 163);
   --color-border: oklch(88.6% 0.014 153);
+
+  /* The plate an organisation's logo sits on.
+     Its own token because it is the one surface in this system whose job is to
+     be *light in both themes*. A government emblem is drawn in dark ink for
+     white paper — navy, maroon, black line work — so the card colour behind it
+     in dark mode makes it disappear. See the dark block for what the value
+     becomes there and why it is not white. */
+  --color-logo-plate: oklch(100% 0 0);
   --color-muted: oklch(94.1% 0.008 152);
   --color-muted-foreground: oklch(53.9% 0.024 161);
 
@@ -104,6 +112,28 @@
 
   /* A 1.2 (minor third) scale. Tight enough that a card can hold four levels
      of hierarchy without any of them shouting. */
+  /* ── Fluid card scale ─────────────────────────────────────────────────
+     The scale above is fixed, which is right for page-level type. Card type is
+     not: a 375px phone and a 1280px desktop render the same card component,
+     and one set of pixel sizes cannot be correct on both — at phone width the
+     fixed sizes crowd the box and force two-line titles where one would do.
+
+     Each step is `clamp(floor, fluid, ceiling)`. The middle term tracks the
+     viewport, and BOTH ends are hard-stopped: nothing shrinks below the floor
+     on a small phone, and nothing keeps growing past the ceiling on a wide
+     screen where the column is already capped at max-w-4xl. The fluid band
+     runs roughly 320px → 600px, after which every step is pinned at its
+     ceiling — so desktop keeps exactly the sizes it has today and only the
+     phone gets smaller.
+
+     The ceilings are the values the home cards already used, so this is the
+     phone end coming down rather than the desktop end going up. */
+  --text-card-2xs: clamp(0.625rem, 0.5rem + 0.6vw, 0.6875rem); /* 10 → 11 */
+  --text-card-xs: clamp(0.6875rem, 0.56rem + 0.6vw, 0.75rem); /* 11 → 12 */
+  --text-card-sm: clamp(0.75rem, 0.62rem + 0.6vw, 0.8125rem); /* 12 → 13 */
+  --text-card-base: clamp(0.8125rem, 0.6rem + 1vw, 0.9375rem); /* 13 → 15 */
+  --text-card-lg: clamp(0.9375rem, 0.72rem + 1vw, 1.0625rem); /* 15 → 17 */
+
   --text-2xs: 0.6875rem;
   --text-xs: 0.75rem;
   --text-sm: 0.8125rem;
@@ -146,7 +176,8 @@
   --shadow-lg:
     0 2px 4px oklch(23% 0.021 163 / 0.06), 0 16px 40px -16px oklch(23% 0.021 163 / 0.22);
   --shadow-card: 0 1px 2px oklch(0.3 0.03 160 / 0.04), 0 1px 12px oklch(0.3 0.03 160 / 0.03);
-  --shadow-card-hover: 0 2px 4px oklch(0.3 0.03 160 / 0.06), 0 8px 24px oklch(0.3 0.03 160 / 0.07);
+  --shadow-card-hover:
+    0 2px 4px oklch(0.3 0.03 160 / 0.06), 0 8px 24px oklch(0.3 0.03 160 / 0.07);
   --shadow-pill: 0 1px 2px oklch(0.3 0.03 160 / 0.12), 0 4px 10px oklch(0.3 0.03 160 / 0.12);
 
   /* ── Motion ───────────────────────────────────────────────────────────── */
@@ -195,6 +226,15 @@
     --color-secondary-foreground: oklch(93.9% 0.01 155);
     --color-card: oklch(22.1% 0.014 163);
     --color-card-foreground: oklch(93.9% 0.01 155);
+
+    /* Light, because the artwork needs it — but 87%, not white.
+       A 100% plate on a 22% ground is the brightest thing on the screen by a
+       wide margin, and forty of them turn a page of job listings into a grid of
+       glowing tiles with the text as background. Dropping to 87% and carrying a
+       trace of the palette's hue keeps every emblem legible while leaving the
+       badge quieter than the card's own title text (93.9%) — so the logo reads
+       as an identifying mark rather than as the loudest object in the layout. */
+    --color-logo-plate: oklch(87% 0.006 163);
     --color-border: oklch(30.7% 0.022 161);
     --color-muted: oklch(26.2% 0.016 169);
     --color-muted-foreground: oklch(66.2% 0.027 156);
@@ -361,4 +401,3 @@
     display: none;
   }
 }
-

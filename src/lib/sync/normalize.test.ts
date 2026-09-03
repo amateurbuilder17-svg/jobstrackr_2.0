@@ -112,6 +112,18 @@ describe("toStringArray", () => {
   it("is empty, not [''], for a blank cell", () => {
     expect(toStringArray("")).toEqual([]);
   });
+
+  /* The sheet's AI enrichment writes the array it built rather than joining
+     it, so the cell arrives as JSON. Split on commas, an empty one became the
+     single tag "[]" — rendered as a badge on 5,978 update pages. */
+  it("parses a JSON array cell instead of splitting it on commas", () => {
+    expect(toStringArray("[]")).toEqual([]);
+    expect(toStringArray('["banking","railway"]')).toEqual(["banking", "railway"]);
+  });
+
+  it("still comma-splits a cell that merely starts with a bracket", () => {
+    expect(toStringArray("[draft] notice, result")).toEqual(["[draft] notice", "result"]);
+  });
 });
 
 describe("toVector", () => {

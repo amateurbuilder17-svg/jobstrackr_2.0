@@ -34,7 +34,8 @@ export function InfiniteJobList({
     if (filterParams.level) params.set("level", filterParams.level);
     if (filterParams.stream) params.set("stream", filterParams.stream);
     if (filterParams.sector) params.set("sector", filterParams.sector);
-    if (filterParams.sort && filterParams.sort !== "closing") params.set("sort", filterParams.sort);
+    if (filterParams.sort && filterParams.sort !== "closing")
+      params.set("sort", filterParams.sort);
     return params.toString() || "all";
   }, [filterParams]);
 
@@ -46,7 +47,8 @@ export function InfiniteJobList({
       if (filterParams.level) params.set("level", filterParams.level);
       if (filterParams.stream) params.set("stream", filterParams.stream);
       if (filterParams.sector) params.set("sector", filterParams.sector);
-      if (filterParams.sort && filterParams.sort !== "closing") params.set("sort", filterParams.sort);
+      if (filterParams.sort && filterParams.sort !== "closing")
+        params.set("sort", filterParams.sort);
       params.set("after", cursor);
 
       const res = await fetch(`/api/jobs?${params.toString()}`);
@@ -67,13 +69,29 @@ export function InfiniteJobList({
       fetchNextPage,
     });
 
+  const hasFilters = Boolean(
+    filterParams.q ??
+      filterParams.state ??
+      filterParams.level ??
+      filterParams.stream ??
+      filterParams.sector,
+  );
+
+  const countLabel = useMemo(() => {
+    if (nextCursor) {
+      if (!hasFilters) {
+        return "10,000+ open jobs";
+      }
+      return `${String(Math.max(items.length, 100))}+ open jobs`;
+    }
+    return `${String(items.length)} open ${items.length === 1 ? "job" : "jobs"}`;
+  }, [nextCursor, hasFilters, items.length]);
+
   return (
     <>
       <div className="mt-2 flex items-center justify-between gap-3 border-b border-line pb-1.5">
         <p aria-live="polite" className="tabular text-xs text-ink-3">
-          {nextCursor
-            ? `${String(items.length)}+ open jobs`
-            : `${String(items.length)} open ${items.length === 1 ? "job" : "jobs"}`}
+          {countLabel}
         </p>
         {sortOptions ? (
           <Suspense fallback={<div className="h-8" />}>

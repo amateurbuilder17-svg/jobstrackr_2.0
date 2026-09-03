@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ClockIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import { describeDeadline, type Deadline } from "@/lib/format/deadline";
+import { OrganizationLogo } from "./organization-logo";
 
 function getOrgTone(org?: string | null): string {
   const o = (org ?? "").toUpperCase();
@@ -11,12 +12,34 @@ function getOrgTone(org?: string | null): string {
   return "border-border bg-brand-soft text-brand-deep";
 }
 
+/**
+ * The organisation's mark: its emblem where one is known, its initials where
+ * one is not.
+ *
+ * The initials are not a loading state — they are the answer for most rows and
+ * always will be. The 164 imported logos cover about 530 of 3,744
+ * organisations, because the long tail is district offices and single-post
+ * recruitments with no emblem anywhere to find. So the tile is drawn as a
+ * finished thing and the image sits on top of it when there is one: nothing
+ * shifts, nothing blinks, and a missing logo looks deliberate because it is.
+ */
 export function OrganizationBadge({
   org,
+  logoPath,
   size = "md",
   className,
 }: {
   org?: string | null;
+  /**
+   * `organizations.logo_path` — a path in the public `logos` bucket.
+   *
+   * `| undefined` is spelled out because `exactOptionalPropertyTypes` is on and
+   * every caller reads it off an optional join: `job.organization?.logo_path`
+   * is `undefined` when there is no organisation and `null` when it has no
+   * logo. Both mean "initials", and neither should need a `?? null` at the
+   * call site to say so.
+   */
+  logoPath?: string | null | undefined;
   size?: "sm" | "md";
   className?: string;
 }) {
@@ -27,13 +50,16 @@ export function OrganizationBadge({
     <span
       aria-hidden="true"
       className={cn(
-        "inline-grid shrink-0 place-items-center rounded-xl border font-extrabold tracking-tight",
+        "relative inline-grid shrink-0 place-items-center rounded-xl border font-extrabold tracking-tight",
         toneClass,
-        size === "sm" ? "size-9 text-[10px]" : "size-11 text-[11px]",
+        size === "sm"
+          ? "size-[clamp(2rem,7.5vw,2.25rem)] text-card-2xs"
+          : "size-[clamp(2.5rem,9vw,2.75rem)] text-card-2xs",
         className,
       )}
     >
       {display}
+      {logoPath ? <OrganizationLogo path={logoPath} /> : null}
     </span>
   );
 }
@@ -57,8 +83,12 @@ export function DeadlineBadge({
   let toneClass = "bg-muted text-muted-foreground";
   if (deadline.daysLeft === 0 || deadline.label.toLowerCase().includes("last day")) {
     toneClass = "bg-[#b92518] text-white";
-  } else if (deadline.tone === "critical" || (deadline.daysLeft !== null && deadline.daysLeft <= 3 && deadline.daysLeft > 0)) {
-    toneClass = "border border-[#fcdad3] dark:border-[#522929] bg-[#fdf0ed] dark:bg-[#341b1b] text-[#b92518] dark:text-[#fca5a5]";
+  } else if (
+    deadline.tone === "critical" ||
+    (deadline.daysLeft !== null && deadline.daysLeft <= 3 && deadline.daysLeft > 0)
+  ) {
+    toneClass =
+      "border border-[#fcdad3] dark:border-[#522929] bg-[#fdf0ed] dark:bg-[#341b1b] text-[#b92518] dark:text-[#fca5a5]";
   } else if (deadline.tone === "warn") {
     toneClass = "bg-warning-soft text-warning";
   }
@@ -66,12 +96,13 @@ export function DeadlineBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold tabular-nums shrink-0",
+        "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-card-2xs font-bold tabular-nums",
+        "sm:gap-1.5 sm:px-2.5 sm:py-1",
         toneClass,
         className,
       )}
     >
-      <ClockIcon className="size-3.5 shrink-0" aria-hidden="true" />
+      <ClockIcon className="size-[clamp(0.75rem,2.9vw,0.875rem)] shrink-0" aria-hidden="true" />
       <span className="sr-only">Application deadline: </span>
       {deadline.label}
     </span>
@@ -92,22 +123,25 @@ export function SectionHeader({
   id?: string;
 }) {
   return (
-    <div className="mb-3.5 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
-      <div className="flex min-w-0 gap-3">
+    <div className="mb-3 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2.5 sm:mb-3.5 sm:gap-3">
+      <div className="flex min-w-0 gap-2.5 sm:gap-3">
         <span aria-hidden="true" className="mt-0.5 w-[3px] shrink-0 rounded-full bg-brand" />
         <div className="min-w-0">
-          <h2 id={id} className="truncate text-[17px] font-extrabold tracking-tight text-foreground">
+          <h2
+            id={id}
+            className="truncate text-card-lg font-extrabold tracking-tight text-foreground"
+          >
             {title}
           </h2>
           {subtitle ? (
-            <p className="mt-0.5 truncate text-[13px] text-muted-foreground">{subtitle}</p>
+            <p className="mt-0.5 truncate text-card-sm text-muted-foreground">{subtitle}</p>
           ) : null}
         </div>
       </div>
       {actionLabel && href ? (
         <Link
           href={href}
-          className="shrink-0 rounded-lg px-2 py-1.5 text-[13px] font-bold text-brand transition-colors duration-200 hover:bg-brand-soft"
+          className="shrink-0 rounded-lg px-1.5 py-1 text-card-sm font-bold text-brand transition-colors duration-200 hover:bg-brand-soft sm:px-2 sm:py-1.5"
         >
           {actionLabel} <span aria-hidden="true">→</span>
         </Link>
@@ -134,7 +168,12 @@ export function ProgressRing({
 
   return (
     <div className="flex shrink-0 flex-col items-center gap-0.5">
-      <div className={cn("relative", isSm ? "size-10" : "size-12")}>
+      <div
+        className={cn(
+          "relative",
+          isSm ? "size-[clamp(2.25rem,8.5vw,2.5rem)]" : "size-[clamp(2.75rem,10vw,3rem)]",
+        )}
+      >
         <svg viewBox="0 0 48 48" className="size-full -rotate-90" aria-hidden="true">
           <circle
             cx="24"
@@ -159,13 +198,15 @@ export function ProgressRing({
         <span
           className={cn(
             "absolute inset-0 grid place-items-center font-extrabold tabular-nums text-brand-deep",
-            isSm ? "text-[10px]" : "text-[11px]",
+            isSm ? "text-card-2xs" : "text-card-xs",
           )}
         >
           {value}/{total}
         </span>
       </div>
-      <span className="text-[9.5px] font-medium text-muted-foreground">{label}</span>
+      <span className="text-[clamp(0.5625rem,2.2vw,0.59375rem)] font-medium text-muted-foreground">
+        {label}
+      </span>
     </div>
   );
 }

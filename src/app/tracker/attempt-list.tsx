@@ -18,46 +18,18 @@ import { EMPTY_FORM_STATE } from "@/lib/auth/form-state";
 import { cn } from "@/lib/cn";
 import type { ExamAttempt } from "@/lib/db/queries/attempts";
 import type { ExamStatusReport } from "@/lib/exams/report";
-import { subjectKeyFor } from "@/lib/exams/subject";
 import { deleteAttemptAction, setAttemptStatusAction } from "@/lib/tracker/actions";
-import {
-  ATTEMPT_STATUSES,
-  STATUS_LABELS,
-  type AttemptStatus,
-} from "@/lib/tracker/enums";
-import {
-  computeNextEvent,
-  computeStages,
-  ExamProgress,
-} from "./exam-progress";
+import { ATTEMPT_STATUSES, STATUS_LABELS, type AttemptStatus } from "@/lib/tracker/enums";
+import type { CategorizedAttempt, ExamCategory } from "./categorize";
+import { computeNextEvent, computeStages, ExamProgress } from "./exam-progress";
 import { FilterTabs, type FilterKey } from "./filter-tabs";
 import { StatusBadge } from "./status-badge";
 import { StatusPanel } from "./status-panel";
-
-
 
 const STATUS_OPTIONS = ATTEMPT_STATUSES.map((s) => ({
   value: s,
   label: STATUS_LABELS[s],
 }));
-
-/** Settled exams are completed history */
-const SETTLED: ReadonlySet<AttemptStatus> = new Set<AttemptStatus>([
-  "passed",
-  "failed",
-  "withdrawn",
-]);
-
-type ExamCategory = "action" | "upcoming" | "completed";
-
-function categorizeAttempt(attempt: ExamAttempt): ExamCategory {
-  const status = attempt.status as AttemptStatus;
-  if (SETTLED.has(status)) return "completed";
-  if (status === "admit_card" || status === "tracking" || status === "applied") {
-    return "action";
-  }
-  return "upcoming";
-}
 
 const SECTIONS: { key: ExamCategory; title: string; quiet?: boolean }[] = [
   { key: "action", title: "Action Required" },
@@ -66,40 +38,27 @@ const SECTIONS: { key: ExamCategory; title: string; quiet?: boolean }[] = [
 ];
 
 export function AttemptList({
-  attempts,
-  reports,
+  items,
+  counts,
 }: {
-  attempts: ExamAttempt[];
-  reports: Record<string, ExamStatusReport>;
+  /** Already grouped and ordered — see `categorize.ts`. */
+  items: CategorizedAttempt[];
+  counts: Record<ExamCategory, number>;
 }) {
   const [filter, setFilter] = useState<FilterKey>("all");
-  const [expandedId, setExpandedId] = useState<string | null>(
-    attempts[0]?.id ?? null,
+  const [expandedId, setExpandedId] = useState<string | null>(items[0]?.attempt.id ?? null);
+
+  const tabCounts = useMemo<Partial<Record<FilterKey, number>>>(
+    () => ({ all: items.length, ...counts }),
+    [items.length, counts],
   );
 
-  const categorized = useMemo(() => {
-    return attempts.map((a) => ({
-      attempt: a,
-      category: categorizeAttempt(a),
-    }));
-  }, [attempts]);
-
-  const counts = useMemo(() => {
-    const res: Partial<Record<FilterKey, number>> = {
-      all: attempts.length,
-      action: categorized.filter((c) => c.category === "action").length,
-      upcoming: categorized.filter((c) => c.category === "upcoming").length,
-      completed: categorized.filter((c) => c.category === "completed").length,
-    };
-    return res;
-  }, [attempts.length, categorized]);
-
   const visible = useMemo(() => {
-    if (filter === "all") return categorized;
-    return categorized.filter((c) => c.category === filter);
-  }, [categorized, filter]);
+    if (filter === "all") return items;
+    return items.filter((item) => item.category === filter);
+  }, [items, filter]);
 
-  if (attempts.length === 0) {
+  if (items.length === 0) {
     return (
       <div className="mt-8 rounded-2xl border border-border bg-card p-8 text-center shadow-card sm:p-12 animate-in fade-in duration-200">
         <div className="mx-auto flex size-12 items-center justify-center rounded-2xl border border-border bg-brand-soft text-brand-deep shadow-2xs">
@@ -107,7 +66,8 @@ export function AttemptList({
         </div>
         <h3 className="mt-4 text-base font-bold text-foreground">No exams tracked yet</h3>
         <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted-foreground">
-          Tap the + button above to add your target exams and monitor admit cards, exam dates, and results in one place.
+          Tap the + button above to add your target exams and monitor admit cards, exam dates,
+          and results in one place.
         </p>
       </div>
     );
@@ -116,13 +76,13 @@ export function AttemptList({
   return (
     <div className="space-y-6">
       {/* Filter Tabs */}
-      <FilterTabs value={filter} onChange={setFilter} counts={counts} />
+      <FilterTabs value={filter} onChange={setFilter} counts={tabCounts} />
 
       {/* Categorized Sections */}
       <div className="space-y-7">
         {SECTIONS.map((section) => {
-          const items = visible.filter((e) => e.category === section.key);
-          if (items.length === 0) return null;
+          const rows = visible.filter((item) => item.category === section.key);
+          if (rows.length === 0) return null;
 
           return (
             <section key={section.key} aria-labelledby={`section-${section.key}`}>
@@ -130,23 +90,18 @@ export function AttemptList({
                 {section.title}
               </h2>
               <div className="space-y-3">
-                {items.map(({ attempt }) => {
-                  const key = subjectKeyFor(attempt);
-                  const report = (key === null ? undefined : reports[key]) ?? null;
-
-                  return (
-                    <ExamCardItem
-                      key={attempt.id}
-                      attempt={attempt}
-                      report={report}
-                      quiet={section.quiet}
-                      expanded={expandedId === attempt.id}
-                      onToggle={() => {
-                        setExpandedId((cur) => (cur === attempt.id ? null : attempt.id));
-                      }}
-                    />
-                  );
-                })}
+                {rows.map(({ attempt, report }) => (
+                  <ExamCardItem
+                    key={attempt.id}
+                    attempt={attempt}
+                    report={report}
+                    quiet={section.quiet}
+                    expanded={expandedId === attempt.id}
+                    onToggle={() => {
+                      setExpandedId((cur) => (cur === attempt.id ? null : attempt.id));
+                    }}
+                  />
+                ))}
               </div>
             </section>
           );
@@ -181,6 +136,9 @@ function ExamCardItem({
     attempt.job?.title.slice(0, 5) ??
     "EXAM";
   const orgFull = attempt.exam?.name ?? attempt.exam?.short_name ?? attempt.job?.title ?? "";
+  // The conducting body's emblem, by either route an attempt can arrive: an
+  // exam picked from the list, or Track pressed on a job page.
+  const logo = attempt.exam?.organization?.logo_path ?? attempt.job?.organization?.logo_path;
 
   const today = useToday();
   const stages = useMemo(
@@ -193,8 +151,6 @@ function ExamCardItem({
     () => computeNextEvent(status, attempt, report, today),
     [status, attempt, report, today],
   );
-
-
 
   // What to do next recommendations
   const actionTips = useMemo(() => {
@@ -224,7 +180,9 @@ function ExamCardItem({
       ];
     }
     if (status === "passed") {
-      return ["Download official scorecard and prepare for document verification / appointment."];
+      return [
+        "Download official scorecard and prepare for document verification / appointment.",
+      ];
     }
     return [];
   }, [status]);
@@ -248,7 +206,7 @@ function ExamCardItem({
         aria-controls={panelId}
         className="flex w-full min-h-11 items-start gap-3 p-4 text-left transition-colors hover:bg-muted/40 active:bg-muted/60"
       >
-        <OrganizationBadge org={org} size="sm" />
+        <OrganizationBadge org={org} logoPath={logo} size="sm" />
 
         <div className="min-w-0 flex-1">
           <h3
@@ -334,28 +292,33 @@ function ExamCardItem({
       >
         <div className="overflow-hidden">
           <div className="px-4 pb-4 space-y-4 border-t border-border/70 pt-4">
-
             {/* Candidate Details (Roll Number / Score) */}
             {attempt.roll_number || attempt.score !== null ? (
-              <section className="border-t border-border/70 pt-3.5" aria-label="Candidate Credentials">
+              <section
+                className="border-t border-border/70 pt-3.5"
+                aria-label="Candidate Credentials"
+              >
                 <h4 className="section-label mb-2.5">Your Details</h4>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   {attempt.roll_number ? (
                     <div className="rounded-xl border border-border/70 bg-muted/30 p-2.5">
                       <p className="text-muted-foreground">Roll / Reg No.</p>
-                      <p className="mt-0.5 font-bold tabular-nums text-foreground">{attempt.roll_number}</p>
+                      <p className="mt-0.5 font-bold tabular-nums text-foreground">
+                        {attempt.roll_number}
+                      </p>
                     </div>
                   ) : null}
-                  {attempt.score !== null && attempt.score !== undefined ? (
+                  {attempt.score !== null ? (
                     <div className="rounded-xl border border-border/70 bg-muted/30 p-2.5">
                       <p className="text-muted-foreground">Score / Marks</p>
-                      <p className="mt-0.5 font-bold tabular-nums text-foreground">{String(attempt.score)}</p>
+                      <p className="mt-0.5 font-bold tabular-nums text-foreground">
+                        {String(attempt.score)}
+                      </p>
                     </div>
                   ) : null}
                 </div>
               </section>
             ) : null}
-
 
             {/* User Personal Notes */}
             {attempt.notes ? (
@@ -379,7 +342,10 @@ function ExamCardItem({
                 <ul className="space-y-1.5">
                   {actionTips.map((tip) => (
                     <li key={tip} className="flex items-start gap-2 text-xs text-brand-deep">
-                      <CheckIcon className="mt-0.5 size-3.5 shrink-0 stroke-[2.5]" aria-hidden="true" />
+                      <CheckIcon
+                        className="mt-0.5 size-3.5 shrink-0 stroke-[2.5]"
+                        aria-hidden="true"
+                      />
                       <span className="min-w-0">{tip}</span>
                     </li>
                   ))}
@@ -414,7 +380,11 @@ function ExamCardItem({
                   defaultValue={status}
                   className="h-8.5 w-36 rounded-lg text-xs"
                 />
-                <SubmitButton size="sm" pendingLabel="Saving…" className="h-8.5 rounded-lg px-3 text-xs">
+                <SubmitButton
+                  size="sm"
+                  pendingLabel="Saving…"
+                  className="h-8.5 rounded-lg px-3 text-xs"
+                >
                   Update
                 </SubmitButton>
               </form>

@@ -1,10 +1,5 @@
 import type { ComponentType, SVGProps } from "react";
-import {
-  AlertTriangleIcon,
-  CheckCircleIcon,
-  CircleIcon,
-  ClockIcon,
-} from "@/components/icons";
+import { AlertTriangleIcon, CheckCircleIcon, CircleIcon, ClockIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import { STATUS_LABELS, type AttemptStatus } from "@/lib/tracker/enums";
 

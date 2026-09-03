@@ -111,8 +111,8 @@ export function FilterModal({ open, onClose, initialTab = "sort" }: FilterModalP
     if (!term) {
       return activeGroup?.options ?? [];
     }
-    return (activeGroup?.options ?? []).filter((opt) =>
-      opt.label.toLowerCase().includes(term) || opt.value.toLowerCase().includes(term)
+    return (activeGroup?.options ?? []).filter(
+      (opt) => opt.label.toLowerCase().includes(term) || opt.value.toLowerCase().includes(term),
     );
   }, [activeGroup, searchTerm]);
 
@@ -301,7 +301,12 @@ export function FilterModal({ open, onClose, initialTab = "sort" }: FilterModalP
                       )}
                     >
                       <div className="min-w-0 flex-1">
-                        <p className={cn("text-sm font-medium", isSelected && "text-accent font-semibold")}>
+                        <p
+                          className={cn(
+                            "text-sm font-medium",
+                            isSelected && "text-accent font-semibold",
+                          )}
+                        >
                           {opt.label}
                         </p>
                         <p className="text-xs text-ink-3 mt-0.5">{opt.desc}</p>
@@ -309,7 +314,9 @@ export function FilterModal({ open, onClose, initialTab = "sort" }: FilterModalP
                       <div
                         className={cn(
                           "flex size-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                          isSelected ? "border-accent bg-accent text-on-accent" : "border-line-strong",
+                          isSelected
+                            ? "border-accent bg-accent text-on-accent"
+                            : "border-line-strong",
                         )}
                       >
                         {isSelected && <span className="size-2 rounded-full bg-on-accent" />}
@@ -317,51 +324,49 @@ export function FilterModal({ open, onClose, initialTab = "sort" }: FilterModalP
                     </button>
                   );
                 })
-              ) : (
-                // Filter Category Options
-                displayedOptions.length > 0 ? (
-                  displayedOptions.map((opt) => {
-                    const isSelected = draftFilters[activeTab] === opt.value;
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => {
-                          toggleFilter(activeTab, opt.value);
-                        }}
+              ) : // Filter Category Options
+              displayedOptions.length > 0 ? (
+                displayedOptions.map((opt) => {
+                  const isSelected = draftFilters[activeTab] === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        toggleFilter(activeTab, opt.value);
+                      }}
+                      className={cn(
+                        "flex w-full items-center justify-between p-3 rounded-xl border text-left transition-all",
+                        isSelected
+                          ? "border-accent bg-accent-soft/30 text-ink shadow-xs"
+                          : "border-line bg-surface hover:border-line-strong hover:bg-surface-2 text-ink-2",
+                      )}
+                    >
+                      <span
                         className={cn(
-                          "flex w-full items-center justify-between p-3 rounded-xl border text-left transition-all",
-                          isSelected
-                            ? "border-accent bg-accent-soft/30 text-ink shadow-xs"
-                            : "border-line bg-surface hover:border-line-strong hover:bg-surface-2 text-ink-2",
+                          "text-sm font-medium min-w-0 pr-2",
+                          isSelected ? "text-accent font-semibold" : "text-ink",
                         )}
                       >
-                        <span
-                          className={cn(
-                            "text-sm font-medium min-w-0 pr-2",
-                            isSelected ? "text-accent font-semibold" : "text-ink",
-                          )}
-                        >
-                          {opt.label}
-                        </span>
-                        <div
-                          className={cn(
-                            "flex size-5 shrink-0 items-center justify-center rounded-md border transition-colors",
-                            isSelected
-                              ? "border-accent bg-accent text-on-accent"
-                              : "border-line-strong bg-surface",
-                          )}
-                        >
-                          {isSelected && <CheckIcon className="size-3.5 stroke-[2.5]" />}
-                        </div>
-                      </button>
-                    );
-                  })
-                ) : (
-                  <div className="py-8 text-center text-xs text-ink-3">
-                    No options matching &ldquo;{searchTerm}&rdquo;
-                  </div>
-                )
+                        {opt.label}
+                      </span>
+                      <div
+                        className={cn(
+                          "flex size-5 shrink-0 items-center justify-center rounded-md border transition-colors",
+                          isSelected
+                            ? "border-accent bg-accent text-on-accent"
+                            : "border-line-strong bg-surface",
+                        )}
+                      >
+                        {isSelected && <CheckIcon className="size-3.5 stroke-[2.5]" />}
+                      </div>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="py-8 text-center text-xs text-ink-3">
+                  No options matching &ldquo;{searchTerm}&rdquo;
+                </div>
               )}
             </div>
           </div>

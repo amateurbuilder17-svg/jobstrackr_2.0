@@ -52,6 +52,12 @@ export interface Identity {
   /** Null when there is no name and no address to derive one from. */
   initials: string | null;
   isAdmin: boolean;
+  /**
+   * Whether this account can be signed into with a password — false for a
+   * Google account that has never set one. Decides whether the menu offers to
+   * set a password or to reset one. Derived server-side by `userHasPassword`.
+   */
+  hasPassword: boolean;
 }
 
 interface SessionContextValue {

@@ -1,0 +1,510 @@
+{
+  "_comment": "Lifted from the old app's src/constants/organizationMatching.ts (ORGANIZATION_MATCH_DATA). Used only by scripts/import-legacy-logos.mjs, offline — it is not shipped to the browser, which is the point.",
+  "organizations": [
+    {
+      "name": "Institute of Chartered Accountants of India",
+      "short_forms": ["ICAI"],
+      "aliases": ["ICAI India", "CA Institute", "Chartered Accountants Institute"]
+    },
+    {
+      "name": "All India Institute of Medical Sciences",
+      "short_forms": ["AIIMS"],
+      "aliases": ["AIIMS Delhi", "AIIMS Recruitment", "AIIMS Hospital"]
+    },
+    {
+      "name": "Airports Authority of India",
+      "short_forms": ["AAI"],
+      "aliases": ["AAI India", "Airports Authority"]
+    },
+    {
+      "name": "Agricultural and Processed Food Products Export Development Authority",
+      "short_forms": ["APEDA"],
+      "aliases": ["APEDA India"]
+    },
+    {
+      "name": "Apparel Export Promotion Council",
+      "short_forms": ["AEPC"],
+      "aliases": ["AEPC India"]
+    },
+    {
+      "name": "Bar Council of India",
+      "short_forms": ["BCI"],
+      "aliases": ["Bar Council"]
+    },
+    {
+      "name": "Bhabha Atomic Research Centre",
+      "short_forms": ["BARC"],
+      "aliases": ["BARC India", "Atomic Research Centre"]
+    },
+    {
+      "name": "Bharat Heavy Electricals Limited",
+      "short_forms": ["BHEL"],
+      "aliases": ["BHEL India"]
+    },
+    {
+      "name": "Bharat Interface for Money",
+      "short_forms": ["BHIM"],
+      "aliases": ["BHIM App"]
+    },
+    {
+      "name": "Bharat Sanchar Nigam Limited",
+      "short_forms": ["BSNL"],
+      "aliases": ["BSNL India"]
+    },
+    {
+      "name": "Biotechnology Industry Research Assistance Council",
+      "short_forms": ["BIRAC"],
+      "aliases": ["BIRAC India"]
+    },
+    {
+      "name": "Bureau of Indian Standards",
+      "short_forms": ["BIS"],
+      "aliases": ["BIS Hallmark", "Bureau Standards India"]
+    },
+    {
+      "name": "Border Security Force",
+      "short_forms": ["BSF"],
+      "aliases": ["BSF India"]
+    },
+    {
+      "name": "Bureau of Police Research and Development",
+      "short_forms": ["BPRD"],
+      "aliases": ["Police Research Bureau"]
+    },
+    {
+      "name": "Capacity Building Commission",
+      "short_forms": ["CBC"],
+      "aliases": ["Capacity Building Commission India"]
+    },
+    {
+      "name": "Capital Goods Skill Council",
+      "short_forms": ["CGSC"],
+      "aliases": ["Skill Council Capital Goods"]
+    },
+    {
+      "name": "Central Board of Secondary Education",
+      "short_forms": ["CBSE"],
+      "aliases": ["CBSE Board"]
+    },
+    {
+      "name": "Central Bureau of Investigation",
+      "short_forms": ["CBI"],
+      "aliases": ["CBI India"]
+    },
+    {
+      "name": "Central Council for Research in Homoeopathy",
+      "short_forms": ["CCRH"],
+      "aliases": ["Homeopathy Research Council"]
+    },
+    {
+      "name": "Central Vigilance Commission",
+      "short_forms": ["CVC"],
+      "aliases": ["Vigilance Commission India"]
+    },
+    {
+      "name": "Centre for Development of Advanced Computing",
+      "short_forms": ["CDAC", "C-DAC"],
+      "aliases": ["CDAC India"]
+    },
+    {
+      "name": "Coal India Limited",
+      "short_forms": ["CIL"],
+      "aliases": ["Coal India"]
+    },
+    {
+      "name": "Common Services Centres",
+      "short_forms": ["CSC"],
+      "aliases": ["CSC India", "Digital Seva"]
+    },
+    {
+      "name": "Competition Commission of India",
+      "short_forms": ["CCI"],
+      "aliases": ["Competition Commission"]
+    },
+    {
+      "name": "Consortium for Educational Communication",
+      "short_forms": ["CEC"],
+      "aliases": ["CEC India"]
+    },
+    {
+      "name": "Controller of Certifying Authorities",
+      "short_forms": ["CCA"],
+      "aliases": ["Certifying Authority Controller"]
+    },
+    {
+      "name": "Council for Leather Exports",
+      "short_forms": ["CLE"],
+      "aliases": ["Leather Export Council"]
+    },
+    {
+      "name": "Council of Architecture",
+      "short_forms": ["COA"],
+      "aliases": ["Architecture Council India"]
+    },
+    {
+      "name": "Council of Scientific and Industrial Research",
+      "short_forms": ["CSIR"],
+      "aliases": ["CSIR India"]
+    },
+    {
+      "name": "Cochin Shipyard Training Institute",
+      "short_forms": ["CSTI"],
+      "aliases": ["CSTI India"]
+    },
+    {
+      "name": "Defence Research and Development Organisation",
+      "short_forms": ["DRDO"],
+      "aliases": ["DRDO India"]
+    },
+    {
+      "name": "Dental Council of India",
+      "short_forms": ["DCI"],
+      "aliases": ["Dental Council"]
+    },
+    {
+      "name": "Digital Tagging System",
+      "short_forms": ["Digitag"],
+      "aliases": ["Digitag India"]
+    },
+    {
+      "name": "DigitalNIC Services",
+      "short_forms": ["DigitalNIC"],
+      "aliases": ["NIC Digital"]
+    },
+    {
+      "name": "Direct Benefit Transfer",
+      "short_forms": ["DBT"],
+      "aliases": ["DBT Bharat"]
+    },
+    {
+      "name": "Education and Research Network of India",
+      "short_forms": ["ERNET"],
+      "aliases": ["ERNET India"]
+    },
+    {
+      "name": "Educational Consultants India Limited",
+      "short_forms": ["EdCIL"],
+      "aliases": ["EdCIL India"]
+    },
+    {
+      "name": "Election Commission of India",
+      "short_forms": ["ECI"],
+      "aliases": ["Election Commission"]
+    },
+    {
+      "name": "Electronics Corporation of India Limited",
+      "short_forms": ["ECIL"],
+      "aliases": ["ECIL India"]
+    },
+    {
+      "name": "Employees Provident Fund Organisation",
+      "short_forms": ["EPFO"],
+      "aliases": ["EPF India", "PF Office"]
+    },
+    {
+      "name": "Federation of Indian Chambers of Commerce and Industry",
+      "short_forms": ["FICCI"],
+      "aliases": ["FICCI India"]
+    },
+    {
+      "name": "Film and Television Institute of India",
+      "short_forms": ["FTII"],
+      "aliases": ["FTII Pune"]
+    },
+    {
+      "name": "Food Safety and Standards Authority of India",
+      "short_forms": ["FSSAI"],
+      "aliases": ["Food Authority India"]
+    },
+    {
+      "name": "Gas Authority of India Limited",
+      "short_forms": ["GAIL"],
+      "aliases": ["GAIL India"]
+    },
+    {
+      "name": "Indian Institutes of Management",
+      "short_forms": ["IIM"],
+      "aliases": ["IIM Ahmedabad", "IIM Bangalore", "IIM Calcutta", "IIM Lucknow"]
+    },
+    {
+      "name": "Indian Institutes of Technology",
+      "short_forms": ["IIT"],
+      "aliases": ["IIT Bombay", "IIT Delhi", "IIT Kharagpur", "IIT Madras"]
+    },
+    {
+      "name": "Indian Institutes of Science Education and Research",
+      "short_forms": ["IISER"],
+      "aliases": ["IISER Pune", "IISER Kolkata", "IISER Berhampur"]
+    },
+    {
+      "name": "Indian Institute of Science",
+      "short_forms": ["IISc"],
+      "aliases": ["IISc Bangalore"]
+    },
+    {
+      "name": "Indian Army",
+      "short_forms": ["Army"],
+      "aliases": ["Indian Army Recruitment"]
+    },
+    {
+      "name": "India Post",
+      "short_forms": ["Post Office"],
+      "aliases": ["India Post Office", "Postal Department"]
+    },
+    {
+      "name": "Indian Computer Emergency Response Team",
+      "short_forms": ["CERT-In"],
+      "aliases": ["CERT India"]
+    },
+    {
+      "name": "Indian Council of Medical Research",
+      "short_forms": ["ICMR"],
+      "aliases": ["Medical Research Council India"]
+    },
+    {
+      "name": "Indian Nursing Council",
+      "short_forms": ["INC"],
+      "aliases": ["Nursing Council India"]
+    },
+    {
+      "name": "Indian Oil Corporation Limited",
+      "short_forms": ["IOCL"],
+      "aliases": ["Indian Oil"]
+    },
+    {
+      "name": "Indian Railway Catering and Tourism Corporation",
+      "short_forms": ["IRCTC"],
+      "aliases": ["IRCTC India"]
+    },
+    {
+      "name": "Indian Space Research Organisation",
+      "short_forms": ["ISRO"],
+      "aliases": ["ISRO India"]
+    },
+    {
+      "name": "Indian Telephone Industries",
+      "short_forms": ["ITI"],
+      "aliases": ["ITI Limited"]
+    },
+    {
+      "name": "Indira Gandhi National Open University",
+      "short_forms": ["IGNOU"],
+      "aliases": ["IGNOU University"]
+    },
+    {
+      "name": "Industrial Training Institute",
+      "short_forms": ["ITI"],
+      "aliases": ["ITI Institute"]
+    },
+    {
+      "name": "Institute of Banking Personnel Selection",
+      "short_forms": ["IBPS"],
+      "aliases": ["IBPS Exam"]
+    },
+    {
+      "name": "Insurance Regulatory and Development Authority of India",
+      "short_forms": ["IRDAI"],
+      "aliases": ["Insurance Regulatory Authority"]
+    },
+    {
+      "name": "Intelligence Bureau",
+      "short_forms": ["IB"],
+      "aliases": ["IB India"]
+    },
+    {
+      "name": "Invest India",
+      "short_forms": ["Invest India"],
+      "aliases": ["Investment Promotion Agency"]
+    },
+    {
+      "name": "Kendriya Vidyalaya Sangathan",
+      "short_forms": ["KVS"],
+      "aliases": ["KVS Schools"]
+    },
+    {
+      "name": "Life Insurance Corporation of India",
+      "short_forms": ["LIC"],
+      "aliases": ["LIC India"]
+    },
+    {
+      "name": "Micro, Small and Medium Enterprises",
+      "short_forms": ["MSME"],
+      "aliases": ["MSME Ministry"]
+    },
+    {
+      "name": "National Bank for Agriculture and Rural Development",
+      "short_forms": ["NABARD"],
+      "aliases": ["NABARD Bank"]
+    },
+    {
+      "name": "National AIDS Control Organisation",
+      "short_forms": ["NACO"],
+      "aliases": ["AIDS Control Organisation"]
+    },
+    {
+      "name": "National Assessment and Accreditation Council",
+      "short_forms": ["NAAC"],
+      "aliases": ["NAAC India"]
+    },
+    {
+      "name": "National Council for Teacher Education",
+      "short_forms": ["NCTE"],
+      "aliases": ["Teacher Education Council"]
+    },
+    {
+      "name": "National Council of Educational Research and Training",
+      "short_forms": ["NCERT"],
+      "aliases": ["NCERT India"]
+    },
+    {
+      "name": "National Informatics Centre",
+      "short_forms": ["NIC"],
+      "aliases": ["NIC India"]
+    },
+    {
+      "name": "National Institute of Electronics and Information Technology",
+      "short_forms": ["NIELIT"],
+      "aliases": ["DOEACC"]
+    },
+    {
+      "name": "National Internet Exchange of India",
+      "short_forms": ["NIXI"],
+      "aliases": ["Internet Exchange India"]
+    },
+    {
+      "name": "National Projects Construction Corporation Limited",
+      "short_forms": ["NPCC"],
+      "aliases": ["NPCC India"]
+    },
+    {
+      "name": "National Skill Development Corporation",
+      "short_forms": ["NSDC"],
+      "aliases": ["Skill Development Corporation"]
+    },
+    {
+      "name": "National Testing Agency",
+      "short_forms": ["NTA"],
+      "aliases": ["NTA Exams"]
+    },
+    {
+      "name": "National Thermal Power Corporation",
+      "short_forms": ["NTPC"],
+      "aliases": ["NTPC Limited"]
+    },
+    {
+      "name": "Oil and Natural Gas Corporation",
+      "short_forms": ["ONGC"],
+      "aliases": ["ONGC India"]
+    },
+    {
+      "name": "Pharmaceuticals Export Promotion Council of India",
+      "short_forms": ["Pharmexcil"],
+      "aliases": ["Pharma Export Council"]
+    },
+    {
+      "name": "Power Finance Corporation",
+      "short_forms": ["PFC"],
+      "aliases": ["PFC India"]
+    },
+    {
+      "name": "Power Grid Corporation of India",
+      "short_forms": ["PGCIL"],
+      "aliases": ["PowerGrid"]
+    },
+    {
+      "name": "Press Council of India",
+      "short_forms": ["PCI"],
+      "aliases": ["Press Council"]
+    },
+    {
+      "name": "Public Service Commission",
+      "short_forms": ["PSC"],
+      "aliases": ["State PSC", "UPPSC", "WBPSC"]
+    },
+    {
+      "name": "Quality Council of India",
+      "short_forms": ["QCI"],
+      "aliases": ["Quality Council"]
+    },
+    {
+      "name": "Rail India Technical and Economic Service",
+      "short_forms": ["RITES"],
+      "aliases": ["RITES Limited"]
+    },
+    {
+      "name": "RailTel Corporation of India",
+      "short_forms": ["RailTel"],
+      "aliases": ["RailTel India"]
+    },
+    {
+      "name": "Railway Recruitment Board",
+      "short_forms": ["RRB"],
+      "aliases": ["Railway Jobs Board"]
+    },
+    {
+      "name": "Rehabilitation Council of India",
+      "short_forms": ["RCI"],
+      "aliases": ["Rehabilitation Council"]
+    },
+    {
+      "name": "Reserve Bank of India",
+      "short_forms": ["RBI"],
+      "aliases": ["RBI Bank"]
+    },
+    {
+      "name": "Right to Information",
+      "short_forms": ["RTI"],
+      "aliases": ["RTI Act"]
+    },
+    {
+      "name": "Society for Applied Microwave Electronics Engineering and Research",
+      "short_forms": ["SAMEER"],
+      "aliases": ["SAMEER India"]
+    },
+    {
+      "name": "Securities and Exchange Board of India",
+      "short_forms": ["SEBI"],
+      "aliases": ["SEBI India"]
+    },
+    {
+      "name": "Software Technology Parks of India",
+      "short_forms": ["STPI"],
+      "aliases": ["STPI India"]
+    },
+    {
+      "name": "Sports Authority of India",
+      "short_forms": ["SAI"],
+      "aliases": ["SAI India"]
+    },
+    {
+      "name": "Staff Selection Commission",
+      "short_forms": ["SSC"],
+      "aliases": ["SSC India"]
+    },
+    {
+      "name": "Standardisation Testing and Quality Certification",
+      "short_forms": ["STQC"],
+      "aliases": ["STQC India"]
+    },
+    {
+      "name": "State Bank of India",
+      "short_forms": ["SBI"],
+      "aliases": ["SBI Bank"]
+    },
+    {
+      "name": "Steel Authority of India Limited",
+      "short_forms": ["SAIL"],
+      "aliases": ["SAIL India"]
+    },
+    {
+      "name": "Union Public Service Commission",
+      "short_forms": ["UPSC"],
+      "aliases": ["UPSC Exams"]
+    },
+    {
+      "name": "University Grants Commission",
+      "short_forms": ["UGC"],
+      "aliases": ["UGC India"]
+    }
+  ]
+}

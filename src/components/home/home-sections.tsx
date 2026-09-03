@@ -1,10 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo } from "react";
+import { ChevronRightIcon } from "@/components/icons";
 import type { ExamAttempt } from "@/lib/db/queries/attempts";
 import type { ExamUpdateCard as ExamUpdateCardData } from "@/lib/db/queries/exam-updates";
 import type { PopularExam } from "@/lib/db/queries/exams";
 import type { JobCard as JobCardData } from "@/lib/db/queries/jobs";
+import type { MatchedJob } from "@/lib/db/queries/match";
 import { daysUntil } from "@/lib/format/deadline";
 import { STATUS_LABELS, type AttemptStatus } from "@/lib/tracker/enums";
 import {
@@ -27,10 +30,23 @@ function matchesQualification(job: JobCardData, qualFilters: string[]): boolean 
     const f = filter.toLowerCase();
     if (f.includes("10")) return fullText.includes("10") || fullText.includes("matric");
     if (f.includes("12")) return fullText.includes("12") || fullText.includes("inter");
-    if (f.includes("graduate")) return fullText.includes("graduate") || fullText.includes("degree") || fullText.includes("bachelor");
-    if (f.includes("engineering")) return fullText.includes("engineer") || fullText.includes("b.tech") || fullText.includes("b.e");
+    if (f.includes("graduate"))
+      return (
+        fullText.includes("graduate") ||
+        fullText.includes("degree") ||
+        fullText.includes("bachelor")
+      );
+    if (f.includes("engineering"))
+      return (
+        fullText.includes("engineer") || fullText.includes("b.tech") || fullText.includes("b.e")
+      );
     if (f.includes("diploma")) return fullText.includes("diploma");
-    if (f.includes("post graduate")) return fullText.includes("post graduate") || fullText.includes("master") || fullText.includes("m.tech");
+    if (f.includes("post graduate"))
+      return (
+        fullText.includes("post graduate") ||
+        fullText.includes("master") ||
+        fullText.includes("m.tech")
+      );
     return fullText.includes(f);
   });
 }
@@ -101,35 +117,109 @@ export function TrackedExamsFeed({ attempts }: { attempts: ExamAttempt[] }) {
   );
 }
 
-export function ClosingSoonFeed({ jobs }: { jobs: JobCardData[] }) {
-  const { query, filters, registerResults, unregisterResults } = useHomeSearch();
+/**
+ * The filter chips, split into the three groups the cards can answer.
+ *
+ * Four feeds ran the same three `filter()` calls inline. One hook keeps the
+ * chip vocabulary in a single place, so a chip added to the search bar cannot
+ * silently stop working in one section and keep working in the others.
+ */
+const QUALIFICATION_CHIPS = [
+  "Class 10",
+  "Class 12",
+  "Graduate",
+  "Engineering",
+  "Diploma",
+  "Post Graduate",
+];
+const DEADLINE_CHIPS = ["Closing today", "Within 3 days", "This month"];
+const LOCATION_CHIPS = [
+  "All India",
+  "Maharashtra",
+  "Odisha",
+  "Bihar",
+  "Delhi",
+  "Uttar Pradesh",
+];
 
-  const qualFilters = useMemo(
-    () => filters.filter((f) => ["Class 10", "Class 12", "Graduate", "Engineering", "Diploma", "Post Graduate"].includes(f)),
-    [filters],
-  );
-  const deadlineFilters = useMemo(
-    () => filters.filter((f) => ["Closing today", "Within 3 days", "This month"].includes(f)),
-    [filters],
-  );
-  const locationFilters = useMemo(
-    () => filters.filter((f) => ["All India", "Maharashtra", "Odisha", "Bihar", "Delhi", "Uttar Pradesh"].includes(f)),
-    [filters],
-  );
+function useJobFilter<T extends JobCardData>(jobs: T[], query: string, filters: string[]): T[] {
+  return useMemo(() => {
+    const qual = filters.filter((f) => QUALIFICATION_CHIPS.includes(f));
+    const deadline = filters.filter((f) => DEADLINE_CHIPS.includes(f));
+    const location = filters.filter((f) => LOCATION_CHIPS.includes(f));
 
-  const filtered = useMemo(() => {
     return jobs.filter((job) => {
       if (query) {
-        const text = `${job.title} ${job.organization?.name ?? ""} ${job.organization?.short_name ?? ""} ${job.qualification_summary ?? ""} ${job.location ?? ""}`.toLowerCase();
+        const text =
+          `${job.title} ${job.organization?.name ?? ""} ${job.organization?.short_name ?? ""} ${job.qualification_summary ?? ""} ${job.location ?? ""}`.toLowerCase();
         if (!text.includes(query)) return false;
       }
       return (
-        matchesQualification(job, qualFilters) &&
-        matchesDeadline(job, deadlineFilters) &&
-        matchesLocation(job, locationFilters)
+        matchesQualification(job, qual) &&
+        matchesDeadline(job, deadline) &&
+        matchesLocation(job, location)
       );
     });
-  }, [jobs, query, qualFilters, deadlineFilters, locationFilters]);
+  }, [jobs, query, filters]);
+}
+
+/**
+ * Openings this person meets every stated requirement for.
+ *
+ * The one row on the home page that is about the reader rather than about the
+ * database, which is why it sits directly under their tracked exams: someone
+ * signed in came back for their own deadlines, not to browse.
+ *
+ * Rendered with the same `JobCard` boxes as "Just published" — a matched job
+ * and a new job are the same object and should not be two different shapes on
+ * one page. The header says which list this is; the cards do not need to.
+ *
+ * Only three rows are fetched. The full ranked feed lives at /for-you and both
+ * links go there; pulling twenty to render three is the exact habit the
+ * rebuild removed.
+ */
+export function MatchedForYouFeed({ jobs }: { jobs: MatchedJob[] }) {
+  const { query, filters, registerResults, unregisterResults } = useHomeSearch();
+  const filtered = useJobFilter(jobs, query, filters);
+
+  useEffect(() => {
+    registerResults("matched-for-you", filtered.length);
+    return () => {
+      unregisterResults("matched-for-you");
+    };
+  }, [filtered.length, registerResults, unregisterResults]);
+
+  if (filtered.length === 0) return null;
+
+  return (
+    <section aria-labelledby="matched-for-you-heading">
+      <SectionHeader
+        id="matched-for-you-heading"
+        title="Matched to your profile"
+        subtitle="Age, qualification and stream all check out"
+        actionLabel="For You"
+        href="/for-you"
+      />
+      <div className="space-y-3">
+        {filtered.map((job) => (
+          <JobCard key={job.id} job={job} />
+        ))}
+      </div>
+      <Link
+        href="/for-you"
+        className="mt-3 flex items-center justify-end gap-1 rounded-lg px-2 py-1.5 text-card-sm font-bold text-brand transition-colors duration-200 hover:bg-brand-soft"
+      >
+        View all matched exams
+        <ChevronRightIcon className="size-[clamp(0.75rem,2.9vw,0.875rem)]" aria-hidden="true" />
+      </Link>
+    </section>
+  );
+}
+
+export function ClosingSoonFeed({ jobs }: { jobs: JobCardData[] }) {
+  const { query, filters, registerResults, unregisterResults } = useHomeSearch();
+
+  const filtered = useJobFilter(jobs, query, filters);
 
   useEffect(() => {
     registerResults("closing-soon", filtered.length);
@@ -161,32 +251,7 @@ export function ClosingSoonFeed({ jobs }: { jobs: JobCardData[] }) {
 export function JustPublishedFeed({ jobs }: { jobs: JobCardData[] }) {
   const { query, filters, registerResults, unregisterResults } = useHomeSearch();
 
-  const qualFilters = useMemo(
-    () => filters.filter((f) => ["Class 10", "Class 12", "Graduate", "Engineering", "Diploma", "Post Graduate"].includes(f)),
-    [filters],
-  );
-  const deadlineFilters = useMemo(
-    () => filters.filter((f) => ["Closing today", "Within 3 days", "This month"].includes(f)),
-    [filters],
-  );
-  const locationFilters = useMemo(
-    () => filters.filter((f) => ["All India", "Maharashtra", "Odisha", "Bihar", "Delhi", "Uttar Pradesh"].includes(f)),
-    [filters],
-  );
-
-  const filtered = useMemo(() => {
-    return jobs.filter((job) => {
-      if (query) {
-        const text = `${job.title} ${job.organization?.name ?? ""} ${job.organization?.short_name ?? ""} ${job.qualification_summary ?? ""} ${job.location ?? ""}`.toLowerCase();
-        if (!text.includes(query)) return false;
-      }
-      return (
-        matchesQualification(job, qualFilters) &&
-        matchesDeadline(job, deadlineFilters) &&
-        matchesLocation(job, locationFilters)
-      );
-    });
-  }, [jobs, query, qualFilters, deadlineFilters, locationFilters]);
+  const filtered = useJobFilter(jobs, query, filters);
 
   useEffect(() => {
     registerResults("just-published", filtered.length);
@@ -243,7 +308,8 @@ export function LatestUpdatesFeed({ updates }: { updates: ExamUpdateCardData[] }
   const filtered = useMemo(() => {
     if (!query) return updates;
     return updates.filter((update) => {
-      const text = `${update.title} ${update.organization?.name ?? ""} ${update.category} ${update.summary ?? ""}`.toLowerCase();
+      const text =
+        `${update.title} ${update.organization?.name ?? ""} ${update.category} ${update.summary ?? ""}`.toLowerCase();
       return text.includes(query);
     });
   }, [updates, query]);

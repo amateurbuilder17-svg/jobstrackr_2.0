@@ -5,10 +5,11 @@ import { createHash } from "node:crypto";
 import { adminDb } from "@/lib/db/clients";
 import type { Database, Json } from "@/lib/db/database.types";
 import { toDateLinks, toImportantDates, toOverview } from "@/lib/jobs/detail-shape";
+import { sectorTagsOf } from "@/lib/jobs/sectors";
 import { UPDATE_CATEGORIES, type UpdateCategory } from "@/lib/updates/categories";
 import { toUpdateSections } from "@/lib/updates/detail-shape";
 import { toUrl } from "./links";
-import { toDate, toSlug, toStringArray, toText } from "./normalize";
+import { toDate, toSlug, toText } from "./normalize";
 import { resolveOrganizations } from "./organizations";
 import { uniqueSlugs } from "./slugs";
 
@@ -143,7 +144,16 @@ export function toUpdatePayload(
       source_url: sourceUrl,
       category: toUpdateCategory(row.category),
       summary: toText(row.summary),
-      tags: toStringArray(row.tags),
+      // Derived, for the same reason jobs' tags are — see `sectorTagsOf`.
+      //
+      // The sheet's own tags were unusable in both of the shapes they arrived
+      // in: 5,978 of 6,173 rows held the literal string "[]" (an array written
+      // without being joined, since fixed in `toStringArray`), and the ~180
+      // that held anything real held SEO keyword phrases — "IBPS SO Result
+      // 2025", "Latest NTPC Jobs" — 751 distinct values across those rows,
+      // nearly one per row. That groups nothing, restates the title, and puts
+      // a different vocabulary in `tags` here than in `jobs.tags`.
+      tags: sectorTagsOf({ title, organization: organisation }),
       published_date: publishedDate,
       published_at:
         toText(row.published_at) ?? (publishedDate ? `${publishedDate}T00:00:00Z` : null),

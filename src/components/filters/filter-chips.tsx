@@ -12,14 +12,11 @@ export interface FilterOption {
 /**
  * A single-select filter row, written to the URL.
  *
- * Rendered as real buttons rather than a `<select>`: on mobile these are the
- * primary way people narrow a list, and a native select buries the options
- * behind a system sheet. `aria-pressed` carries the state for anyone not
- * seeing the fill.
- *
- * Scrolls sideways rather than wrapping. Eight categories wrapped to three
- * lines on a 375px screen, which pushed the first result below the fold — the
- * same measurement that reshaped `FilterBar`.
+ * Matching the FilterBar design language from the jobs page:
+ * - Height 9 (h-9) rounded-full buttons.
+ * - Active filter pill with close icon and accent highlight.
+ * - "Clear all" link button when a filter is active.
+ * - Horizontal smooth scrolling with hidden scrollbars.
  */
 export function FilterChips({
   param,
@@ -33,38 +30,67 @@ export function FilterChips({
   const { params, set } = useFilterParams();
   const active = params.get(param);
 
+  const activeOption = options.find((o) => o.value === active);
+
   return (
     <div
       role="group"
       aria-label={label}
       className={cn(
-        "-mx-4 flex gap-2 overflow-x-auto px-4 py-1 lg:mx-0 lg:px-0",
+        "-mx-4 flex items-center gap-2 overflow-x-auto px-4 py-1.5 lg:mx-0 lg:px-0",
         "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
       )}
     >
+      {/* Active Filter Removable Pill */}
+      {active && activeOption && (
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              set(param, null);
+            }}
+            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-accent-line bg-accent-soft px-3 text-xs font-semibold text-accent transition-colors hover:bg-accent-soft/70"
+          >
+            <span>{activeOption.label}</span>
+            <CloseIcon className="size-3" />
+            <span className="sr-only">— remove {activeOption.label} filter</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              set(param, null);
+            }}
+            className="h-9 shrink-0 px-2 text-xs font-semibold text-ink-3 underline-offset-4 hover:text-accent hover:underline"
+          >
+            Clear all
+          </button>
+
+          <div className="h-4 w-px bg-line shrink-0 mx-0.5" />
+        </>
+      )}
+
+      {/* Filter Options */}
       {options.map((option) => {
         const isActive = active === option.value;
+        if (isActive) return null; // Already rendered as active pill above
+
         return (
           <button
             key={option.value}
             type="button"
-            aria-pressed={isActive}
+            aria-pressed={false}
             onClick={() => {
-              // Pressing the active chip clears it, which is what the close
-              // icon promises and what a second tap should do anyway.
-              set(param, isActive ? null : option.value);
+              set(param, option.value);
             }}
             className={cn(
-              "inline-flex shrink-0 items-center gap-1 rounded-full border px-3 py-1",
-              "text-xs font-medium whitespace-nowrap",
+              "inline-flex h-9 shrink-0 items-center rounded-full border border-line px-3.5",
+              "bg-surface text-xs font-medium whitespace-nowrap text-ink-2",
               "transition-colors duration-(--duration-fast)",
-              isActive
-                ? "border-accent-line bg-accent-soft text-accent"
-                : "border-line bg-surface text-ink-2 hover:border-line-strong hover:text-ink",
+              "hover:border-line-strong hover:text-ink hover:bg-surface-2",
             )}
           >
             {option.label}
-            {isActive ? <CloseIcon className="size-3" /> : null}
           </button>
         );
       })}

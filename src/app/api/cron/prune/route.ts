@@ -22,6 +22,12 @@ import { getServerEnv } from "@/lib/env.server";
  * every ingest, where it belongs. A job whose deadline passed at midnight
  * should stop being listed at midnight, not at whatever hour this cron lands.
  *
+ * `merge_duplicate_jobs()` runs here rather than from ingest for the same
+ * reason as the vacuum note in 0017: ingest already has a job to do, and a
+ * cross-source duplicate (the same posting scraped from an organisation's own
+ * site and from an aggregator, see migration 0027) is a housekeeping concern,
+ * not a per-row ingest decision.
+ *
  * No `dynamic = "force-dynamic"` segment config: Cache Components rejects it,
  * and it would be redundant anyway — reading the Authorization header is itself
  * a dynamic access, so this handler never gets prerendered.
@@ -49,16 +55,31 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const { data, error } = await adminDb().rpc("prune_operational_data");
+  const db = adminDb();
+
+  const { data, error } = await db.rpc("prune_operational_data");
 
   if (error) {
     console.error("[cron:prune] failed:", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const { data: jobsMerged, error: mergeError } = await db.rpc("merge_duplicate_jobs");
+
+  if (mergeError) {
+    // Reported, not thrown: retention already ran and its counts are worth
+    // keeping even if the merge step fails on a given day.
+    console.error("[cron:prune] merge_duplicate_jobs failed:", mergeError.message);
+  }
+
   // Counts go in the response body rather than a log line: Vercel records the
   // cron's response, and this codebase logs only failures.
   const total = data.reduce((sum, row) => sum + row.rows_deleted, 0);
 
-  return NextResponse.json({ ok: true, total, tables: data });
+  return NextResponse.json({
+    ok: true,
+    total,
+    tables: data,
+    jobsMerged: mergeError ? null : jobsMerged,
+  });
 }

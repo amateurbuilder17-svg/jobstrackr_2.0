@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { userHasPassword } from "@/lib/auth/session";
 import { sessionDb } from "@/lib/db/clients";
+import { env } from "@/lib/env";
 import { consume, LIMITS } from "@/lib/rate-limit";
 import { callbackOrigin } from "./callback-origin";
 import { safeNext, type FormState } from "./form-state";
@@ -143,6 +145,13 @@ export async function signOutAction(): Promise<void> {
 
 /* ── Password reset ────────────────────────────────────────────────────── */
 
+/** True when the app is pointed at a `supabase start` stack rather than a real project. */
+function isLocalAuthServer(): boolean {
+  return /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:|\/|$)/.test(
+    env.NEXT_PUBLIC_SUPABASE_URL,
+  );
+}
+
 export async function requestPasswordResetAction(
   _prev: FormState,
   formData: FormData,
@@ -161,13 +170,40 @@ export async function requestPasswordResetAction(
   }
 
   const db = await sessionDb();
-  await db.auth.resetPasswordForEmail(parsed.data.email, {
+  const { error } = await db.auth.resetPasswordForEmail(parsed.data.email, {
     redirectTo: `${await callbackOrigin()}/auth/callback?next=/reset-password`,
   });
 
-  // The result is ignored on purpose, and the message is the same either way.
-  // Reporting "no account with that email" would turn this form into the
-  // enumeration oracle the sign-in form is careful not to be.
+  // The *user-facing* result is the same either way, on purpose: reporting "no
+  // account with that email" would turn this form into the enumeration oracle
+  // the sign-in form is careful not to be.
+  //
+  // The error still has to go somewhere, though. Discarding it entirely — which
+  // is what this did — makes a dead mailer indistinguishable from a working one
+  // from every angle at once: the form says the link is on its way, the action
+  // returns ok, and nothing is written anywhere. A misconfigured SMTP host, an
+  // origin missing from the auth server's redirect allow-list, or the auth
+  // server simply being unreachable all present as success. So it is logged
+  // server-side, where the address is already known and no one is being told
+  // anything they could not find out by trying to sign in.
+  if (error) {
+    console.error("[auth] password reset email failed", {
+      email: parsed.data.email,
+      status: error.status,
+      code: error.code,
+      message: error.message,
+    });
+  } else if (isLocalAuthServer()) {
+    // The local stack sends through the same Resend account production uses —
+    // see the `[auth.email.smtp]` block in supabase/config.toml for why, and
+    // for what that costs. So this line is not a debugging aid, it is a
+    // receipt: a real message just left for a real inbox from a dev machine,
+    // spending shared quota. Typing the wrong address into a local form is no
+    // longer a private mistake, and the output should say so at the moment it
+    // happens rather than in someone else's inbox.
+    console.warn(`[auth] real reset email sent from the local stack to ${parsed.data.email}`);
+  }
+
   return {
     ok: true,
     message: "If that address has an account, a reset link is on its way.",
@@ -209,10 +245,23 @@ export async function resetOwnPasswordAction(_prev: FormState): Promise<FormStat
   });
 
   if (error) {
+    // Same reason as the signed-out version: the wording the user sees is
+    // deliberately vague, so the reason has to be recoverable from the logs.
+    console.error("[auth] password reset email failed", {
+      email: user.email,
+      status: error.status,
+      code: error.code,
+      message: error.message,
+    });
     return { ok: false, message: "Could not send the link. Try again in a moment." };
   }
 
-  return { ok: true, message: `Reset link sent to ${user.email}.` };
+  return {
+    ok: true,
+    message: userHasPassword(user)
+      ? `Reset link sent to ${user.email}.`
+      : `Link sent to ${user.email}. Follow it to choose a password.`,
+  };
 }
 
 export async function updatePasswordAction(
@@ -239,7 +288,18 @@ export async function updatePasswordAction(
     };
   }
 
-  const { error } = await db.auth.updateUser({ password: parsed.data.password });
+  // The flag rides along with the password rather than in a second call, so
+  // there is no window where the password is set and the record of it is not.
+  //
+  // It exists because nothing else survives this write: setting a password on a
+  // Google account leaves the identity, the providers list and the JWT exactly
+  // as they were, so without this the app can never tell afterwards that the
+  // account has one. `userHasPassword` is the reader; its comment covers why
+  // user-writable metadata is an acceptable home for it.
+  const { error } = await db.auth.updateUser({
+    password: parsed.data.password,
+    data: { has_password: true },
+  });
   if (error) return { ok: false, errors: { form: error.message } };
 
   redirect("/profile");

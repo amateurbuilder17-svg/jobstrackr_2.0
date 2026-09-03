@@ -32,56 +32,44 @@ export async function saveAttemptAction(
   }
 
   const parsed = attemptSchema.safeParse({
-    examId: formData.get("examId"),
+    jobId: formData.get("jobId"),
     customName: formData.get("customName"),
-    stage: formData.get("stage"),
-    status: formData.get("status"),
-    appliedAt: formData.get("appliedAt"),
-    examDate: formData.get("examDate"),
-    resultDate: formData.get("resultDate"),
-    rollNumber: formData.get("rollNumber"),
-    score: formData.get("score"),
-    notes: formData.get("notes"),
   });
 
   if (!parsed.success) return { ok: false, errors: fieldErrors(parsed.error) };
   const a = parsed.data;
 
-  const row = {
-    user_id: user.id,
-    exam_id: a.examId,
-    custom_name: a.customName,
-    stage: a.stage,
-    status: a.status,
-    applied_at: a.appliedAt,
-    exam_date: a.examDate,
-    result_date: a.resultDate,
-    roll_number: a.rollNumber,
-    score: a.score,
-    notes: a.notes,
-  };
-
   const db = await sessionDb();
 
-  // An existing id means an edit. It is scoped by owner as well as by id, so a
-  // forged id updates nothing rather than returning a policy error.
-  const id = formData.get("id");
-  const { error } =
-    typeof id === "string" && id !== ""
-      ? await db.from("exam_attempts").update(row).eq("id", id).eq("user_id", user.id)
-      : await db.from("exam_attempts").insert(row);
+  // A picked notification carries its own title, so storing what the user typed
+  // alongside it would denormalise the one field most likely to be corrected
+  // upstream — the same reasoning as the comment on `exam_attempts.job_id`.
+  const { error } = await db.from("exam_attempts").insert({
+    user_id: user.id,
+    job_id: a.jobId,
+    custom_name: a.jobId === null ? a.customName : null,
+    status: "tracking",
+  });
 
-  if (error) return { ok: false, errors: { form: error.message } };
+  if (error) {
+    // 23505 is `exam_attempts_user_job_idx`: they already track this one.
+    // Reported on the field rather than as a form-level failure, because it is
+    // an answer to what they typed, not a fault.
+    if (error.code === "23505") {
+      return { ok: false, errors: { customName: "You are already tracking this exam." } };
+    }
+    return { ok: false, errors: { form: error.message } };
+  }
 
   revalidatePath("/tracker");
-  return { ok: true, message: "Saved." };
+  return { ok: true, message: "Added to your exams." };
 }
 
 /**
  * Status-only update, for the inline control on each row.
  *
  * Separate from the full form because changing "Applied" to "Admit card out"
- * should be one tap, not a round trip through a dialog with ten fields — and
+ * should be one tap, not a round trip through a dialog — and
  * because a partial update through the full schema would blank every field the
  * inline control does not send.
  */

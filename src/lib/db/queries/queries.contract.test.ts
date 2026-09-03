@@ -70,6 +70,9 @@ async function jobs() {
 async function updates() {
   return import("./exam-updates");
 }
+async function attempts() {
+  return import("./attempts");
+}
 
 describe("every query is bounded", () => {
   /**
@@ -96,6 +99,7 @@ describe("every query is bounded", () => {
       false,
       async () => (await updates()).listExamUpdates({ query: "result" }),
     ],
+    ["suggestSubjects", false, async () => (await attempts()).suggestSubjects("ssc cgl")],
   ];
 
   it.each(cases)("%s sends a LIMIT", async (_name, single, run) => {
@@ -130,6 +134,7 @@ describe("every query names its columns", () => {
     ["getExamUpdateBySlug", async () => (await updates()).getExamUpdateBySlug("s")],
     ["listUpdatesForJob", async () => (await updates()).listUpdatesForJob("id")],
     ["listRelatedUpdates", async () => (await updates()).listRelatedUpdates("SSC", "x")],
+    ["suggestSubjects", async () => (await attempts()).suggestSubjects("ssc cgl")],
   ])("%s does not select *", async (_name, run) => {
     await run();
 

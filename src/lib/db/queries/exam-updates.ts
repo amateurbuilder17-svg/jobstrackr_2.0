@@ -329,3 +329,102 @@ export async function listRelatedUpdates(
       .limit(limit),
   );
 }
+
+/* ── Tracker signals ───────────────────────────────────────────────────── */
+
+/**
+ * The categories that say something about where an exam has *got to*.
+ *
+ * `syllabus`, `cutoff` and `news` are deliberately absent: a syllabus post is
+ * published months before anything happens, and a tracker that promoted an
+ * exam to "Action Required" because someone wrote a news piece about it would
+ * be crying wolf.
+ */
+const SIGNAL_CATEGORIES = [
+  "admit_card",
+  "result",
+  "answer_key",
+  "exam_date",
+  "notification",
+] as const satisfies readonly UpdateCategory[];
+
+/**
+ * One dated fact from the updates feed, as the tracker reads it.
+ *
+ * Deliberately three fields. The tracker does not render these — it uses them
+ * to decide which of the three groups a tracked exam belongs in — so the title
+ * is here only because a signal you cannot attribute to a source is one you
+ * cannot check when it turns out to be wrong.
+ */
+export interface ExamUpdateSignal {
+  category: UpdateCategory;
+  title: string;
+  slug: string;
+  /** The date the commission published it, not the date we scraped it. */
+  publishedDate: string | null;
+}
+
+/**
+ * The recent signal updates for a tracker page's worth of attempts, keyed the
+ * same way the AI status reports are — `exam:<id>` / `job:<id>`, per
+ * `subjectKeyFor`.
+ *
+ * One query for the page rather than one per row, for the reason given on
+ * `listStatusReports`. Public data, so it caches on the feed's clock: two
+ * people tracking SSC CGL are asking the same question of the same rows.
+ *
+ * Returns an empty map rather than throwing when the read fails. These signals
+ * only ever *upgrade* what the tracker knows — grouping falls back to the
+ * attempt's own status and dates without them — so a degraded feed should cost
+ * precision, not the page.
+ */
+export async function listUpdateSignals(
+  examIds: string[],
+  jobIds: string[],
+): Promise<Map<string, ExamUpdateSignal[]>> {
+  const exams = [...new Set(examIds)];
+  const jobs = [...new Set(jobIds)];
+  if (exams.length === 0 && jobs.length === 0) return new Map();
+
+  const filters: string[] = [];
+  if (exams.length > 0) filters.push(`exam_id.in.(${exams.join(",")})`);
+  if (jobs.length > 0) filters.push(`job_id.in.(${jobs.join(",")})`);
+
+  const { data, error } = await publicDb()
+    .from("exam_updates")
+    .select("slug, title, category, published_date, exam_id, job_id")
+    .eq("is_published", true)
+    .in("category", [...SIGNAL_CATEGORIES])
+    .or(filters.join(","))
+    // Newest first: every reader below takes the first match of a category.
+    .order("published_date", { ascending: false, nullsFirst: false })
+    .limit(PAGE_SIZE.attempts * 4);
+
+  if (error) {
+    console.warn(`[exam-updates] signal read failed: ${error.message}`);
+    return new Map();
+  }
+
+  const bySubject = new Map<string, ExamUpdateSignal[]>();
+
+  const push = (key: string, signal: ExamUpdateSignal) => {
+    const existing = bySubject.get(key);
+    if (existing) existing.push(signal);
+    else bySubject.set(key, [signal]);
+  };
+
+  for (const row of data) {
+    const signal: ExamUpdateSignal = {
+      category: row.category,
+      title: row.title,
+      slug: row.slug,
+      publishedDate: row.published_date,
+    };
+    // An update can carry both ids. It is then a fact about both subjects, and
+    // an attempt keyed on either should see it.
+    if (row.exam_id) push(`exam:${row.exam_id}`, signal);
+    if (row.job_id) push(`job:${row.job_id}`, signal);
+  }
+
+  return bySubject;
+}
