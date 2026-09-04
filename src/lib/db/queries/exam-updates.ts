@@ -5,7 +5,14 @@ import type { QueryData } from "@supabase/supabase-js";
 
 import { BUILD_PRERENDER_LIMIT, BUILD_SENTINEL_SLUG, slugsForBuild } from "../build-params";
 import { publicDb } from "../clients";
-import { decodeCursor, toPage, type Page, PAGE_SIZE } from "../cursor";
+import {
+  type Cursor,
+  decodeCursor,
+  encodeCursor,
+  toPage,
+  type Page,
+  PAGE_SIZE,
+} from "../cursor";
 import { unwrap, unwrapMaybe } from "../errors";
 import { fetchAllRows } from "../paginate";
 import { SEARCH_CONFIG, tags } from "../tags";
@@ -74,6 +81,36 @@ export function toUpdateSort(value: string | undefined): UpdateSort {
   return value === "oldest" ? "oldest" : "newest";
 }
 
+/**
+ * The category that waits at the back of the feed.
+ *
+ * A notification is the announcement that a recruitment exists, and it is both
+ * the commonest thing in the table and the one nobody is refreshing the page
+ * for: by the time it is published the applying window is weeks long. An admit
+ * card, a result or an answer key is the opposite — it matters on the day. So
+ * the feed shows everything else first and the notifications after it, unless
+ * the reader has picked the Notifications chip, which is them saying that today
+ * a notification is exactly what they came for.
+ */
+const TAIL_CATEGORY = "notification" satisfies UpdateCategory;
+
+/**
+ * "Resume at the first row of the tail", as a cursor key.
+ *
+ * A cursor names the last row already shown, and at this one boundary there is
+ * no such row — the head ran out exactly on a page edge. A key beyond every
+ * real `published_at`, in whichever direction the feed is sorted, makes the
+ * keyset comparison admit the whole tail without a second code path for it.
+ * `Z` rather than `+00:00`, so nothing downstream has to worry about a `+`
+ * surviving URL encoding.
+ */
+const TAIL_START: Record<"asc" | "desc", string> = {
+  asc: "0001-01-01T00:00:00Z",
+  desc: "9999-12-31T23:59:59Z",
+};
+
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+
 export async function listExamUpdates(
   options: UpdateListOptions = {},
 ): Promise<Page<ExamUpdateCard>> {
@@ -85,38 +122,92 @@ export async function listExamUpdates(
   const cursor = decodeCursor(options.cursor);
   const ascending = (options.sort ?? "newest") === "oldest";
 
-  let query = cardQuery()
-    .eq("is_published", true)
-    .order("published_at", { ascending })
-    .order("id", { ascending })
-    .limit(limit + 1);
-
-  if (cursor) {
-    // The comparison follows the sort direction: resuming a descending page
-    // with `gt` would page backwards through rows already shown.
-    const op = ascending ? "gt" : "lt";
-    query = query.or(
-      `published_at.${op}.${cursor.sortKey},` +
-        `and(published_at.eq.${cursor.sortKey},id.${op}.${cursor.id})`,
-    );
-  }
-  if (options.category) query = query.eq("category", options.category);
-  if (options.examSlug) query = query.eq("exams.slug", options.examSlug);
-
   // A single character is treated as no filter rather than as a search that
   // matches nothing: it is almost always a keystroke on the way to a real
   // term, and emptying the page mid-typing reads as breakage.
   const term = options.query?.trim() ?? "";
-  if (term.length >= 2) {
-    query = query.textSearch("search_vector", term, {
-      config: SEARCH_CONFIG,
-      type: "websearch",
-    });
+
+  // Only an unfiltered-by-category feed has two halves to order. With a chip
+  // on there is nothing to reorder: the chip is `notification`, and the feed is
+  // all tail, or it is not, and there is no tail in it.
+  const segmented = options.category === undefined;
+  const inTail = segmented && cursor?.phase === 1;
+
+  const build = (tail: boolean, from: Cursor | null, take: number) => {
+    let query = cardQuery()
+      .eq("is_published", true)
+      .order("published_at", { ascending })
+      .order("id", { ascending })
+      .limit(take);
+
+    if (segmented) {
+      query = tail ? query.eq("category", TAIL_CATEGORY) : query.neq("category", TAIL_CATEGORY);
+    } else if (options.category) {
+      query = query.eq("category", options.category);
+    }
+
+    if (from) {
+      // The comparison follows the sort direction: resuming a descending page
+      // with `gt` would page backwards through rows already shown.
+      const op = ascending ? "gt" : "lt";
+      query = query.or(
+        `published_at.${op}.${from.sortKey},` +
+          `and(published_at.eq.${from.sortKey},id.${op}.${from.id})`,
+      );
+    }
+    if (options.examSlug) query = query.eq("exams.slug", options.examSlug);
+    if (term.length >= 2) {
+      query = query.textSearch("search_vector", term, {
+        config: SEARCH_CONFIG,
+        type: "websearch",
+      });
+    }
+    return query;
+  };
+
+  const rows = unwrap("listExamUpdates", await build(inTail, cursor, limit + 1));
+
+  // One ordered run: either the feed has a category chip on it, or we are
+  // already walking the tail. Both page exactly as this function always did.
+  if (!segmented || inTail) {
+    return toPage(rows, limit, (row) => ({
+      sortKey: row.published_at,
+      id: row.id,
+      phase: inTail ? 1 : undefined,
+    }));
   }
 
-  const rows = unwrap("listExamUpdates", await query);
+  if (rows.length > limit) {
+    return toPage(rows, limit, (row) => ({ sortKey: row.published_at, id: row.id }));
+  }
 
-  return toPage(rows, limit, (row) => ({ sortKey: row.published_at, id: row.id }));
+  // The head is spent. Everything below runs once per feed, at the seam.
+  const tailCursor = () =>
+    encodeCursor({ sortKey: TAIL_START[ascending ? "asc" : "desc"], id: NIL_UUID, phase: 1 });
+
+  // Exactly on the edge — a full page of head rows and nothing left behind
+  // them. Send the reader into the tail without spending a query to learn
+  // whether it has anything in it.
+  const need = limit - rows.length;
+  if (need === 0) return { items: rows, nextCursor: tailCursor() };
+
+  // A short head page, which is what a search or an `?exam=` filter usually
+  // leaves. Top it up from the tail rather than handing back three rows and
+  // making the reader's browser ask again for the other five.
+  const tail = unwrap("listExamUpdates", await build(true, null, need + 1));
+  const items = [...rows, ...tail.slice(0, need)];
+
+  const boundary = tail[need - 1];
+  if (tail.length <= need || !boundary?.published_at) return { items, nextCursor: null };
+
+  return {
+    items,
+    nextCursor: encodeCursor({
+      sortKey: boundary.published_at,
+      id: boundary.id,
+      phase: 1,
+    }),
+  };
 }
 
 export async function getExamUpdateBySlug(slug: string): Promise<ExamUpdateDetail | null> {

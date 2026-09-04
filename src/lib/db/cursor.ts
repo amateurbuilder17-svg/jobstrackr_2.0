@@ -20,15 +20,31 @@ const cursorSchema = z.object({
   k: z.string().min(1),
   /** That row's id, breaking ties on identical sort keys. */
   i: z.uuid(),
+  /**
+   * Which segment of a segmented feed the next page continues.
+   *
+   * Absent on every feed that is one ordered run of rows, which is all of them
+   * but `/updates` — see `listExamUpdates`, which serves everything else ahead
+   * of the notifications and needs to remember which half it is walking.
+   */
+  p: z.literal(1).optional(),
 });
 
 export interface Cursor {
   sortKey: string;
   id: string;
+  phase?: 1 | undefined;
 }
 
 export function encodeCursor(cursor: Cursor): string {
-  const json = JSON.stringify({ k: cursor.sortKey, i: cursor.id });
+  // The phase is omitted rather than written as null, so a single-segment
+  // feed's cursor is byte-for-byte what it was before segments existed and
+  // every link already shared still decodes.
+  const json = JSON.stringify(
+    cursor.phase === undefined
+      ? { k: cursor.sortKey, i: cursor.id }
+      : { k: cursor.sortKey, i: cursor.id, p: cursor.phase },
+  );
   return Buffer.from(json, "utf8").toString("base64url");
 }
 
@@ -49,7 +65,8 @@ export function decodeCursor(raw: string | null | undefined): Cursor | null {
     const json: unknown = JSON.parse(Buffer.from(raw, "base64url").toString("utf8"));
     const parsed = cursorSchema.safeParse(json);
     if (!parsed.success) return null;
-    return { sortKey: parsed.data.k, id: parsed.data.i };
+    const { k, i, p } = parsed.data;
+    return p === undefined ? { sortKey: k, id: i } : { sortKey: k, id: i, phase: p };
   } catch {
     return null;
   }
@@ -71,7 +88,7 @@ export interface Page<T> {
 export function toPage<T>(
   rows: T[],
   limit: number,
-  sortKeyOf: (row: T) => { sortKey: string | null; id: string },
+  sortKeyOf: (row: T) => { sortKey: string | null; id: string; phase?: 1 | undefined },
 ): Page<T> {
   const hasMore = rows.length > limit;
   const items = hasMore ? rows.slice(0, limit) : rows;
@@ -79,12 +96,12 @@ export function toPage<T>(
 
   if (!hasMore || !last) return { items, nextCursor: null };
 
-  const { sortKey, id } = sortKeyOf(last);
+  const { sortKey, id, phase } = sortKeyOf(last);
   // A null sort key cannot be resumed from, so the page honestly ends here
   // rather than emitting a cursor that would silently restart from the top.
   if (sortKey === null) return { items, nextCursor: null };
 
-  return { items, nextCursor: encodeCursor({ sortKey, id }) };
+  return { items, nextCursor: encodeCursor({ sortKey, id, phase }) };
 }
 
 /** Page sizes. Exported so the budget test can assert nothing exceeds them. */
