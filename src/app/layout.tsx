@@ -32,7 +32,7 @@ const archivoNarrow = Archivo_Narrow({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://jobstrackr.in"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.jobstrackr.in"),
   title: {
     default: "JobsTrackr — Government jobs and exam updates",
     template: "%s · JobsTrackr",

@@ -18,6 +18,7 @@ export const metadata = {
   title: "Government jobs",
   description:
     "Browse every open government job notification, with deadlines, vacancies and eligibility.",
+  alternates: { canonical: "/jobs" },
 };
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;

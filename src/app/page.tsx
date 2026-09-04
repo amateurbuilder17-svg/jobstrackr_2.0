@@ -35,6 +35,9 @@ export const metadata = {
   title: "Jobstrackr — Track Indian Government Exams & Jobs",
   description:
     "Track Indian government jobs and competitive exams in one place. See deadlines, admit cards, exam progress and what to do next.",
+  // The apex 308s here, and this is the page Google reads to resolve the
+  // site-wide favicon — so it is the one page whose canonical matters most.
+  alternates: { canonical: "/" },
 };
 
 /**
