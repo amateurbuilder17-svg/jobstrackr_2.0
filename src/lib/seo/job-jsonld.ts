@@ -1,4 +1,5 @@
 import { logoUrl } from "@/lib/db/storage";
+import { resolveSalaryRange } from "@/lib/format/salary";
 import type { JobDetail } from "@/lib/db/queries/jobs";
 
 /**
@@ -24,6 +25,16 @@ export function jobPostingJsonLd(job: JobDetail, siteUrl: string): Record<string
     job.detail?.eligibility_text ??
     job.qualification_summary ??
     job.title;
+
+  // The typed columns as the page reads them, not as the scraper wrote them:
+  // a pay-matrix level in `salary_min` is published as ₹2 a month otherwise,
+  // and the pay prose the level was misread from usually still states the real
+  // figure. The comment above is what this line makes true.
+  const salary = resolveSalaryRange(
+    job.salary_min,
+    job.salary_max,
+    job.detail?.salary_text ?? null,
+  );
 
   // Built in one expression with conditional spreads rather than by mutating an
   // object. An absent key and a key set to undefined are different things to
@@ -88,15 +99,15 @@ export function jobPostingJsonLd(job: JobDetail, siteUrl: string): Record<string
       },
     },
 
-    ...(job.salary_min !== null || job.salary_max !== null
+    ...(salary.min !== null || salary.max !== null
       ? {
           baseSalary: {
             "@type": "MonetaryAmount",
             currency: "INR",
             value: {
               "@type": "QuantitativeValue",
-              ...(job.salary_min !== null ? { minValue: job.salary_min } : {}),
-              ...(job.salary_max !== null ? { maxValue: job.salary_max } : {}),
+              ...(salary.min !== null ? { minValue: salary.min } : {}),
+              ...(salary.max !== null ? { maxValue: salary.max } : {}),
               unitText: "MONTH",
             },
           },

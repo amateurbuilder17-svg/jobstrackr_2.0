@@ -11,7 +11,7 @@ process.env.NEXT_PUBLIC_SUPABASE_URL ??= "https://test.supabase.co";
 process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??= "sb_publishable_test";
 process.env.NEXT_PUBLIC_SITE_URL ??= "https://test.invalid";
 
-const { toJobPayload } = await import("./ingest");
+const { salaryWithFallback, toJobPayload } = await import("./ingest");
 
 /**
  * The feed row → `jobs` row mapping.
@@ -144,5 +144,51 @@ describe("toJobPayload", () => {
 
     expect(payload.age_max).toBeNull();
     expect(payload.age_min).toBe(35);
+  });
+});
+
+/**
+ * The pay figures a card ends up showing.
+ *
+ * `toSalary` drops a pay-matrix level read as pay, which is right and which on
+ * its own leaves the column empty — so a listing that states its pay perfectly
+ * clearly in prose reads "As per rules" everywhere except the detail page. The
+ * sentence is on the same feed row; this is where it gets read.
+ */
+describe("salaryWithFallback", () => {
+  const payloadWith = (min: number | null, max: number | null) =>
+    toJobPayload({ ...REQUIRED, salary_min: min, salary_max: max }, noOrganizations).payload;
+
+  it("reads the initial pay out of the sentence the level was misread from", () => {
+    // `salary_min: 2` is the level, and `toSalary` has already nulled it.
+    expect(
+      salaryWithFallback(
+        payloadWith(2, 2),
+        "Level-2 in 7th CPC Pay Matrix; Initial Pay Rs. 19,900/-",
+      ),
+    ).toEqual({ salary_min: 19_900, salary_max: 19_900 });
+  });
+
+  it("reads a range stated once in prose", () => {
+    expect(
+      salaryWithFallback(payloadWith(null, null), "Rs. 25,500 - 81,100 per month"),
+    ).toEqual({ salary_min: 25_500, salary_max: 81_100 });
+  });
+
+  it("leaves a typed figure alone", () => {
+    expect(salaryWithFallback(payloadWith(35_400, 112_400), "Level-6; Rs. 19,900/-")).toEqual({
+      salary_min: 35_400,
+      salary_max: 112_400,
+    });
+  });
+
+  it("stays empty when the prose states no figure", () => {
+    expect(
+      salaryWithFallback(payloadWith(7, null), "Pay Matrix Level 7 as per 7th CPC"),
+    ).toEqual({ salary_min: null, salary_max: null });
+    expect(salaryWithFallback(payloadWith(null, null), null)).toEqual({
+      salary_min: null,
+      salary_max: null,
+    });
   });
 });

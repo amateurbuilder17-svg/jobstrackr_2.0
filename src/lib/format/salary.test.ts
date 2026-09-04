@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatSalary, resolveSalary, salaryFromText } from "./salary";
+import { formatSalary, resolveSalary, resolveSalaryRange, salaryFromText } from "./salary";
 
 describe("formatSalary", () => {
   it("prints a salary range", () => {
@@ -94,5 +94,30 @@ describe("resolveSalary", () => {
   it("treats a bare number in the display column as the same artefact", () => {
     expect(resolveSalary("2", 2, 2, "Level-2; Initial Pay Rs. 19,900/-")).toBe("₹19,900");
     expect(resolveSalary("19900", null, null, null)).toBe("₹19,900");
+  });
+});
+
+/** The numeric half, which is what ingest stores and what JSON-LD publishes. */
+describe("resolveSalaryRange", () => {
+  it("keeps a plausible typed range", () => {
+    expect(resolveSalaryRange(25_500, 81_100, null)).toEqual({ min: 25_500, max: 81_100 });
+  });
+
+  it("recovers the pay a level was misread from", () => {
+    expect(
+      resolveSalaryRange(2, 2, "Level-2 in 7th CPC Pay Matrix; Initial Pay Rs. 19,900/-"),
+    ).toEqual({ min: 19_900, max: 19_900 });
+  });
+
+  it("publishes nothing rather than a level", () => {
+    expect(resolveSalaryRange(7, 7, null)).toEqual({ min: null, max: null });
+    expect(resolveSalaryRange(2, 2, "Pay Matrix Level 2")).toEqual({ min: null, max: null });
+  });
+
+  it("keeps the genuine end when only one is a level", () => {
+    expect(resolveSalaryRange(7, 112_400, "Level-7; Rs. 19,900/-")).toEqual({
+      min: null,
+      max: 112_400,
+    });
   });
 });

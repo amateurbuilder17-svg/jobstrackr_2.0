@@ -117,6 +117,30 @@ export function salaryFromText(text: string | null): Range {
 }
 
 /**
+ * The salary figures a row actually states, in rupees.
+ *
+ * The typed columns first, each end tested on its own so a level in one column
+ * cannot discard a real figure in the other, and then the pay prose — which is
+ * where the level was misread from and so is where the real figure usually
+ * still is.
+ *
+ * Separate from `resolveSalary` because two callers need the numbers rather
+ * than the sentence: ingest writes them back into `jobs.salary_min/_max` so the
+ * listing cards (which never load `job_details`) are right too, and the
+ * JobPosting JSON-LD must publish a figure or nothing — never ₹2.
+ */
+export function resolveSalaryRange(
+  min: number | null,
+  max: number | null,
+  text: string | null = null,
+): Range {
+  const typedMin = plausible(min);
+  const typedMax = plausible(max);
+  if (typedMin !== null || typedMax !== null) return { min: typedMin, max: typedMax };
+  return salaryFromText(text);
+}
+
+/**
  * The salary a job page should print.
  *
  * `display` is the notification's own wording and wins when it says something
@@ -142,9 +166,6 @@ export function resolveSalary(
     return rupees(Number(wording.replace(/[^\d.]/g, "")));
   }
 
-  const typed = formatSalary(plausible(min), plausible(max));
-  if (typed !== null) return typed;
-
-  const parsed = salaryFromText(text);
-  return formatSalary(parsed.min, parsed.max);
+  const { min: low, max: high } = resolveSalaryRange(min, max, text);
+  return formatSalary(low, high);
 }

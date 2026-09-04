@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 
 import { adminDb } from "@/lib/db/clients";
+import { salaryFromText } from "@/lib/format/salary";
 import { sectorTagsOf } from "@/lib/jobs/sectors";
 import type { Database } from "@/lib/db/database.types";
 import { CHANGE_SELECT, diffWatched, type ComparableRow, type JobChange } from "./changes";
@@ -202,6 +203,28 @@ export function toJobPayload(
 }
 
 /**
+ * The pay figures to store, given what the feed typed and what it wrote in
+ * prose.
+ *
+ * Exported for the test, and split out because the fallback is not "fill the
+ * empty column": both ends move together or neither does. Taking the min from
+ * the sentence while leaving a typed max in place would build a range out of
+ * two different readings of the same notification.
+ */
+export function salaryWithFallback(
+  payload: JobPayload,
+  salaryText: string | null,
+): Pick<JobPayload, "salary_min" | "salary_max"> {
+  const typedMin = payload.salary_min ?? null;
+  const typedMax = payload.salary_max ?? null;
+  if (typedMin !== null || typedMax !== null) {
+    return { salary_min: typedMin, salary_max: typedMax };
+  }
+  const { min, max } = salaryFromText(salaryText);
+  return { salary_min: min, salary_max: max };
+}
+
+/**
  * Ingest a batch of job rows.
  *
  * Per-row failures are collected rather than thrown: one malformed row must not
@@ -242,17 +265,27 @@ export async function ingestJobs(rows: FeedRow[]): Promise<IngestResult> {
       const detailPayload = toJobDetailPayload(row);
       const detail = hasDetailContent(detailPayload) ? detailPayload : null;
 
-      // The fee table and the vacancy breakdown are the fallbacks for the
-      // card's figures. The old page did this arithmetic inline on every
-      // render; both are properties of the row.
+      // The fee table, the vacancy breakdown and the pay prose are the
+      // fallbacks for the card's figures. The old page did this arithmetic
+      // inline on every render; all three are properties of the row.
       //
       // Only when the typed column is empty: a stated count is the
       // notification's own headline figure, and a breakdown table that lists
       // some of the posts would undercount it.
+      //
+      // Salary is the same rule with one extra step. `toSalary` has already
+      // dropped a pay-matrix level read as pay — "Level-2 in 7th CPC Pay
+      // Matrix; Initial Pay Rs. 19,900/-" arrives as `salary_min = 2` and
+      // becomes null — and `salary_text` is the sentence it was misread from,
+      // so the real ₹19,900 is still there to be read back. The detail page
+      // already does this at render time, but only it has `salary_text`: the
+      // listing cards and the JobPosting JSON-LD read the typed columns alone,
+      // so the recovered figure has to be written into them here.
       const payloadWithFallbacks: JobPayload = {
         ...payload,
         application_fee: payload.application_fee ?? feeFromTable(row),
         vacancies: payload.vacancies ?? vacanciesFromTable(row),
+        ...salaryWithFallback(payload, detailPayload.salary_text ?? null),
       };
 
       candidates.push({
