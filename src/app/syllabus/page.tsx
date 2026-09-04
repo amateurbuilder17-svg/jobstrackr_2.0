@@ -18,6 +18,24 @@ export const metadata: Metadata = {
   alternates: { canonical: "/syllabus" },
 };
 
+/**
+ * The ceiling on `searchSyllabusAction`, which is why it is declared here.
+ *
+ * A Server Action has no route config of its own — it runs inside the function
+ * of the page it was posted from, and takes that page's `maxDuration`. Without
+ * this line the search inherits the platform default, which on Vercel's Hobby
+ * plan is ten seconds; the grounded call alone takes twenty to thirty. Every
+ * search was therefore killed mid-flight in production, *after* claiming the
+ * caller's daily quota and before anything could be written to the cache — a
+ * feature that could not succeed once, and spent five searches a day proving
+ * it. Locally it worked, because `next dev` enforces no such limit, which is
+ * the reason it survived review.
+ *
+ * Sixty is the Hobby maximum. `lib/ai/syllabus.ts` budgets 52 seconds inside
+ * it and leaves the rest for the cache write and the redirect.
+ */
+export const maxDuration = 60;
+
 /** What `searchSyllabusAction` enforces. Stated here so the page can say it. */
 const DAILY_LIMIT = 5;
 

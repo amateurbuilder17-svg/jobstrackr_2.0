@@ -159,7 +159,15 @@ export async function searchSyllabusAction(
   await putSyllabus({
     slug,
     examKey: key,
-    syllabus: result.syllabus,
+    syllabus: {
+      ...result.syllabus,
+      // From the grounded search pass, not from the parsed JSON. The pass that
+      // produced that JSON has no search tool — it only reshapes text it was
+      // handed — so a URL in its output would be recalled rather than visited,
+      // and a recalled URL under a heading reading "Official Sources" is the
+      // one kind of wrong this feature cannot afford. See `officialUrls`.
+      sources: fetched.sources,
+    },
     grounded: fetched.grounded,
     model: fetched.model,
   });

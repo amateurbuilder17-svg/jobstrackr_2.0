@@ -161,8 +161,17 @@ async function SyllabusBody({ params }: { params: Promise<{ slug: string }> }) {
                 rel="noopener noreferrer nofollow"
                 className="flex items-center justify-between gap-3 px-4 py-3 text-xs sm:text-sm text-ink transition-colors hover:bg-surface-2"
               >
+                {/*
+                  The host, not the address. Two of these come back wrapped in
+                  a `vertexaisearch.cloud.google.com/grounding-api-redirect/…`
+                  link whenever the search pass does not name its sources in
+                  prose, and those run past two hundred characters of base64 —
+                  which truncates to an ellipsis that says nothing at all. The
+                  host is the part a reader is actually checking, and the print
+                  sheet has always shown it this way.
+                */}
                 <span className="truncate min-w-0 font-medium text-brand hover:underline">
-                  {url}
+                  {sourceHost(url)}
                 </span>
                 <ExternalLinkIcon className="size-4 shrink-0 text-ink-3" />
               </a>
@@ -212,4 +221,24 @@ function formatWhen(iso: string): string {
   if (days === 0) return "today";
   if (days === 1) return "yesterday";
   return `${String(days)} days ago`;
+}
+
+/**
+ * The part of a source address worth showing: its host.
+ *
+ * `ssc.gov.in` rather than `https://ssc.gov.in/notice/2026/...`, which is what
+ * the reader is checking — did this come from the conducting body — and it is
+ * the only part of a grounding redirect that fits on the line at all. The
+ * `www.` goes too, since it distinguishes nothing.
+ *
+ * Falls back to the whole string rather than dropping the row: an address this
+ * cannot parse is still a link somebody may want to follow, and the `href`
+ * beside this is unaffected either way.
+ */
+function sourceHost(url: string): string {
+  try {
+    return new URL(url).host.replace(/^www\./i, "");
+  } catch {
+    return url;
+  }
 }

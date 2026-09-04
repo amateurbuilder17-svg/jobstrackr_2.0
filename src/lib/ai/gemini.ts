@@ -81,6 +81,43 @@ export interface GenerateRequest {
    * tool on the request buys nothing while costing the grounding quota.
    */
   image?: { mimeType: string; data: string };
+  /**
+   * A Gemini `responseSchema`, which constrains the answer instead of asking
+   * for it.
+   *
+   * Only legal on an ungrounded call: the API refuses `responseMimeType:
+   * "application/json"` in the same request as the search tool, with a 400
+   * before it does any work. So passing this alongside `grounded` is a
+   * request that cannot succeed, and `callOnce` drops the schema rather than
+   * sending one — see the note there for why that beats throwing.
+   *
+   * Google's own dialect of OpenAPI rather than JSON Schema, so it is typed
+   * loosely and owned by the caller that writes it.
+   */
+  responseSchema?: Record<string, unknown>;
+  /**
+   * Per-attempt ceiling, overriding `TIMEOUT_MS`.
+   *
+   * For a caller making more than one call inside a single request, where the
+   * default would let the first one eat the whole function's budget.
+   */
+  timeoutMs?: number;
+  /**
+   * When the caller's own budget runs out, as `Date.now()` milliseconds.
+   *
+   * The pool walk stops here rather than at the end of the pool. Without it a
+   * ten-key pool can spend ten timeouts — five minutes — on a request whose
+   * caller was killed after sixty seconds, and every key is charged for it.
+   */
+  deadline?: number;
+  /**
+   * Turn the model's thinking off.
+   *
+   * Thinking tokens are charged against `maxTokens` and are most of the
+   * latency. Worth it for a judgement call, waste for a transcription — see
+   * the syllabus structuring pass, which reshapes text it was handed.
+   */
+  noThinking?: boolean;
 }
 
 export interface GenerateResult {
@@ -199,11 +236,33 @@ function isModelRefused(status: number, detail: string): boolean {
 const DETERMINISTIC_STOPS = new Set([
   "MALFORMED_FUNCTION_CALL",
   "SAFETY",
-  "RECITATION",
   "PROHIBITED_CONTENT",
   "BLOCKLIST",
   "SPII",
 ]);
+
+/**
+ * Stops that another sample can get past, and RECITATION is the only one.
+ *
+ * It used to sit in the set above, and on a question about a published
+ * document that was the wrong call. RECITATION does not describe the request
+ * the way SAFETY does — it describes the tokens this particular sample
+ * happened to produce, and whether they came out close enough to something
+ * Google has seen before. Measured on the syllabus prompt across ten calls,
+ * the same exam on the same key returned RECITATION and then a full answer,
+ * and a different exam did the reverse. Treating that as final threw away
+ * answers that were one attempt away.
+ *
+ * Bounded rather than open, because the other direction is worse. Rotating a
+ * ten-key pool through a genuinely recitation-prone prompt is ten slow calls
+ * to reach the same refusal, and it is the nightly exam-status cron — which
+ * shares this module and has a 55-second budget — that would pay for it.
+ * Three attempts recovered every RECITATION seen in testing.
+ */
+const RESAMPLE_STOPS = new Set(["RECITATION"]);
+
+/** How many keys are worth spending to get past one of those. */
+const MAX_RESAMPLES = 2;
 
 function extractText(data: GeminiResponse): string {
   const parts = data.candidates?.[0]?.content?.parts ?? [];
@@ -219,6 +278,7 @@ async function callOnce(
   key: ApiKey,
   req: GenerateRequest,
   grounded: boolean,
+  budgetMs: number,
 ): Promise<Response> {
   // The image goes first. Gemini's own guidance for a single-image prompt is
   // image-then-text, and it is measurably better at following an instruction
@@ -229,20 +289,39 @@ async function callOnce(
   }
   parts.push({ text: req.prompt });
 
+  const generationConfig: Record<string, unknown> = {
+    temperature: req.temperature ?? 0.2,
+    maxOutputTokens: req.maxTokens ?? 4096,
+  };
+
+  // Thinking is charged against `maxOutputTokens` and is most of the wait, so
+  // switching it off is what makes a second call affordable inside one
+  // request. `thinkingBudget: 0` rather than omitting the block: the default
+  // is dynamic, not zero.
+  if (req.noThinking) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+
   const body: Record<string, unknown> = {
     systemInstruction: { parts: [{ text: req.system }] },
     contents: [{ role: "user", parts }],
-    generationConfig: {
-      temperature: req.temperature ?? 0.2,
-      maxOutputTokens: req.maxTokens ?? 4096,
-    },
+    generationConfig,
   };
 
-  // Note the absence of `responseMimeType: "application/json"`. The v1beta API
-  // rejects structured output and the search tool in the same request, so the
-  // JSON contract is stated in the prompt and enforced by the parser instead.
-  // That is not a preference — asking for both is a 400.
-  if (grounded) body.tools = [{ google_search: {} }];
+  // Structured output and the search tool cannot travel together: the v1beta
+  // API answers "Tool use with a response mime type: 'application/json' is
+  // unsupported" with a 400, before doing any work. So grounding wins and the
+  // schema is dropped, rather than the pair being sent to be refused.
+  //
+  // Dropped rather than thrown over, because of where the two meet. A caller
+  // asking for both is `generate`'s own ungrounded retry inheriting a schema
+  // from a request that was grounded — and there the schema is exactly what
+  // that retry wants. Throwing would turn a recoverable grounded failure into
+  // a hard one; this way each call sends the pair the API accepts.
+  if (grounded) {
+    body.tools = [{ google_search: {} }];
+  } else if (req.responseSchema) {
+    generationConfig.responseMimeType = "application/json";
+    generationConfig.responseSchema = req.responseSchema;
+  }
 
   // The key travels in a header, not in `?key=`. Google accepts both, and the
   // query form is the one that ends up somewhere it should not be: request
@@ -253,8 +332,25 @@ async function callOnce(
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": key.key },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: AbortSignal.timeout(budgetMs),
   });
+}
+
+/**
+ * How long this attempt may take: the caller's per-attempt ceiling, or what is
+ * left of its overall budget, whichever is less.
+ *
+ * Returns 0 when the budget is gone, which the walk reads as "stop" rather
+ * than as a zero-length timeout.
+ */
+function attemptBudget(req: GenerateRequest): number {
+  const perAttempt = req.timeoutMs ?? TIMEOUT_MS;
+  if (req.deadline === undefined) return perAttempt;
+
+  const left = req.deadline - Date.now();
+  // Under two seconds is not an attempt, it is a timeout with a round trip
+  // attached — and one that still spends the key's rate limit to produce it.
+  return left < 2_000 ? 0 : Math.min(perAttempt, left);
 }
 
 /**
@@ -278,6 +374,8 @@ async function attempt(
   // Until something says otherwise, assume the worst kind of failure: a pool
   // Google will refuse just as flatly on the next request.
   let allInvalid = true;
+  /** Samples spent so far on a stop that only another sample can clear. */
+  let resamples = 0;
 
   for (const [index, key] of keys.entries()) {
     // Already proven, in this process, to be a pairing Google refuses. Skipped
@@ -289,10 +387,21 @@ async function attempt(
       continue;
     }
 
+    const budget = attemptBudget(req);
+    if (budget === 0) {
+      // The caller's own function is about to be killed. Stopping here returns
+      // the reason the previous keys gave, which is more useful than a timeout
+      // this code chose to sit through.
+      allExhausted = false;
+      allInvalid = false;
+      lastError = `${lastError} (out of time after ${String(index)} keys)`;
+      break;
+    }
+
     let response: Response;
 
     try {
-      response = await callOnce(key, req, grounded);
+      response = await callOnce(key, req, grounded, budget);
     } catch (error) {
       // A timeout or a network failure. Not this key's fault as far as anyone
       // can tell, so nothing is written against it — but the next key gets a
@@ -317,6 +426,22 @@ async function attempt(
             `the model returned no text (${stop}) — the pool cannot fix this, ` +
               `the model or the prompt has to change`,
           );
+        }
+
+        // A stop about this sample rather than about the request. Worth
+        // drawing again, but only a couple of times — see RESAMPLE_STOPS.
+        if (RESAMPLE_STOPS.has(stop)) {
+          if (resamples >= MAX_RESAMPLES) {
+            throw new GeminiError(
+              `the model returned no text (${stop}) after ` +
+                `${String(resamples + 1)} attempts — the prompt has to change`,
+            );
+          }
+          resamples += 1;
+          allExhausted = false;
+          allInvalid = false;
+          lastError = `the model returned no text (${stop})`;
+          continue;
         }
 
         // Empty for some other reason. Charged against the key, so one that is
