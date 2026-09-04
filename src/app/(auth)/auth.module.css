@@ -769,14 +769,13 @@
 }
 
 /* ── Google Identity Services ────────────────────────────────────────────
-   Google draws its own button into `.gsiSlot`, so almost nothing here is
-   styling — it is a reservation. The slot holds the button's exact height
-   (44px at size="large") from first paint, or the card reflows the moment
+   Google draws its own button into `.gsiSlot`. The slot reserves the height
+   the button will take from first paint, or the card reflows the moment
    Google's script finishes and every field below it moves. */
 .gsiSlot {
   display: flex;
   width: 100%;
-  min-height: 2.75rem;
+  min-height: 3rem;
   align-items: center;
   justify-content: center;
 }
@@ -785,6 +784,45 @@
    on a phone, so it is centred rather than stretched. */
 .gsiSlot > div {
   margin-inline: auto;
+}
+
+/* Google's button is real DOM in this document rather than an iframe, so it
+   can be dressed to match the card instead of sitting on it. Untouched, its
+   dark theme is a 40px near-black slab with a white disc behind the G — on
+   this glass card that reads as a hole punched below the fields, in a
+   different typeface, at a different height, with a different corner radius.
+   What follows changes the surface only: Google's mark, wording, and layout
+   are its own, and the label keeps the colour Google's own theme gives it,
+   which is why the button is still redrawn when the theme flips.
+
+   Selectors go through `[role="button"]` and structure rather than Google's
+   class names, which are minified and change between releases of the
+   script. */
+.gsiSlot :global([role="button"]) {
+  display: flex !important;
+  height: 3rem !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 1px solid var(--auth-input-border) !important;
+  border-radius: 0.75rem !important;
+  background: var(--auth-input-bg) !important;
+  font-family: inherit !important;
+  transition:
+    border-color var(--duration-base) ease,
+    transform var(--duration-base) ease;
+}
+
+.gsiSlot :global([role="button"]:hover) {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklab, var(--auth-mint) 40%, transparent) !important;
+}
+
+/* The white plate Google puts behind the G on its dark themes. The mark keeps
+   its colours; only the disc goes, because the card underneath already gives
+   it the contrast the disc was there to provide. Matching every wrapper the
+   logo sits in rather than the one class that currently paints it. */
+.gsiSlot :global([role="button"] div:has(svg)) {
+  background: transparent !important;
 }
 
 .gsiError {

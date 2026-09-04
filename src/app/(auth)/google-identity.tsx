@@ -211,9 +211,10 @@ export function GoogleIdentity({
     element.replaceChildren();
     google.accounts.id.renderButton(element, {
       type: "standard",
-      // Google offers no "match my design system"; `outline` on light and
-      // `filled_black` on dark are the two that sit on this card without
-      // fighting it.
+      // Google offers no "match my design system". The surface is restyled in
+      // `auth.module.css`, but the label colour and the personalised button's
+      // avatar and second line are Google's — so it still gets told which way
+      // the theme points, and is still redrawn when that flips.
       theme: dark ? "filled_black" : "outline",
       size: "large",
       shape: "pill",

@@ -4,7 +4,8 @@ import { DeadlineBadge } from "@/components/jobs/deadline-badge";
 import { ChevronRightIcon } from "@/components/icons";
 import { CardInteractive } from "@/components/ui/card";
 import type { JobCard } from "@/lib/db/queries/jobs";
-import { formatSalary, formatVacancies } from "@/lib/format/deadline";
+import { formatVacancies } from "@/lib/format/deadline";
+import { resolveSalary } from "@/lib/format/salary";
 import { Monogram } from "./monogram";
 
 /**
@@ -26,7 +27,7 @@ export function Spotlight({ job }: { job: JobCard }) {
   const mark = job.organization?.short_name ?? job.organization?.name;
   const org = job.organization?.name ?? job.organization?.short_name;
   const vacancies = formatVacancies(job.vacancies_display, job.vacancies);
-  const salary = job.salary_display ?? formatSalary(job.salary_min, job.salary_max);
+  const salary = resolveSalary(job.salary_display, job.salary_min, job.salary_max);
   const meta = [vacancies, salary, job.location].filter((v): v is string => Boolean(v));
 
   return (

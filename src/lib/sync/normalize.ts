@@ -13,6 +13,7 @@
  * a person can type anything into.
  */
 
+import { MIN_PLAUSIBLE_SALARY } from "@/lib/format/salary";
 import { decodeEntities } from "@/lib/format/text";
 
 /** Asia/Kolkata is UTC+5:30. */
@@ -189,11 +190,11 @@ export function toStringArray(value: unknown): string[] {
  * level read as a salary shows a job paying ₹7 a month, which is what the old
  * app rendered until the renderer learned to second-guess its own data.
  *
- * 1,000 is deliberately far below any real government salary and far above any
- * pay-matrix level or grade-pay band, so nothing genuine is discarded to catch
- * them.
+ * Defined in `format/salary.ts` and re-exported here, because the renderer
+ * applies the same threshold to the rows already in the table and the two must
+ * not drift — that drift is what the old two-parser pipeline kept producing.
  */
-export const MIN_PLAUSIBLE_SALARY = 1_000;
+export { MIN_PLAUSIBLE_SALARY } from "@/lib/format/salary";
 
 /**
  * A salary column, or null.

@@ -62,3 +62,25 @@ export function decodeEntities(value: string): string {
   // there, rather than being decoded a second time into a dash.
   return decoded.replace(/&amp;/gi, "&");
 }
+
+/**
+ * The first `limit` words, with an ellipsis when there were more.
+ *
+ * `jobs.qualification_summary` is a summary in name only: the median is 14
+ * words, but the top decile is 109 and the longest in production is 1,177 —
+ * whole eligibility tables flattened into one string. Printed verbatim into a
+ * fixed grid cell that string is both unreadable and ruinous to the layout,
+ * so the cell shows the opening of it and the page prints the whole thing
+ * below as prose.
+ *
+ * Returns `null` when nothing was cut, so a caller can tell "this fits" from
+ * "this was shortened" without counting words a second time.
+ */
+export function truncateWords(value: string, limit: number): string | null {
+  const words = value.trim().split(/\s+/);
+  if (words.length <= limit) return null;
+  return `${words
+    .slice(0, limit)
+    .join(" ")
+    .replace(/[,;:.–—-]+$/, "")}…`;
+}

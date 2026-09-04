@@ -31,7 +31,7 @@ export function Section({
   id?: string;
 }) {
   return (
-    <section className="mt-8" id={id}>
+    <section className="mt-8 scroll-mt-6" id={id}>
       <div className="mb-3 flex items-center gap-2.5">
         <span className="h-4.5 w-1 shrink-0 rounded-full bg-brand" aria-hidden="true" />
         <h2 className="text-base sm:text-lg font-bold tracking-tight text-ink">{title}</h2>

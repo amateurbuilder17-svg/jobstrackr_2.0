@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { decodeEntities } from "./text";
+import { decodeEntities, truncateWords } from "./text";
 
 describe("decodeEntities", () => {
   it("decodes the entities scraped descriptions actually carry", () => {
@@ -35,5 +35,26 @@ describe("decodeEntities", () => {
 
   it("returns short-circuit for text with no entities at all", () => {
     expect(decodeEntities("Plain text")).toBe("Plain text");
+  });
+});
+
+describe("truncateWords", () => {
+  it("leaves a short summary alone", () => {
+    expect(truncateWords("Graduate", 16)).toBeNull();
+    expect(truncateWords("Bachelor's degree in any discipline", 16)).toBeNull();
+  });
+
+  it("cuts a long one and marks the cut", () => {
+    expect(truncateWords("a b c d e", 3)).toBe("a b c…");
+  });
+
+  it("does not leave punctuation stranded before the ellipsis", () => {
+    expect(truncateWords("M.Sc. in Geology, Applied Geology, or Hydrogeology", 3)).toBe(
+      "M.Sc. in Geology…",
+    );
+  });
+
+  it("counts words, not whitespace", () => {
+    expect(truncateWords("  a   b  ", 2)).toBeNull();
   });
 });

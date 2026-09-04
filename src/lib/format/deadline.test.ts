@@ -7,7 +7,6 @@ import {
   formatCount,
   formatDate,
   formatDeadlineText,
-  formatSalary,
   todayInIndia,
 } from "./deadline";
 
@@ -89,20 +88,6 @@ describe("formatting", () => {
   it("groups digits the Indian way", () => {
     expect(formatCount(17_727)).toBe("17,727");
     expect(formatCount(177_270)).toBe("1,77,270");
-  });
-
-  it("prints a salary range", () => {
-    expect(formatSalary(25_500, 81_100)).toBe("₹25,500 – ₹81,100");
-  });
-
-  it("collapses an equal range to one figure", () => {
-    expect(formatSalary(25_500, 25_500)).toBe("₹25,500");
-  });
-
-  it("handles a one-sided range", () => {
-    expect(formatSalary(null, 81_100)).toBe("₹81,100");
-    expect(formatSalary(25_500, null)).toBe("₹25,500");
-    expect(formatSalary(null, null)).toBeNull();
   });
 
   it("formats dates unambiguously", () => {

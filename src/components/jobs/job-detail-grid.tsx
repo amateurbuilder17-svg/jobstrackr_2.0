@@ -7,6 +7,27 @@ import {
   UserIcon,
   UsersIcon,
 } from "@/components/icons";
+import { decodeEntities, truncateWords } from "@/lib/format/text";
+
+/**
+ * How much of `qualification_summary` a grid cell will carry.
+ *
+ * The median summary is 14 words; the top decile is 109 and the longest in
+ * production is 1,177, because the scrapers flatten whole post-wise
+ * eligibility tables into this column. Left unclamped, one such row stretches
+ * the card to several screens on desktop and buries the eight facts beside it.
+ *
+ * 16 words fits the narrowest cell (a third of the column at `sm`) in four
+ * lines and still carries a real answer — "Bachelor's degree in Engineering
+ * from a recognised university" survives whole. Anything longer is prose, and
+ * prose belongs in the Eligibility section, which is where the cell points.
+ */
+const QUALIFICATION_WORDS = 16;
+
+/** Whether the summary is long enough that the cell will clamp it. */
+export function isLongQualification(value: string | null): boolean {
+  return value !== null && truncateWords(value, QUALIFICATION_WORDS) !== null;
+}
 
 export interface JobDetailGridProps {
   vacancies: string | null;
@@ -31,6 +52,16 @@ export function JobDetailGrid({
   closesOn,
   admitCard,
 }: JobDetailGridProps) {
+  // The cell carries the opening of a long summary and hands the rest to the
+  // Eligibility section below, rather than printing 1,177 words in a box
+  // sized for two lines.
+  const fullQualification = qualification?.trim() ? decodeEntities(qualification.trim()) : null;
+  const clipped = fullQualification
+    ? truncateWords(fullQualification, QUALIFICATION_WORDS)
+    : null;
+  const qualificationText = clipped ?? fullQualification;
+  const clamped = clipped !== null;
+
   const leftItems = [
     {
       icon: <UserIcon className="size-4 sm:size-4.5" aria-hidden="true" />,
@@ -105,9 +136,23 @@ export function JobDetailGrid({
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-[11px] sm:text-xs text-ink-3 leading-none">Qualification</p>
-              <p className="mt-1 text-xs sm:text-sm font-bold text-ink leading-snug break-words">
-                {qualification ?? "Check notice"}
+              {/* Mobile: full qualification text without truncation */}
+              <p className="mt-1 text-xs font-bold text-ink leading-snug break-words sm:hidden">
+                {fullQualification ?? "Check notice"}
               </p>
+              {/* Desktop: truncated to QUALIFICATION_WORDS when long, with line-clamp safeguard */}
+              <p className="mt-1 hidden sm:block sm:line-clamp-4 text-xs sm:text-sm font-bold text-ink leading-snug break-words">
+                {qualificationText ?? "Check notice"}
+              </p>
+              {/* Only when something was cut, on desktop pointing to the Eligibility section */}
+              {clamped ? (
+                <a
+                  href="#eligibility"
+                  className="mt-1 hidden sm:inline-block text-[11px] sm:text-xs font-semibold text-brand transition-colors hover:text-ink"
+                >
+                  Read in full
+                </a>
+              ) : null}
             </div>
           </div>
         </div>

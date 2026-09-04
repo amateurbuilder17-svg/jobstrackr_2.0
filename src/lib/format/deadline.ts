@@ -218,12 +218,3 @@ function formatFromCount(count: number | null): string | null {
 function withNoun(formatted: string, count: number | null): string {
   return `${formatted} ${count === 1 ? "vacancy" : "vacancies"}`;
 }
-
-/** Salary as a range, in the compact form a listing would print. */
-export function formatSalary(min: number | null, max: number | null): string | null {
-  const fmt = (n: number) => `₹${new Intl.NumberFormat("en-IN").format(n)}`;
-  if (min !== null && max !== null && min !== max) return `${fmt(min)} – ${fmt(max)}`;
-  if (min !== null) return fmt(min);
-  if (max !== null) return fmt(max);
-  return null;
-}

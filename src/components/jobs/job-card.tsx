@@ -4,7 +4,8 @@ import { UserIcon } from "@/components/icons";
 import { OrganizationLogo } from "@/components/home/organization-logo";
 import { toInitials } from "@/components/home/monogram";
 import type { JobCard as JobCardData } from "@/lib/db/queries/jobs";
-import { formatSalary, formatVacancies } from "@/lib/format/deadline";
+import { formatVacancies } from "@/lib/format/deadline";
+import { resolveSalary } from "@/lib/format/salary";
 import { JobBookmarkButton } from "./job-bookmark-button";
 import { JobCardMeta } from "./job-card-meta";
 import { JobDeadlineChip } from "./job-deadline-chip";
@@ -97,7 +98,7 @@ export function JobCard({
   variant?: "row" | "card";
 }) {
   const vacancies = formatVacancies(job.vacancies_display, job.vacancies);
-  const salary = job.salary_display ?? formatSalary(job.salary_min, job.salary_max);
+  const salary = resolveSalary(job.salary_display, job.salary_min, job.salary_max);
   const orgSubtitle = formatOrgSubtitle(job.organization);
   const initials = toInitials(job.organization?.short_name ?? job.organization?.name ?? "GOVT");
   const qualification = formatQualification(job.qualification_summary);

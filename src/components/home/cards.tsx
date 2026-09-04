@@ -5,7 +5,8 @@ import type { ExamAttempt } from "@/lib/db/queries/attempts";
 import type { ExamUpdateCard as ExamUpdateCardData } from "@/lib/db/queries/exam-updates";
 import type { PopularExam } from "@/lib/db/queries/exams";
 import type { JobCard as JobCardData } from "@/lib/db/queries/jobs";
-import { formatDate, formatSalary, formatVacancies } from "@/lib/format/deadline";
+import { formatDate, formatVacancies } from "@/lib/format/deadline";
+import { resolveSalary } from "@/lib/format/salary";
 import { STATUS_LABELS, type AttemptStatus } from "@/lib/tracker/enums";
 import { DeadlineBadge, OrganizationBadge, ProgressRing } from "./primitives";
 
@@ -99,7 +100,7 @@ export function JobCard({ job, compact = false }: { job: JobCardData; compact?: 
   const orgFull = job.organization?.name ?? job.organization?.short_name ?? "";
   const logo = job.organization?.logo_path;
   const vacancies = formatVacancies(job.vacancies_display, job.vacancies);
-  const salary = job.salary_display ?? formatSalary(job.salary_min, job.salary_max);
+  const salary = resolveSalary(job.salary_display, job.salary_min, job.salary_max);
   const meta = [vacancies, salary, job.location].filter(Boolean).join(" · ");
 
   return (
@@ -140,7 +141,7 @@ export function ClosingSoonCard({ job }: { job: JobCardData }) {
   const org = job.organization?.name ?? job.organization?.short_name ?? "Official Board";
   const logo = job.organization?.logo_path;
   const vacancies = formatVacancies(job.vacancies_display, job.vacancies);
-  const salary = job.salary_display ?? formatSalary(job.salary_min, job.salary_max);
+  const salary = resolveSalary(job.salary_display, job.salary_min, job.salary_max);
   const chips = [vacancies, salary, job.location].filter(Boolean);
 
   return (
