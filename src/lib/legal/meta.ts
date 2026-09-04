@@ -9,4 +9,4 @@
  */
 export const LEGAL_CONTACT = "contact@jobstrackr.in";
 
-export const LEGAL_UPDATED = "26 August 2026";
+export const LEGAL_UPDATED = "4 September 2026";

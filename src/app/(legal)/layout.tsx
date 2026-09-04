@@ -26,6 +26,14 @@ export default function LegalLayout({ children }: { children: ReactNode }) {
           "[&_a]:font-medium [&_a]:text-accent [&_a]:underline [&_a]:underline-offset-2",
           "[&_dl]:mt-4 [&_dl]:space-y-3 [&_dl]:text-ink-2",
           "[&_dt]:font-medium [&_dt]:text-ink",
+          // `dd` has a 40px browser default indent that reads as an accident
+          // next to the list indent above it, and `code` is only used for the
+          // OAuth scope names in the privacy policy — three words that have to
+          // be quoted exactly, so they are set apart rather than left to the
+          // browser's unstyled monospace.
+          "[&_dd]:ms-0 [&_dd]:mt-1 [&_dd]:leading-relaxed",
+          "[&_code]:rounded [&_code]:bg-ink/[0.06] [&_code]:px-1 [&_code]:py-0.5",
+          "[&_code]:font-mono [&_code]:text-[0.9em] [&_code]:text-ink",
         ].join(" ")}
       >
         {children}
