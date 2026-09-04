@@ -2,7 +2,16 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useActionState, useId, useMemo, useRef, useState } from "react";
+import {
+  startTransition,
+  useActionState,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { SignInPrompt } from "@/components/auth/sign-in-prompt";
 import { BookOpenIcon, BriefcaseIcon, SearchIcon, SparklesIcon } from "@/components/icons";
@@ -63,14 +72,63 @@ function normalise(input: string): string {
 
 export function SyllabusSearchForm({ suggestions }: { suggestions: Suggestion[] }) {
   const [state, action, pending] = useActionState(searchSyllabusAction, EMPTY_FORM_STATE);
-  const initialQuery = useSearchParams().get("q") ?? "";
+  /** What the URL is asking to be searched — a Popular tile, or a shared link. */
+  const requested = useSearchParams().get("q") ?? "";
   const id = useId();
   const fieldId = `${id}-q`;
   const listId = `${id}-list`;
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const [query, setQuery] = useState(initialQuery);
+  const [query, setQuery] = useState(requested);
   const [open, setOpen] = useState(false);
+
+  /**
+   * Run a search for an exact name, without going through the input.
+   *
+   * The obvious spelling — `setQuery(name)` then `form.requestSubmit()` — is
+   * the bug this replaces, and it is invisible in the common case. The input
+   * is controlled, so its DOM value is whatever the last render put there;
+   * `setQuery` does not change that until React re-renders, and
+   * `requestSubmit` reads the DOM in the same tick. So picking "UPSC Civil
+   * Services" out of the typeahead after typing "upsc" searched for `upsc` —
+   * a different cache key, a different syllabus, and a wasted grounded call.
+   *
+   * Dispatching the action with a `FormData` built here removes the input from
+   * the path entirely: what was asked for is what is searched.
+   */
+  const search = useCallback(
+    (name: string) => {
+      const data = new FormData();
+      data.set("q", name);
+      startTransition(() => {
+        action(data);
+      });
+    },
+    [action],
+  );
+
+  /**
+   * Arriving with `?q=`, which is how the Popular Exams tiles search.
+   *
+   * A tile for an exam nobody has fetched yet links to `/syllabus?q=<name>`,
+   * because it needs no JavaScript to be a real destination. Nothing was
+   * reading it: the box seeded its state from the URL once, at mount, and a
+   * tile click is a soft navigation that leaves this component mounted — so
+   * the query never reached the input and no search was ever submitted.
+   * Clicking a Popular exam did nothing at all.
+   *
+   * Guarded by a ref rather than by state, so a re-render caused by the
+   * action's own result cannot submit it a second time. One search per
+   * distinct `?q=`; clicking a different tile changes it and searches again.
+   */
+  const searchedFor = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (requested === "" || searchedFor.current === requested) return;
+    searchedFor.current = requested;
+    setQuery(requested);
+    search(requested);
+  }, [requested, search]);
 
   const needle = normalise(query);
 
@@ -113,7 +171,7 @@ export function SyllabusSearchForm({ suggestions }: { suggestions: Suggestion[] 
   function go(name: string) {
     setQuery(name);
     setOpen(false);
-    inputRef.current?.form?.requestSubmit();
+    search(name);
   }
 
   return (
