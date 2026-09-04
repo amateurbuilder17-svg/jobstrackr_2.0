@@ -10,6 +10,7 @@ import {
   toOverview,
   toSteps,
   toVacancyTable,
+  totalVacancies,
 } from "./detail-shape";
 
 /**
@@ -110,6 +111,137 @@ describe("toVacancyTable", () => {
   it("returns null rather than an empty table", () => {
     expect(toVacancyTable([])).toBeNull();
     expect(toVacancyTable("not a table")).toBeNull();
+  });
+});
+
+describe("totalVacancies", () => {
+  /** Every table here is a real one, copied from `job_details` in production. */
+
+  it("reads a single-cell total, ignoring the parenthetical breakdown", () => {
+    expect(
+      totalVacancies(
+        toVacancyTable({
+          columns: ["Total Posts"],
+          rows: [["23 (5 Typist + 4 Typist Copyist + 9 Process Server + 5 Peon)"]],
+        }),
+      ),
+    ).toBe(23);
+  });
+
+  it("sums the count column when the table has no total of its own", () => {
+    expect(
+      totalVacancies(
+        toVacancyTable({
+          columns: ["S. No.", "Post Name", "No. Of Posts"],
+          rows: [
+            ["1", "Scientist 'C' (SC-S)", "1 (UR)"],
+            ["2", "Scientist 'C' (SC-L)", "1 (UR)"],
+            ["3", "Scientist 'C' (SC-F)", "2 (UR)"],
+          ],
+        }),
+      ),
+    ).toBe(4);
+  });
+
+  it("uses a total row rather than adding it to the rows it totals", () => {
+    // Without this the six posts and their stated total came to 222, exactly
+    // twice the real figure — and "Category-I Total" does not start with the
+    // word, which is why the match is anywhere in the label.
+    expect(
+      totalVacancies(
+        toVacancyTable({
+          columns: ["Post", "Vacancies"],
+          rows: [
+            ["Geologist, Group A", "29"],
+            ["Geophysicist, Group A", "0"],
+            ["Chemist, Group A", "7"],
+            ["Assistant Geologist, Group B", "34"],
+            ["Assistant Geophysicist, Group B", "35"],
+            ["Assistant Chemist, Group B", "6"],
+            ["Category-I Total", "111"],
+          ],
+        }),
+      ),
+    ).toBe(111);
+  });
+
+  it("prefers a grand total to the subtotals under it", () => {
+    expect(
+      totalVacancies(
+        toVacancyTable({
+          columns: ["S. No.", "Post Name", "No. Of Posts"],
+          rows: [
+            ["1", "Driver - General Category", "21"],
+            ["2", "Driver - SC/ST/BC", "03"],
+            ["3", "Driver - Ex-Servicemen", "01"],
+            ["-", "Total Driver", "25"],
+            ["4", "Frash - General Category", "26"],
+            ["5", "Frash - SC/ST/BC", "03"],
+            ["6", "Frash - Ex-Servicemen", "02"],
+            ["-", "Total Frash", "31"],
+            ["-", "Grand Total", "56"],
+          ],
+        }),
+      ),
+    ).toBe(56);
+  });
+
+  it("adds the subtotals when there is no grand total", () => {
+    expect(
+      totalVacancies({
+        columns: ["Post Name", "Total Posts"],
+        rows: [
+          ["Driver - General", "21"],
+          ["Total Driver", "25"],
+          ["Frash - General", "26"],
+          ["Total Frash", "31"],
+        ],
+      }),
+    ).toBe(56);
+  });
+
+  it("counts one column when a heading repeats", () => {
+    // A Southern Railway table: the second "Total Posts" holds the grand total
+    // for a single row, the first holds the four rows it totals. Adding both
+    // reported 326 for a 163-post notification.
+    expect(
+      totalVacancies({
+        columns: ["Unit", "Trades Covered", "Total Posts", "Post Name", "Total Posts"],
+        rows: [
+          ["Carriage & Wagon Works, Perambur", "Fitter, Welder, Painter", "80", "", ""],
+          ["Central Workshop, Ponmalai", "Fitter, Welder (G&E)", "43", "", ""],
+          ["S&T Workshop, Podanur", "Fitter", "20", "", ""],
+          ["Railway Hospital, Perambur", "MLT", "20", "", ""],
+          ["", "", "", "Fresher's Grand Total", "163"],
+        ],
+      }),
+    ).toBe(163);
+  });
+
+  it("declines when no column is a count", () => {
+    expect(
+      totalVacancies({
+        columns: ["Post Name", "Brief Role"],
+        rows: [["Branch Postmaster (BPM)", "Overall in-charge of a Branch Post Office"]],
+      }),
+    ).toBeNull();
+  });
+
+  it("declines rather than reporting a total of zero", () => {
+    // Zero is an answer for one row of a table. As the whole figure it means
+    // the column held nothing countable, and "0 vacancies" on a card is worse
+    // than saying nothing.
+    expect(totalVacancies({ columns: ["Total Posts"], rows: [["0"]] })).toBeNull();
+    expect(totalVacancies(null)).toBeNull();
+  });
+
+  it("rejects a count column that is not one", () => {
+    expect(
+      totalVacancies({
+        columns: ["Post", "Total Posts"],
+        rows: [["Clerk", "Ten"]],
+      }),
+    ).toBeNull();
   });
 });
 

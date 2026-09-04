@@ -10,6 +10,7 @@ import {
   feeFromTable,
   hasDetailContent,
   toJobDetailPayload,
+  vacanciesFromTable,
   type JobDetailPayload,
 } from "./details";
 import { resolveOrganizations } from "./organizations";
@@ -241,11 +242,17 @@ export async function ingestJobs(rows: FeedRow[]): Promise<IngestResult> {
       const detailPayload = toJobDetailPayload(row);
       const detail = hasDetailContent(detailPayload) ? detailPayload : null;
 
-      // The fee table is the fallback for the card's figure. The old page did
-      // this arithmetic inline on every render; it is a property of the row.
-      const payloadWithFee: JobPayload = {
+      // The fee table and the vacancy breakdown are the fallbacks for the
+      // card's figures. The old page did this arithmetic inline on every
+      // render; both are properties of the row.
+      //
+      // Only when the typed column is empty: a stated count is the
+      // notification's own headline figure, and a breakdown table that lists
+      // some of the posts would undercount it.
+      const payloadWithFallbacks: JobPayload = {
         ...payload,
         application_fee: payload.application_fee ?? feeFromTable(row),
+        vacancies: payload.vacancies ?? vacanciesFromTable(row),
       };
 
       candidates.push({
@@ -259,8 +266,8 @@ export async function ingestJobs(rows: FeedRow[]): Promise<IngestResult> {
         // backfills `job_details` for rows already in the table: the first run
         // after this ships rewrites everything, and every run after that
         // writes nothing.
-        contentHash: hashContent({ ...payloadWithFee, detail }),
-        payload: payloadWithFee,
+        contentHash: hashContent({ ...payloadWithFallbacks, detail }),
+        payload: payloadWithFallbacks,
         detail,
       });
     } catch (error) {

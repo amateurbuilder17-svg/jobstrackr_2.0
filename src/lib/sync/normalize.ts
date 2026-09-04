@@ -38,9 +38,14 @@ const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
  *
  * Otherwise this is the list `jobs/detail-shape.ts` has always applied to the
  * JSONB side, applied now to the typed columns as well.
+ *
+ * "Not Found" is the newest entry and the costliest omission: it is the marker
+ * the detail scraper writes, and it reached `vacancies_display` on 551 of the
+ * 2,601 published rows, every one of which printed those two words on the card
+ * where a vacancy count belongs.
  */
 const PLACEHOLDER =
-  /^(n\.?\s*\/?\s*a\.?|na|nil|none|null|undefined|not\s*available|not\s*specified|not\s*mentioned|-+|—+)$/i;
+  /^(n\.?\s*\/?\s*a\.?|na|nil|none|null|undefined|not\s*available|not\s*found|not\s*specified|not\s*mentioned|-+|—+)$/i;
 
 /**
  * Text from a spreadsheet cell, or null.

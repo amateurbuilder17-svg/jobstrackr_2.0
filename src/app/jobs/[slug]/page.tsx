@@ -31,7 +31,13 @@ import {
   formatSalary,
   formatVacancies,
 } from "@/lib/format/deadline";
-import { maxFee, toFeeRows, toImportantDates } from "@/lib/jobs/detail-shape";
+import {
+  maxFee,
+  toFeeRows,
+  toImportantDates,
+  toVacancyTable,
+  totalVacancies,
+} from "@/lib/jobs/detail-shape";
 import { sectorLabel } from "@/lib/jobs/sectors";
 import {
   getJobBySlug,
@@ -80,7 +86,10 @@ export async function generateMetadata({
   if (!job) return { title: "Job not found" };
 
   const org = job.organization?.name;
-  const vacancies = formatCount(job.vacancies);
+  // Same fallback as the page body, so the search result and the page agree.
+  const vacancies = formatCount(
+    job.vacancies ?? totalVacancies(toVacancyTable(job.detail?.vacancies_detail ?? null)),
+  );
   const closes = formatDate(job.last_date);
 
   // Written as a sentence rather than keyword soup, because this is what shows
@@ -113,7 +122,20 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
   if (!job) notFound();
 
   const detail = job.detail;
-  const vacancies = formatVacancies(job.vacancies_display, job.vacancies);
+
+  // The typed column first, then the breakdown table — the same fallback the
+  // fee below uses, and for the same reason. A notification whose vacancy count
+  // is only stated inside its own table is normal, and "Check notice" is the
+  // wrong answer to print two sections above a table that says 24.
+  //
+  // The card query cannot do this (the breakdown lives in the cold table), so
+  // ingest writes the same figure into `jobs.vacancies` for the listing pages;
+  // see `vacanciesFromTable`. This line is what makes the detail page right for
+  // rows written before that, without waiting for a re-ingest.
+  const vacancies = formatVacancies(
+    job.vacancies_display,
+    job.vacancies ?? totalVacancies(toVacancyTable(detail?.vacancies_detail ?? null)),
+  );
   const salary = job.salary_display ?? formatSalary(job.salary_min, job.salary_max);
 
   // The typed column first, then the fee table. A notification that prints a

@@ -5,6 +5,7 @@ import {
   toOverview,
   toSteps,
   toVacancyTable,
+  totalVacancies,
   maxFee,
 } from "@/lib/jobs/detail-shape";
 import { toUrl } from "./links";
@@ -142,4 +143,25 @@ export function hasDetailContent(payload: JobDetailPayload): boolean {
 export function feeFromTable(rawRow: Row): number | null {
   const row = merged(rawRow);
   return maxFee(toFeeRows(field(row, "application_fees", "applicationFees", "fees")));
+}
+
+/**
+ * The vacancy count, when the typed column is empty but the breakdown is not.
+ *
+ * The exact sibling of `feeFromTable`, and it belongs here for the same reason:
+ * the figure belongs to `jobs`, not `job_details`, because the card renders it
+ * and a card query must never reach into the cold table to read a JSONB blob.
+ *
+ * Without this the listing pages have no route to the number at all. 727 of the
+ * 2,601 published rows have no `vacancies`; the feed writes "Not Found" in
+ * their display column, and 186 of them carry a breakdown table stating the
+ * figure the card was refusing to print.
+ */
+export function vacanciesFromTable(rawRow: Row): number | null {
+  const row = merged(rawRow);
+  return totalVacancies(
+    toVacancyTable(
+      field(row, "vacancies_detail", "vacancyDetail", "vacancy_breakdown", "post_details"),
+    ),
+  );
 }

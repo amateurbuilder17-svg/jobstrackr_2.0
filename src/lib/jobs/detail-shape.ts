@@ -471,6 +471,135 @@ export function toVacancyTable(value: unknown): VacancyTable | null {
   return rows.length > 0 ? { columns: kept.map(humanise), rows } : null;
 }
 
+/**
+ * The vacancy count a breakdown table implies, or null.
+ *
+ * The sibling of `maxFee`, and it exists for the same reason: 727 of the 2,601
+ * published rows have no `vacancies`, 551 of them carry the literal string
+ * "Not Found" in `vacancies_display` — and 186 of those *do* have a breakdown
+ * table whose "Total Posts" column answers the question in the notification's
+ * own numbers. The page was printing "Check notice" two sections above a table
+ * that said 24.
+ *
+ * Checked against every breakdown in the database that also has a typed count:
+ * it agrees exactly on 537 of 561 and declines to answer on 10. Of the 14 that
+ * differ, most are tables that list only some of the posts — an undercount, and
+ * the reason this is a *fallback* rather than a correction of a stated figure.
+ */
+export function totalVacancies(table: VacancyTable | null): number | null {
+  if (!table) return null;
+
+  const column = countColumn(table);
+  if (column === -1) return null;
+
+  // Three populations, because a table that carries its own total must not have
+  // that total added to the rows it is the total *of*.
+  let grand: number | null = null;
+  let subtotal = 0;
+  let subtotals = 0;
+  let sum = 0;
+  let counted = 0;
+
+  for (const row of table.rows) {
+    const n = cellCount(row[column]);
+    if (n === null) continue;
+
+    const labels = row.filter((_, i) => i !== column);
+    if (labels.some((label) => GRAND_TOTAL_ROW.test(label))) {
+      grand = grand === null || n > grand ? n : grand;
+      continue;
+    }
+    // "Total", "Grand Total", "Category-I Total", "Total (new posts)" — matched
+    // anywhere in the label rather than at the start, because a UPSC table
+    // whose last row reads "Category-I Total" is a total row and summing it
+    // with the six rows above it reported exactly twice the real figure.
+    if (labels.some((label) => TOTAL_ROW.test(label))) {
+      subtotal += n;
+      subtotals += 1;
+      continue;
+    }
+
+    sum += n;
+    counted += 1;
+  }
+
+  const total = grand ?? (subtotals > 0 ? subtotal : counted > 0 ? sum : null);
+  // Zero is an answer for one row of a table — "Geophysicist: 0" — but as the
+  // total of the whole breakdown it means the column held nothing countable.
+  return total === null || total <= 0 || total > MAX_TOTAL_VACANCIES ? null : total;
+}
+
+/** A row that states the whole table's figure rather than one post's. */
+const TOTAL_ROW = /\btotals?\b/i;
+const GRAND_TOTAL_ROW = /\bgrand\s+totals?\b/i;
+
+/**
+ * The same ceiling `toVacancies` applies to the typed column, restated rather
+ * than imported: this module is the page's parser and must not depend on the
+ * ingest worker's. India's largest recent notification was ~150,000 posts, so
+ * anything above a million is a column read by mistake.
+ */
+const MAX_TOTAL_VACANCIES = 1_000_000;
+
+/**
+ * Headings that hold a count, in the order they should be trusted.
+ *
+ * Ranked rather than merged, because a table can carry both "Total Posts" and a
+ * per-category split, and adding the two double-counts every row. Bare "Total"
+ * comes last: it is a count in a vacancy table, but it is also what a fee or a
+ * pay table calls its rightmost column.
+ */
+const COUNT_HEADINGS = [
+  /^total\s+(no\.?\s*of\s*)?(posts?|vacanc(y|ies)|seats?)$/i,
+  /^((no\.?|nos\.?|number)\s*of\s*)?(posts?|vacanc(y|ies)|seats?|openings?)$/i,
+  /^total$/i,
+] as const;
+
+/**
+ * The column to count, or -1.
+ *
+ * Within a rank the column with the most readable numbers wins, which is what
+ * separates the two identically named columns in a Southern Railway table —
+ * `columns: ["Unit", "Trades Covered", "Total Posts", "Post Name", "Total
+ * Posts"]`, where the second holds one grand total and the first holds the four
+ * rows it totals.
+ */
+function countColumn(table: VacancyTable): number {
+  for (const heading of COUNT_HEADINGS) {
+    let best = -1;
+    let bestFilled = 0;
+
+    table.columns.forEach((column, i) => {
+      if (!heading.test(column.trim())) return;
+      const filled = table.rows.filter((row) => cellCount(row[i]) !== null).length;
+      if (filled > bestFilled) {
+        best = i;
+        bestFilled = filled;
+      }
+    });
+
+    if (best !== -1) return best;
+  }
+  return -1;
+}
+
+/**
+ * One cell of a count column, as a number.
+ *
+ * The leading number only, and only when it opens the cell: "23 (5 Typist + 4
+ * Typist Copyist + 9 Process Server + 5 Peon)" is 23 posts, and taking the
+ * largest number in it would say 9. A cell that opens with anything else — a
+ * post name that drifted a column left — is not a count.
+ */
+function cellCount(cell: string | undefined): number | null {
+  if (cell === undefined) return null;
+  const withoutAsides = cell.replace(/\([^)]*\)/g, " ").trim();
+  const match = /^\d[\d,]*\b/.exec(withoutAsides);
+  if (!match) return null;
+  const n = Number(match[0].replace(/,/g, ""));
+  return Number.isInteger(n) && n >= 0 && n <= MAX_TOTAL_VACANCIES ? n : null;
+}
+
 /* ── Selection process ──────────────────────────────────────────────────── */
 
 export function toSteps(value: unknown): string[] {

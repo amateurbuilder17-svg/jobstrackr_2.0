@@ -201,9 +201,14 @@ export function formatVacancies(display: string | null, count: number | null): s
 /**
  * Placeholders the feed writes in place of an empty cell. Matched whole, not as
  * a substring: "Various Posts" is a real answer and must survive.
+ *
+ * "Not Found" is the one that mattered most and was the one missing: it is what
+ * 551 of the 2,601 published rows carry in `vacancies_display`, so a fifth of
+ * every listing page announced "Not Found" in the slot where a vacancy count
+ * belongs — including rows whose breakdown table states the figure.
  */
 const PLACEHOLDER =
-  /^(not\s*available|n\.?\s*\/?\s*a\.?|nil|none|tbd|to\s*be\s*(announced|decided|notified)|-+|—+|unknown|not\s*specified|not\s*mentioned)$/i;
+  /^(not\s*(available|found|specified|mentioned|disclosed|announced)|n\.?\s*\/?\s*a\.?|nil|none|tbd|to\s*be\s*(announced|decided|notified)|-+|—+|unknown|check\s*(the\s*)?(notice|notification)|as\s*per\s*(the\s*)?notification)$/i;
 
 function formatFromCount(count: number | null): string | null {
   const formatted = formatCount(count);

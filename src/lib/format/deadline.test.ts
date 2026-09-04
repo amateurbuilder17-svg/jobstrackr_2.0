@@ -137,13 +137,28 @@ describe("formatVacancies", () => {
   it("treats feed placeholders as absent, not as a value", () => {
     // The feed writes these instead of leaving the cell empty; rendering them
     // put "Not Available" in the slot where a vacancy count belongs.
-    for (const junk of ["Not Available", "N/A", "n.a.", "TBD", "—", "Nil", "Not Specified"]) {
+    for (const junk of [
+      "Not Available",
+      // 551 of the 2,601 published rows carry this one, and every one of them
+      // printed the words "Not Found" where the count belongs.
+      "Not Found",
+      "N/A",
+      "n.a.",
+      "TBD",
+      "—",
+      "Nil",
+      "Not Specified",
+      "Check Notice",
+      "As per notification",
+    ]) {
       expect(formatVacancies(junk, null)).toBeNull();
     }
   });
 
   it("falls back to the typed count when the display value is a placeholder", () => {
     expect(formatVacancies("Not Available", 42)).toBe("42 vacancies");
+    // The count here is the one recovered from the vacancy breakdown table.
+    expect(formatVacancies("Not Found", 24)).toBe("24 vacancies");
   });
 
   it("keeps a real answer that merely contains a placeholder word", () => {
