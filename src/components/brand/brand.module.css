@@ -1,0 +1,47 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   The mark, in the app chrome
+   ═══════════════════════════════════════════════════════════════════════════
+   A `<span>` with a background image rather than an `<img>`, and that is the
+   whole point of the file: the mark has to be navy on paper and white on the
+   dark theme, and a background image is the only way to say that in CSS and
+   have the browser fetch exactly one of the two files. An `<img>` swapped with
+   `hidden dark:block` downloads both.
+
+   The alternative that was tried first was one white file tinted in light mode
+   with `filter: brightness(0) invert(24%) sepia(38%) saturate(680%) …` — a
+   colour nobody can look up, grep for, or correct. Two files, generated from
+   the same master by `scripts/build-brand-icons.mjs`, cannot drift and are
+   named after what they are.
+
+   The pair of `background-image` declarations is format negotiation, the same
+   job `<picture>` does in `artwork.tsx`: `image-set()` picks AVIF where it is
+   understood, and the plain `url()` above it is what a browser that does not
+   understand `image-set` is left holding. Only the winner is requested.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.mark {
+  display: block;
+  flex-shrink: 0;
+  /* The generated files are 540×583. Aspect ratio rather than a height, so
+     every caller sets one dimension and cannot get the other wrong. */
+  aspect-ratio: 540 / 583;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+
+  background-image: url("/brand/logo-mark-navy.png");
+  background-image: image-set(
+    url("/brand/logo-mark-navy.avif") type("image/avif"),
+    url("/brand/logo-mark-navy.png") type("image/png")
+  );
+}
+
+/* Dark: the white emblem. Not a filter on the navy one — the mark carries a
+   gradient, and inverting a gradient gives a different gradient. */
+:global(.dark) .mark {
+  background-image: url("/brand/logo-mark.png");
+  background-image: image-set(
+    url("/brand/logo-mark.avif") type("image/avif"),
+    url("/brand/logo-mark.png") type("image/png")
+  );
+}

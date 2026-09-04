@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense } from "react";
 
+import { BrandMark } from "@/components/brand/artwork";
 import { SearchIcon } from "@/components/icons";
 import { SearchField } from "@/components/filters/search-field";
 import { NAV_ITEMS, isActive } from "@/lib/navigation";
@@ -56,17 +57,46 @@ import { ThemeToggle } from "./theme-toggle";
  */
 const SEARCHES_HERE = new Set(["/jobs", "/updates"]);
 
+/**
+ * Routes that carry no search affordance at all.
+ *
+ * A job detail page is a document you arrived at from a search; offering the
+ * same search again at the top of it is a way back to where you came from,
+ * which the back link under the bar already is. On mobile the icon also sat
+ * one row above the page's own "← Job Details", saying nothing.
+ */
+function hidesSearch(pathname: string) {
+  return pathname.startsWith("/jobs/");
+}
+
 export function TopBar() {
   const pathname = usePathname();
 
   const current = NAV_ITEMS.find((item) => isActive(pathname, item.href));
   const searchesHere = SEARCHES_HERE.has(pathname);
   const isHome = pathname === "/";
+  const noSearch = hidesSearch(pathname);
+  const isTracker = pathname === "/tracker" || pathname.startsWith("/tracker/");
 
   return (
     <header
       data-shell="top-bar"
-      className="sticky top-0 z-30 border-b border-line bg-bg/85 backdrop-blur-md"
+      /**
+       * `pt-[env(safe-area-inset-top)]` is the other half of `viewportFit:
+       * "cover"` in the root layout. `cover` lets the document run edge to edge
+       * — which is what the floating bottom nav and the full-bleed auth artwork
+       * want — but this header is `sticky top-0`, so without the padding its
+       * first row of content sits under the notch and the status bar clock.
+       *
+       * Padding rather than a margin or a fixed height: the bar's background
+       * and bottom border still need to cover the inset area, so the box grows
+       * upward and stays painted. On every device without an inset the value is
+       * `0px` and nothing changes.
+       */
+      className={
+        "sticky top-0 z-30 border-b border-line bg-bg/85 backdrop-blur-md " +
+        "pt-[env(safe-area-inset-top)]"
+      }
     >
       <div className="flex h-13 items-center gap-2 px-4 sm:gap-3 lg:px-6">
         <MenuButton />
@@ -108,21 +138,29 @@ export function TopBar() {
                   {current.label}
                 </span>
               ) : (
-                <Link href="/" className="text-base font-bold tracking-tight text-ink">
-                  JobsTrackr
+                <Link
+                  href="/"
+                  className="flex items-center gap-2 text-base font-bold tracking-tight text-ink"
+                >
+                  {/* 22px. The bar is 52px tall and the wordmark beside this is
+                      16px, so the mark is sized to the cap height of the text
+                      rather than to the bar — a taller mark reads as a button. */}
+                  <BrandMark className="w-[1.375rem]" />
+                  <span className="truncate">JobsTrackr</span>
                 </Link>
               )}
             </div>
 
-            {!isHome && (
+            {!isHome && !noSearch && (
               <Link
                 href="/jobs"
                 aria-label="Search jobs and updates"
                 className={
-                  "ml-auto flex h-9 min-w-0 shrink-0 items-center justify-center gap-2 rounded-md " +
+                  "ml-auto h-9 min-w-0 shrink-0 items-center justify-center gap-2 rounded-md " +
                   "border border-line bg-surface text-sm text-ink-3 " +
                   "transition-colors duration-(--duration-fast) hover:border-line-strong " +
-                  "hover:text-ink-2 max-sm:size-9 sm:max-w-md sm:flex-1 sm:shrink sm:px-3 lg:ml-0"
+                  "hover:text-ink-2 max-sm:size-9 sm:max-w-md sm:flex-1 sm:shrink sm:px-3 lg:ml-0 " +
+                  (isTracker ? "hidden lg:flex" : "flex")
                 }
               >
                 <SearchIcon className="size-4 shrink-0" />

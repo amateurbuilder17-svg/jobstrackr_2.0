@@ -1,14 +1,83 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 
 import { CloseIcon, SlidersHorizontalIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
-import { FilterModal } from "./filter-modal";
 import type { FilterOption } from "./filter-chips";
+// Type-only, so it is erased at compile time and the sheet stays out of the
+// first-load graph. It exists to type the shared promise below without an
+// inline `import()` annotation, which the lint config forbids.
+import type * as FilterModalModule from "./filter-modal";
 import { useFilterParams } from "./use-filter-params";
 
 export type { FilterOption };
+
+/**
+ * The filter sheet, kept out of first-load JavaScript.
+ *
+ * `FilterModal` is 400 lines and returns `null` until it is opened, so on the
+ * four routes that carry this bar — `/jobs`, `/updates`, `/saved`, `/for-you` —
+ * every byte of it was being downloaded and parsed to render nothing. It is the
+ * same trade the printable syllabus sheet already makes (see the dynamic import
+ * in `syllabus/[slug]/syllabus-actions.tsx`).
+ *
+ * The single shared promise is the point of writing this longhand. `dynamic()`
+ * begins loading when its component first *renders*, not when a prop changes,
+ * which is why `FilterBar` below must not mount the sheet until it is wanted —
+ * and why the warm-up needs to resolve to the very same promise rather than
+ * kicking off a second request.
+ */
+let sheetModule: Promise<typeof FilterModalModule> | undefined;
+const loadSheet = () => (sheetModule ??= import("./filter-modal"));
+
+/**
+ * The same load, as a handler.
+ *
+ * `loadSheet` returns the promise because `dynamic()` needs it; an event
+ * handler must not, or the returned promise goes unhandled. Hence two names for
+ * one request rather than a floating `Promise` in the JSX.
+ */
+const warmSheet = () => {
+  void loadSheet();
+};
+
+const FilterModal = dynamic(() => loadSheet().then((m) => m.FilterModal), {
+  // Nothing to server-render: the sheet is closed on load, and it is only ever
+  // mounted in response to a press.
+  ssr: false,
+  loading: () => <FilterSheetFallback />,
+});
+
+/**
+ * Shown only if the press lands before the chunk does.
+ *
+ * A sheet-shaped placeholder rather than `null`, because `null` makes the
+ * button look broken on a slow connection — the press appears to do nothing.
+ * Deliberately a handful of elements: this one *does* ship in first-load JS,
+ * so it has to cost less than the 400 lines it stands in for.
+ */
+function FilterSheetFallback() {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end lg:items-center lg:justify-center">
+      <div className="absolute inset-0 bg-black/40" />
+      <div className="relative h-[70vh] w-full rounded-t-2xl bg-surface lg:h-auto lg:max-w-lg lg:rounded-2xl">
+        <div className="flex h-14 items-center border-b border-line px-5">
+          <div className="h-4 w-24 animate-pulse rounded bg-surface-2" />
+        </div>
+        <div className="flex flex-col gap-3 p-5">
+          <div className="h-9 animate-pulse rounded-full bg-surface-2" />
+          <div className="h-9 w-3/4 animate-pulse rounded-full bg-surface-2" />
+          <div className="h-9 w-1/2 animate-pulse rounded-full bg-surface-2" />
+        </div>
+        <span className="sr-only" role="status">
+          Loading filters
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export interface FilterGroup {
   /** URL parameter this group writes to. */
@@ -29,6 +98,15 @@ export function FilterBar({ groups }: { groups: FilterGroup[] }) {
   const { params, set, clearAll } = useFilterParams();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalTab, setModalTab] = useState<string>("sort");
+  /**
+   * Whether the sheet has ever been opened.
+   *
+   * Separate from `isModalOpen` because it is one-way: once the sheet has been
+   * mounted it stays mounted, so closing and reopening behaves exactly as it did
+   * before this was deferred. What it prevents is the initial render mounting
+   * the sheet — which would download the chunk on page load and undo the split.
+   */
+  const [hasOpenedModal, setHasOpenedModal] = useState(false);
 
   // Collect all active filters from the URL
   const active = groups.flatMap((group) => {
@@ -44,6 +122,7 @@ export function FilterBar({ groups }: { groups: FilterGroup[] }) {
 
   const openFilter = (tab = "sort") => {
     setModalTab(tab);
+    setHasOpenedModal(true);
     setIsModalOpen(true);
   };
 
@@ -75,6 +154,19 @@ export function FilterBar({ groups }: { groups: FilterGroup[] }) {
           onClick={() => {
             openFilter("sort");
           }}
+          /**
+           * Warm-up, so the split costs nothing anyone can feel.
+           *
+           * Three events rather than one, because they cover the three ways this
+           * button gets pressed: `pointerenter` is the desktop hover, `focus` is
+           * the keyboard, and `pointerdown` is touch — it fires before `click`,
+           * which is the only pre-press signal a phone gives. Idle prefetching
+           * was the alternative and is worse: it spends the bytes on every
+           * visitor, including the majority who never open the filters.
+           */
+          onPointerEnter={warmSheet}
+          onPointerDown={warmSheet}
+          onFocus={warmSheet}
           className={cn(
             "inline-flex h-9 shrink-0 items-center gap-2 rounded-full border px-3.5 text-xs font-semibold shadow-xs",
             "transition-all duration-(--duration-fast)",
@@ -162,14 +254,16 @@ export function FilterBar({ groups }: { groups: FilterGroup[] }) {
         })}
       </div>
 
-      {/* Enterprise Filter Modal */}
-      <FilterModal
-        open={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-        }}
-        initialTab={modalTab}
-      />
+      {/* Enterprise Filter Modal — mounted on first open, then kept. */}
+      {hasOpenedModal && (
+        <FilterModal
+          open={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false);
+          }}
+          initialTab={modalTab}
+        />
+      )}
     </>
   );
 }

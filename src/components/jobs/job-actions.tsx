@@ -4,19 +4,18 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { useToday } from "@/components/jobs/today-provider";
-import {
-  BellIcon,
-  BookmarkIcon,
-  CheckIcon,
-  ExternalLinkIcon,
-  ShareIcon,
-} from "@/components/icons";
+import { BellIcon, CheckIcon, ExternalLinkIcon, ShareIcon } from "@/components/icons";
 import { useSaved } from "@/components/session/session-provider";
 import { cn } from "@/lib/cn";
 import { daysUntilFrom } from "@/lib/format/deadline";
 
 /**
- * Apply · Track · Save · Share.
+ * Apply · Track · Share.
+ *
+ * Track and Save used to be two adjacent icon buttons — a bell and a bookmark —
+ * which asked the reader to tell apart two words for the same intent. They are
+ * one labelled button now: "Track this exam" both follows the exam for updates
+ * and keeps it in the reader's saved list, so the two sets never disagree.
  *
  * The one client island on an otherwise entirely static page. Everything it
  * needs about the job arrives as props, computed during the prerender; what it
@@ -63,14 +62,17 @@ export function JobActions(props: JobActionsProps) {
   const undated = lastDateDisplay !== null && TBD.test(lastDateDisplay);
   const expired = daysLeft !== null && daysLeft < 0 && !undated;
 
+  // Two labels, because the row now carries a *worded* Track button beside
+  // this one. On a 320px screen "Apply on the official site" and "Track this
+  // exam" cannot both be read, and the short form is the one that loses least.
   const primary = expired
     ? officialWebsite
-      ? { href: officialWebsite, label: "Official website" }
+      ? { href: officialWebsite, label: "Official website", short: "Website" }
       : null
     : applyLink
-      ? { href: applyLink, label: "Apply on the official site" }
+      ? { href: applyLink, label: "Apply on the official site", short: "Apply" }
       : officialWebsite
-        ? { href: officialWebsite, label: "Official website" }
+        ? { href: officialWebsite, label: "Official website", short: "Website" }
         : null;
 
   return (
@@ -92,14 +94,17 @@ export function JobActions(props: JobActionsProps) {
             target="_blank"
             rel="noopener noreferrer nofollow"
             className={cn(
-              "inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-5",
+              // A floor, not `min-w-0`: this button shrinks first, and without
+              // one a 320px screen truncated "Apply" itself down to "A.".
+              "inline-flex h-11 min-w-25 flex-1 items-center justify-center gap-2 rounded-xl px-4 sm:px-5",
               "text-sm font-semibold transition-colors duration-(--duration-fast)",
               expired
                 ? "border border-line bg-surface text-ink hover:bg-surface-2"
                 : "bg-brand text-white shadow-xs hover:bg-brand-deep",
             )}
           >
-            <span className="truncate">{primary.label}</span>
+            <span className="truncate sm:hidden">{primary.short}</span>
+            <span className="truncate max-sm:hidden">{primary.label}</span>
             <ExternalLinkIcon className="size-4 shrink-0" />
           </a>
         ) : (
@@ -123,35 +128,32 @@ export function JobActions(props: JobActionsProps) {
               return;
             }
             toggleTracked(jobId);
+            // Saving is the same intent said a different way, so the bookmark
+            // follows the tracking rather than being a second thing to press.
+            if (tracked === saved) toggle(jobId);
           }}
           className={cn(
-            "inline-flex size-11 shrink-0 items-center justify-center rounded-xl border",
-            "text-sm font-medium transition-colors duration-(--duration-fast)",
+            "inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border px-4",
+            "text-sm font-semibold transition-colors duration-(--duration-fast)",
             tracked
               ? "border-accent-line bg-accent-soft text-accent"
               : "border-line bg-surface text-ink-2 hover:border-line-strong hover:text-ink",
             pendingTrack && "opacity-60",
           )}
         >
-          {tracked ? <CheckIcon className="size-4.5" /> : <BellIcon className="size-4.5" />}
-        </button>
-
-        <button
-          type="button"
-          aria-pressed={saved}
-          aria-label={saved ? `Remove ${title} from saved` : `Save ${title}`}
-          onClick={() => {
-            toggle(jobId);
-          }}
-          className={cn(
-            "inline-flex size-11 shrink-0 items-center justify-center rounded-xl border",
-            "transition-colors duration-(--duration-fast)",
-            saved
-              ? "border-accent-line bg-accent-soft text-accent"
-              : "border-line bg-surface text-ink-2 hover:border-line-strong hover:text-ink",
+          {/* Below 360px the row is Apply + this + Share and something has to
+              give; the icon goes before the word does. */}
+          {tracked ? (
+            <CheckIcon className="size-4.5 shrink-0 max-[359px]:hidden" />
+          ) : (
+            <BellIcon className="size-4.5 shrink-0 max-[359px]:hidden" />
           )}
-        >
-          <BookmarkIcon className="size-4.5" fill={saved ? "currentColor" : "none"} />
+          <span className="truncate max-[359px]:hidden">
+            {tracked ? "Tracking" : "Track this exam"}
+          </span>
+          <span className="truncate min-[360px]:hidden">
+            {tracked ? "Tracking" : "Track exam"}
+          </span>
         </button>
 
         <ShareButton slug={slug} title={title} />

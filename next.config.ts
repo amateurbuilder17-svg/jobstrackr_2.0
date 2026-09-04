@@ -32,6 +32,12 @@ const contentSecurityPolicy = [
   // has any business being rendered here. Same reasoning as `connect-src`.
   `img-src 'self' data: blob: ${supabaseOrigin}`,
   "font-src 'self' data:",
+  // Named explicitly for `/sw.js`. Without this directive a worker falls back
+  // through `child-src` to `default-src 'self'`, which happens to permit a
+  // same-origin worker — so the service worker would load either way. Relying
+  // on a fallback for the one script that can outlive a deploy and intercept
+  // every request is not the same as allowing it on purpose.
+  "worker-src 'self'",
   `connect-src 'self' ${supabaseOrigin} https://*.supabase.co wss://*.supabase.co`,
   "frame-ancestors 'none'",
   "form-action 'self'",
@@ -63,6 +69,15 @@ const contentSecurityPolicy = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   cacheComponents: true,
+
+  // The share card inlines the app icon, and it reads the file rather than
+  // importing it — see the comment above `ICON` in `src/app/opengraph-image.tsx`
+  // for why. Nothing traces a path built at runtime, so it is named here: the
+  // route is prerendered today and this is what keeps it from becoming a
+  // missing-file crash if it ever stops being.
+  outputFileTracingIncludes: {
+    "/opengraph-image": ["./public/brand/app-icon-192.png"],
+  },
 
   // This project currently sits inside the old repository's directory tree, so
   // Turbopack's lockfile-based root inference walks up and picks the wrong one.
@@ -192,6 +207,30 @@ const nextConfig: NextConfig = {
     ];
   },
 
+  /**
+   * The IndexNow ownership proof, at the site root.
+   *
+   * IndexNow verifies that a submitter controls a host by fetching
+   * `https://<host>/<key>.txt`, and the key location has to sit at or above
+   * the URLs being submitted — so it must be the root, not `/api/...`. The key
+   * itself lives in the environment (see `INDEXNOW_KEY`), which rules out a
+   * committed file in `public/`, so the root path is rewritten onto the route
+   * that reads it.
+   *
+   * The pattern is explicit — sixteen or more word characters — rather than a
+   * bare `:key`. Rewrites returned as a plain array run *after* the filesystem,
+   * so this cannot shadow a real file today; the narrow pattern is what stops
+   * it shadowing `security.txt` or `humans.txt` if one is ever added.
+   */
+  async rewrites() {
+    return [
+      {
+        source: "/:key(\\w{16,128}).txt",
+        destination: "/api/seo/indexnow-key?key=:key",
+      },
+    ];
+  },
+
   // Applied to every route. The CSP is intentionally absent here — it is built
   // ── Content Security Policy ──────────────────────────────────────────────
   // Static, not nonce-based, and that is a decision rather than a shortcut.
@@ -243,6 +282,47 @@ const nextConfig: NextConfig = {
           // stops this origin being loaded as a resource by another site.
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
           { key: "X-DNS-Prefetch-Control", value: "on" },
+        ],
+      },
+
+      /**
+       * Brand artwork — immutable.
+       *
+       * These 213 kB were being revalidated on every visit: `public/` is served
+       * with `max-age=0`, which is the right default for files whose names can
+       * be reused, and the wrong one for these. Every file here carries its own
+       * version in its name — `auth-bg-1280.avif`, `splash-ridge-946.avif`,
+       * `app-icon-maskable-512.png` — because `scripts/build-brand-icons.mjs`
+       * and `build-brand-art.mjs` derive them at fixed sizes from a master. A
+       * new size is a new filename, so a cached copy can never be the wrong
+       * one, and the only way to change one in place is to overwrite the master
+       * and rename its outputs.
+       *
+       * This is the largest single item in the Vercel bandwidth budget that
+       * `pnpm traffic` models: the auth background alone is 14.8 kB on every
+       * sign-in view, and the app icons are re-fetched by every installed
+       * client that revalidates.
+       */
+      {
+        source: "/brand/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      },
+
+      /**
+       * The service worker — never cached.
+       *
+       * Browsers already bypass the HTTP cache for the worker script itself
+       * (`updateViaCache: "imports"` is the default), so this is belt and
+       * braces rather than the mechanism. It is worth stating anyway, because
+       * the failure it prevents is the worst one this file can cause: a worker
+       * pinned in a CDN or proxy cache keeps intercepting every request with
+       * logic that can no longer be updated, and no redeploy reaches it.
+       */
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=0, must-revalidate" },
+          { key: "Service-Worker-Allowed", value: "/" },
         ],
       },
     ];

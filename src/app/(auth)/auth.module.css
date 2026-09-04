@@ -193,18 +193,17 @@
   border-radius: var(--radius-lg);
 }
 
+/* `BrandMark` already carries its own colour per theme — navy on the light
+   ground, white on the artwork — so there is nothing to tint here. The drop
+   shadow is dropped in light mode with it: it was lifting a white mark off a
+   dark photograph, and under a navy mark on paper it reads as a smudge. */
 .brandMark {
   width: clamp(2.5rem, 3.4vw, 3.25rem);
   height: auto;
-  filter: drop-shadow(0 6px 16px oklch(0% 0 0 / 0.45));
 }
 
-/* The mark ships white, which is correct on the dark artwork and invisible on
-   paper. Rather than a second asset, light mode tints it to the accent — one
-   file, and the two versions cannot drift apart. */
-:global(html:not(.dark)) .brandMark {
-  filter: brightness(0) saturate(100%) invert(24%) sepia(38%) saturate(680%) hue-rotate(118deg)
-    brightness(94%) contrast(92%);
+:global(.dark) .brandMark {
+  filter: drop-shadow(0 6px 16px oklch(0% 0 0 / 0.45));
 }
 
 .brandWord {
@@ -317,7 +316,19 @@
   flex: 1 1 100%;
   align-items: center;
   justify-content: center;
-  padding: clamp(3.5rem, 8vh, 4.5rem) 1.25rem clamp(2rem, 5vh, 3rem);
+  /* The insets are added to the existing clamps rather than replacing them.
+     These screens hide the shell (`body:has([data-fullbleed]) [data-shell]`),
+     so there is no top bar to keep the card clear of the notch, and with
+     `viewportFit: "cover"` in the root layout the artwork now runs edge to edge
+     — which is the point of the design, but it means `100dvh` includes the
+     notch and the home indicator. The clamped top padding happens to be about
+     the size of an iPhone inset, so today it clears by luck; adding the inset
+     makes it clear by construction. Both terms resolve to `0px` on hardware
+     without insets, so nothing moves anywhere else. */
+  padding: calc(clamp(3.5rem, 8vh, 4.5rem) + env(safe-area-inset-top, 0px))
+    calc(1.25rem + env(safe-area-inset-right, 0px))
+    calc(clamp(2rem, 5vh, 3rem) + env(safe-area-inset-bottom, 0px))
+    calc(1.25rem + env(safe-area-inset-left, 0px));
 }
 
 .card {
@@ -373,12 +384,10 @@
   width: 3.75rem;
   height: auto;
   margin-bottom: 0.625rem;
-  filter: drop-shadow(0 6px 16px oklch(0% 0 0 / 0.45));
 }
 
-:global(html:not(.dark)) .cardBrandMark {
-  filter: brightness(0) saturate(100%) invert(24%) sepia(38%) saturate(680%) hue-rotate(118deg)
-    brightness(94%) contrast(92%);
+:global(.dark) .cardBrandMark {
+  filter: drop-shadow(0 6px 16px oklch(0% 0 0 / 0.45));
 }
 
 .cardBrandWord {
@@ -687,6 +696,15 @@
   cursor: not-allowed;
   opacity: 0.6;
   box-shadow: none;
+}
+
+/* The primary action on a screen whose work is already done — the reset
+   confirmation — where the control has to be a link rather than a button.
+   `composes` rather than a copy of the gradient: one declaration of the
+   primary button means the two cannot drift apart. */
+.submitLink {
+  composes: submit;
+  text-decoration: none;
 }
 
 .submitArrow {

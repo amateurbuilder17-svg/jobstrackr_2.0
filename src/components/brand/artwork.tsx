@@ -39,6 +39,10 @@
  * mark is the only content of a link, the link's own text carries the name.
  */
 
+import { cn } from "@/lib/cn";
+
+import styles from "./brand.module.css";
+
 /** Fills its positioned parent. Used for both full-bleed backgrounds. */
 const COVER = {
   position: "absolute",
@@ -100,9 +104,15 @@ export function SplashRidge({ className }: { className?: string | undefined }) {
 }
 
 /**
- * The emblem. One size, because it is only ever drawn between 40px and 154px
- * and the 540px master covers every one of those at 3× — a second variant
- * would be more bytes in the repository and no fewer over the wire.
+ * The white emblem, for the surfaces that are dark whatever the theme is —
+ * today that is the splash's disc, which paints its own night sky.
+ *
+ * One size, because it is only ever drawn between 40px and 154px and the 540px
+ * master covers every one of those at 3× — a second variant would be more
+ * bytes in the repository and no fewer over the wire.
+ *
+ * Anywhere the background follows the theme, use `BrandMark` below instead: a
+ * white mark on the paper ground is an invisible mark.
  */
 export function LogoMark({ className }: { className?: string | undefined }) {
   return (
@@ -112,11 +122,28 @@ export function LogoMark({ className }: { className?: string | undefined }) {
         src="/brand/logo-mark.png"
         alt=""
         width={540}
-        height={600}
+        height={583}
         decoding="async"
         fetchPriority="high"
         className={className}
       />
     </picture>
   );
+}
+
+/**
+ * The same emblem, in whichever colour the current theme needs: navy on paper,
+ * white on the dark ground. This is the one to reach for in the app chrome.
+ *
+ * A `<span>` painted with a background image, for the reason set out at the
+ * top of `brand.module.css` — it is how the browser is made to fetch one of
+ * the two files rather than both. Give it a width; the aspect ratio supplies
+ * the height.
+ *
+ * `aria-hidden`, always. Every placement is a link or a heading that already
+ * says "JobsTrackr" in text beside it, and a screen reader announcing the mark
+ * as well would read the brand twice on every page of the site.
+ */
+export function BrandMark({ className }: { className?: string | undefined }) {
+  return <span aria-hidden className={cn(styles.mark, className)} />;
 }

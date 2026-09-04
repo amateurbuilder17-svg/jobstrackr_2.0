@@ -40,3 +40,11 @@ tsconfig.tsbuildinfo
 
 # Local database dumps — never commit these; they contain user PII.
 backups/
+
+# One-off probe output from the Apps Script sync, written by hand while
+# debugging ingestion. All three were committed by accident and came to about a
+# megabyte of the repository; nothing reads them, and a fresh probe overwrites
+# them anyway. Kept on disk, out of git.
+/sheetjobs.json
+/sheetprobe.json
+/logs600.json

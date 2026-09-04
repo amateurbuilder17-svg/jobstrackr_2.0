@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Archivo, Archivo_Narrow } from "next/font/google";
 
 import { AppShell } from "@/components/shell/app-shell";
+import { ServiceWorkerRegistration } from "@/components/shell/sw-register";
 import { ThemeScript } from "@/components/shell/theme-script";
 import { SplashGate } from "@/components/splash/splash-gate";
 import "./globals.css";
@@ -40,6 +41,26 @@ export const metadata: Metadata = {
     "Government job notifications, exam updates, and eligibility tracking for Indian competitive exams.",
   applicationName: "JobsTrackr",
   formatDetection: { telephone: false },
+  /**
+   * iOS standalone behaviour.
+   *
+   * `capable` is what makes an installed icon open without Safari's chrome.
+   * `statusBarStyle: "black-translucent"` is the one that pairs with
+   * `viewportFit: "cover"` below — it hands the status bar area to the page, so
+   * the header's own background runs up behind the clock instead of iOS drawing
+   * an opaque bar in a colour that matches neither theme. The two settings are
+   * a pair; `cover` without this leaves a grey band, and this without `cover`
+   * puts content under the clock.
+   *
+   * `title` is the home-screen label. Without it iOS uses the `<title>` of
+   * whatever page was open when the user tapped Add to Home Screen, so someone
+   * installing from a job page would get that job's name on their home screen.
+   */
+  appleWebApp: {
+    capable: true,
+    title: "JobsTrackr",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export const viewport: Viewport = {
@@ -51,6 +72,20 @@ export const viewport: Viewport = {
   // failure — plenty of people need to pinch-zoom a deadline table.
   width: "device-width",
   initialScale: 1,
+  /**
+   * Required for `env(safe-area-inset-*)` to report anything.
+   *
+   * Four rules already read those insets — `bottom-nav.module.css`,
+   * `menu-drawer.tsx`, `job-actions.tsx` and `update-actions.tsx` — and without
+   * `cover` iOS insets the *viewport* instead, so every one of them resolved to
+   * `0px` and the code was dead. This is what turns it on.
+   *
+   * It is a pair with the `padding-top` on the sticky header in `top-bar.tsx`:
+   * `cover` lets the page run edge to edge, which is what the floating bottom
+   * nav wants and what the header must explicitly opt out of, or it slides
+   * under the notch. Do not set one without the other.
+   */
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -77,6 +112,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to content
         </a>
         <AppShell>{children}</AppShell>
+        {/* Last in the body, and `afterInteractive`: the worker install must
+            queue behind the page the reader actually asked for. */}
+        <ServiceWorkerRegistration />
       </body>
     </html>
   );
