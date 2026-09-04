@@ -40,7 +40,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: site, changeFrequency: "daily", priority: 1 },
     { url: `${site}/jobs`, changeFrequency: "hourly", priority: 0.9 },
     { url: `${site}/updates`, changeFrequency: "hourly", priority: 0.8 },
-    { url: `${site}/syllabus`, changeFrequency: "weekly", priority: 0.6 },
+    // `/syllabus` is deliberately absent. The finder needs an account, so what a
+    // crawler gets there is the sign-in card; submitting that URL would be
+    // asking Google to rank a page nobody can read. The syllabi it links to are
+    // public and listed below on their own.
     { url: `${site}/faq`, changeFrequency: "monthly", priority: 0.4 },
     { url: `${site}/user-manual`, changeFrequency: "monthly", priority: 0.3 },
     { url: `${site}/help`, changeFrequency: "monthly", priority: 0.3 },

@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { SignInRequired } from "@/components/auth/sign-in-required";
 import { BrandMark } from "@/components/brand/artwork";
 import { BookOpenIcon, ChevronRightIcon } from "@/components/icons";
+import { getUser } from "@/lib/auth/session";
 import { listOpenJobTitles } from "@/lib/db/queries/jobs";
 import { listSyllabusSlugs } from "@/lib/db/queries/syllabus";
 import { syllabusSlug } from "@/lib/syllabus/key";
@@ -15,7 +17,13 @@ export const metadata: Metadata = {
   title: "Syllabus finder",
   description:
     "Search the official syllabus for any Indian government exam — subjects, topics, marks and stage-by-stage pattern.",
-  alternates: { canonical: "/syllabus" },
+  // Not indexed, because a crawler is a guest and a guest now gets the sign-in
+  // card rather than the finder — an indexed URL whose content is a sign-in
+  // card is a thin page, and inviting Google to rank one is inviting people to
+  // land on it. The syllabi themselves are unaffected: `/syllabus/<slug>` is
+  // public, stays in the sitemap, and is the page worth ranking for "SSC CGL
+  // syllabus" anyway. `/syllabus` came out of the sitemap with this line.
+  robots: { index: false, follow: false },
 };
 
 /**
@@ -52,12 +60,81 @@ const DAILY_LIMIT = 5;
  * available" grid, and the Saved badges on the Popular tiles. The old screen
  * ran a separate select for the cached list on mount and two more per
  * keystroke; this one runs none while somebody types.
+ *
+ * The whole of it needs an account, so the whole of it sits behind one gate in
+ * `Finder` — including the hero, which is why the page component is a container
+ * and a boundary and nothing else. Individual syllabi stay public: a shared
+ * `/syllabus/<slug>` link opens for anybody, and `searchSyllabusAction` still
+ * checks its cache before it checks for a session, so a guest is never asked to
+ * sign in to read a document that already exists.
  */
-export default function SyllabusPage() {
+export default function SyllabusPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 lg:py-12">
+      <Suspense fallback={<FinderSkeleton />}>
+        <Finder searchParams={searchParams} />
+      </Suspense>
+    </div>
+  );
+}
+
+/**
+ * The page, off one read — and the gate in front of it.
+ *
+ * A single async component rather than two, because both halves want the same
+ * rows and splitting them would either duplicate the query or thread the
+ * result through a prop drill for no gain.
+ */
+async function Finder({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  // A guest gets the invitation instead of the finder, and gets it *before* the
+  // two reads below — so a signed-out visit still costs no query, the same
+  // property the gate in `searchSyllabusAction` has.
+  //
+  // This replaces a gate that sat one step later, inside the action: the page
+  // rendered in full, a guest typed an exam name, pressed Search, and only then
+  // was told they needed an account. Everything on screen invited a search that
+  // could not run. The refusal is now the first thing the page says instead of
+  // the last, and it is the same card as `/tracker`, `/for-you` and the rest —
+  // one answer to "this needs an account", not two.
+  const user = await getUser();
+  if (!user) {
+    // Arriving from a Popular Exams tile or a shared link carries `?q=`, and
+    // that is the search they wanted. Carrying it through `next` means signing
+    // in returns them to it and the box runs it, rather than dropping them on
+    // an empty finder having forgotten what they asked for.
+    const { q } = await searchParams;
+    const wanted = typeof q === "string" && q.trim() !== "" ? q.trim() : null;
+
+    return (
+      <SignInRequired
+        title="Sign in to use the Syllabus Finder"
+        description="Look up the official syllabus for any Indian government exam — subjects, topics, marks and the stage-by-stage pattern, read straight from the recruiting body's notification."
+        next={wanted === null ? "/syllabus" : `/syllabus?q=${encodeURIComponent(wanted)}`}
+        icon={BookOpenIcon}
+      />
+    );
+  }
+
+  // In parallel, and both cached. Two round trips run as one wait, and on a
+  // warm cache neither is a round trip at all.
+  const [directory, jobs] = await Promise.all([listSyllabusSlugs(), listOpenJobTitles()]);
+
+  /** Exams already fetched, for the Saved badge on the Popular tiles. */
+  const cachedBySlug = new Map(directory.map((row) => [row.slug, row] as const));
+
+  return (
+    <>
       {/*
         Hero Header
+
+        Inside the gate rather than above it, so a guest gets the sign-in card
+        on its own — the card already carries the name of the thing and a
+        sentence on what it does, and a hero repeating both above it says the
+        same thing twice. This is the shape `/tracker` uses.
 
         The mark sits beside the title the way the old app's header did — logo,
         then "SYLLABUS FINDER". `BrandMark` rather than an `<img>` so it follows
@@ -79,34 +156,6 @@ export default function SyllabusPage() {
         </p>
       </div>
 
-      <Suspense
-        fallback={
-          <div className="mt-6 h-[7.5rem] rounded-2xl border border-line bg-surface skeleton" />
-        }
-      >
-        <Finder />
-      </Suspense>
-    </div>
-  );
-}
-
-/**
- * Everything below the hero, off one read.
- *
- * A single async component rather than two, because both halves want the same
- * rows and splitting them would either duplicate the query or thread the
- * result through a prop drill for no gain.
- */
-async function Finder() {
-  // In parallel, and both cached. Two round trips run as one wait, and on a
-  // warm cache neither is a round trip at all.
-  const [directory, jobs] = await Promise.all([listSyllabusSlugs(), listOpenJobTitles()]);
-
-  /** Exams already fetched, for the Saved badge on the Popular tiles. */
-  const cachedBySlug = new Map(directory.map((row) => [row.slug, row] as const));
-
-  return (
-    <>
       <SyllabusSearchForm suggestions={buildSuggestions(directory, jobs)} />
 
       {/*
@@ -220,5 +269,29 @@ async function Finder() {
         </section>
       ) : null}
     </>
+  );
+}
+
+/**
+ * The shell while the gate is being decided.
+ *
+ * Shaped like the hero and the search plate together, because that is what
+ * resolves into this space for somebody signed in. It stands in for the sign-in
+ * card too — both are one block in the same column, and a skeleton that guessed
+ * at which one was coming would be wrong half the time.
+ */
+function FinderSkeleton() {
+  return (
+    <div className="animate-in fade-in duration-200" aria-hidden="true">
+      <div className="flex items-center gap-2.5 sm:gap-3">
+        <div className="skeleton size-9 rounded-xl" />
+        <div className="skeleton h-9 w-56 sm:w-64" />
+      </div>
+      <div className="mt-3 space-y-2">
+        <div className="skeleton h-4 w-full" />
+        <div className="skeleton h-4 w-4/5" />
+      </div>
+      <div className="skeleton mt-6 h-[4.75rem] w-full rounded-2xl" />
+    </div>
   );
 }

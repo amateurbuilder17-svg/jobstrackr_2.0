@@ -46,7 +46,8 @@ listing whose window has closed is retired from the feeds the same hour.
 - [Exam calendar](${site}/calendar): what closes, opens or is examined on a
   given date.
 - [Syllabus finder](${site}/syllabus): the subject-wise syllabus and exam
-  pattern for a named exam.
+  pattern for a named exam. The finder itself needs an account; the syllabi it
+  produces are public at the URL shape below.
 
 ## URL shapes
 
