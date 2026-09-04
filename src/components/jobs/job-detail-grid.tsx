@@ -52,15 +52,7 @@ export function JobDetailGrid({
   closesOn,
   admitCard,
 }: JobDetailGridProps) {
-  // The cell carries the opening of a long summary and hands the rest to the
-  // Eligibility section below, rather than printing 1,177 words in a box
-  // sized for two lines.
   const fullQualification = qualification?.trim() ? decodeEntities(qualification.trim()) : null;
-  const clipped = fullQualification
-    ? truncateWords(fullQualification, QUALIFICATION_WORDS)
-    : null;
-  const qualificationText = clipped ?? fullQualification;
-  const clamped = clipped !== null;
 
   const leftItems = [
     {
@@ -100,9 +92,9 @@ export function JobDetailGrid({
 
   return (
     <div className="mt-6 space-y-3">
-      {/* Upper Box: Responsive layout ensuring all contents are fully visible without truncation */}
+      {/* Upper Box: 2-column layout (Vacancies & Salary side-by-side, Qualification full-width underneath) */}
       <div className="rounded-2xl border border-line bg-surface p-4 sm:p-5 shadow-xs">
-        <div className="grid grid-cols-2 gap-3.5 sm:grid-cols-3 sm:gap-4">
+        <div className="grid grid-cols-2 gap-3.5 sm:gap-5">
           {/* Vacancies */}
           <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
             <div className="flex size-9.5 sm:size-10 shrink-0 items-center justify-center rounded-full bg-brand-soft text-brand dark:bg-brand-soft/20 mt-0.5">
@@ -129,30 +121,16 @@ export function JobDetailGrid({
             </div>
           </div>
 
-          {/* Qualification: Spans full width across 2 columns on mobile, 1 column on desktop */}
-          <div className="col-span-2 sm:col-span-1 flex items-start gap-2.5 sm:gap-3 min-w-0 border-t border-line/60 pt-3 sm:border-t-0 sm:pt-0">
+          {/* Qualification: Spans full width across 2 columns under Vacancies & Salary */}
+          <div className="col-span-2 flex items-start gap-2.5 sm:gap-3 min-w-0 border-t border-line/60 pt-3 sm:pt-4">
             <div className="flex size-9.5 sm:size-10 shrink-0 items-center justify-center rounded-full bg-brand-soft text-brand dark:bg-brand-soft/20 mt-0.5">
               <GraduationCapIcon className="size-4 sm:size-4.5" aria-hidden="true" />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-[11px] sm:text-xs text-ink-3 leading-none">Qualification</p>
-              {/* Mobile: full qualification text without truncation */}
-              <p className="mt-1 text-xs font-bold text-ink leading-snug break-words sm:hidden">
+              <p className="mt-1 text-xs sm:text-sm font-bold text-ink leading-snug break-words">
                 {fullQualification ?? "Check notice"}
               </p>
-              {/* Desktop: truncated to QUALIFICATION_WORDS when long, with line-clamp safeguard */}
-              <p className="mt-1 hidden sm:block sm:line-clamp-4 text-xs sm:text-sm font-bold text-ink leading-snug break-words">
-                {qualificationText ?? "Check notice"}
-              </p>
-              {/* Only when something was cut, on desktop pointing to the Eligibility section */}
-              {clamped ? (
-                <a
-                  href="#eligibility"
-                  className="mt-1 hidden sm:inline-block text-[11px] sm:text-xs font-semibold text-brand transition-colors hover:text-ink"
-                >
-                  Read in full
-                </a>
-              ) : null}
             </div>
           </div>
         </div>

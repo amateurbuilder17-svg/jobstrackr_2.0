@@ -8,7 +8,7 @@ import { OrganizationLogo } from "@/components/home/organization-logo";
 import { toInitials } from "@/components/home/monogram";
 import { ChangeLog } from "@/components/jobs/change-log";
 import { JobDeadlineChip } from "@/components/jobs/job-deadline-chip";
-import { isLongQualification, JobDetailGrid } from "@/components/jobs/job-detail-grid";
+import { JobDetailGrid } from "@/components/jobs/job-detail-grid";
 import {
   ApplicationFees,
   ImportantDates,
@@ -146,32 +146,6 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
     job.salary_max,
     detail?.salary_text ?? null,
   );
-
-  // The grid cell clamps a long qualification summary. Whatever it cut has to
-  // be readable somewhere, and the Eligibility section is that somewhere: for
-  // 53 of the 60 longest summaries sampled in production `eligibility_text`
-  // holds the identical string, so the section usually already prints it and
-  // repeating it would be noise. The three cases below are the ones that are
-  // not identical.
-  const eligibilityText = detail?.eligibility_text?.trim()
-    ? detail.eligibility_text.trim()
-    : null;
-  const qualificationText = job.qualification_summary?.trim()
-    ? job.qualification_summary.trim()
-    : null;
-  const collapse = (s: string) => s.toLowerCase().replace(/\s+/g, " ");
-  const qualificationSaidElsewhere =
-    eligibilityText !== null &&
-    qualificationText !== null &&
-    collapse(eligibilityText).includes(collapse(qualificationText));
-  const qualificationInFull =
-    qualificationText !== null &&
-    !qualificationSaidElsewhere &&
-    // A summary short enough to be printed whole in the cell needs no second
-    // rendering; only what the cell cut does.
-    isLongQualification(qualificationText)
-      ? qualificationText
-      : null;
 
   // The typed column first, then the fee table. A notification that prints a
   // table of concessional rates and no single figure is normal, and "not
@@ -312,19 +286,9 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
         </Section>
       ) : null}
 
-      {/* The descriptive form of what the Qualification cell shows clamped.
-          `id` is what that cell's "Read in full" link points at. */}
-      {eligibilityText || qualificationInFull ? (
-        <Section title="Eligibility" id="eligibility">
-          {eligibilityText ? <Prose text={eligibilityText} /> : null}
-          {qualificationInFull ? (
-            <>
-              {eligibilityText ? (
-                <h3 className="mt-5 mb-2 text-sm font-bold text-ink">Qualification</h3>
-              ) : null}
-              <Prose text={qualificationInFull} />
-            </>
-          ) : null}
+      {detail?.eligibility_text ? (
+        <Section title="Eligibility">
+          <Prose text={detail.eligibility_text} />
         </Section>
       ) : null}
 
