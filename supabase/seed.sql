@@ -376,3 +376,66 @@ values
 -- abandon it for a sequential scan (see migration 0009) — so `pnpm db:reset`
 -- runs it immediately afterwards.
 analyze;
+
+-- ── A sign-in ──────────────────────────────────────────────────────────────
+-- `supabase db reset` empties `auth.users` along with everything else, and
+-- nothing here put anybody back — so every reset left the local app with a
+-- login screen and no account that could pass it. Signing up again works, but
+-- only over the mail flow, and this project's local stack points SMTP at a
+-- real Resend key rather than at Mailpit; the recovery and confirmation mail
+-- it sends goes to a real inbox, which is a slow and surprising way to get
+-- back into a development database.
+--
+-- So the seed provides one account, the same way it provides jobs and exams.
+-- Local only: this file is never applied to a hosted project, the password is
+-- written here in the open precisely because it is worthless, and the id is a
+-- fixed UUID so a reset lands on the same profile row every time.
+--
+--     dev@local.test / localdev1234
+--
+-- `handle_new_user` fires on the insert below and creates the `profiles` row,
+-- so this exercises the same trigger a real signup does rather than reaching
+-- around it.
+insert into auth.users (
+  instance_id, id, aud, role, email, encrypted_password,
+  email_confirmed_at, created_at, updated_at,
+  raw_app_meta_data, raw_user_meta_data,
+  -- Empty strings, not NULL. GoTrue scans these four into plain Go strings, so
+  -- a NULL is not an absent token but a failed scan: every sign-in for this
+  -- user comes back `500 Database error querying schema`, which names the
+  -- schema and not the row that is actually wrong. Its own signup path writes
+  -- '' here, so this matches what a real account looks like.
+  confirmation_token, recovery_token, email_change, email_change_token_new
+) values (
+  '00000000-0000-0000-0000-000000000000',
+  '00000000-0000-4000-8000-000000000001',
+  'authenticated',
+  'authenticated',
+  'dev@local.test',
+  -- Hashed rather than written as a hash, so the cost factor is whatever this
+  -- Postgres thinks is current and the literal above stays readable.
+  extensions.crypt('localdev1234', extensions.gen_salt('bf')),
+  now(), now(), now(),
+  '{"provider":"email","providers":["email"]}'::jsonb,
+  '{}'::jsonb,
+  '', '', '', ''
+);
+
+-- GoTrue checks `auth.users` for the password grant, but the account is only
+-- coherent — linkable, listable in Studio, correct in the admin API — once the
+-- provider it signed up with is recorded beside it.
+insert into auth.identities (
+  provider_id, user_id, identity_data, provider,
+  last_sign_in_at, created_at, updated_at
+) values (
+  '00000000-0000-4000-8000-000000000001',
+  '00000000-0000-4000-8000-000000000001',
+  jsonb_build_object(
+    'sub', '00000000-0000-4000-8000-000000000001',
+    'email', 'dev@local.test',
+    'email_verified', true,
+    'phone_verified', false
+  ),
+  'email',
+  now(), now(), now()
+);
