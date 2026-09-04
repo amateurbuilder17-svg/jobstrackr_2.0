@@ -1,9 +1,10 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import { SearchIcon } from "@/components/icons";
+import { consumeSearchFocus } from "@/lib/search-handoff";
 
 /**
  * Search input, backed by the URL.
@@ -35,6 +36,26 @@ export function SearchField({
   const [syncedTerm, setSyncedTerm] = useState(urlTerm);
   const [isPending, startTransition] = useTransition();
   const debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Picks up a caret handed over by another route's search field — today the
+  // home page's, which navigates here on focus. Only when one was actually left
+  // for *this* path: an unconditional autofocus would yank the page down to the
+  // header on every arrival at /jobs, including a tap on a job card and back.
+  //
+  // The caret goes to the end rather than selecting the term, because the reader
+  // was mid-thought when the page changed; a selection would mean their next
+  // keystroke deletes what they already typed.
+  useEffect(() => {
+    if (!consumeSearchFocus(pathname)) return;
+    const input = inputRef.current;
+    if (!input) return;
+    input.focus({ preventScroll: true });
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
+    // Mount only: this is a one-time handoff, not a reaction to the term.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // The URL is the source of truth: if it changes elsewhere — the back button,
   // a cleared filter — the field follows rather than holding a stale term.
@@ -84,6 +105,7 @@ export function SearchField({
     >
       <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-3" />
       <input
+        ref={inputRef}
         type="search"
         name="q"
         value={value}

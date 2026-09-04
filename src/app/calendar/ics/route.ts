@@ -1,41 +1,35 @@
-import { type NextRequest } from "next/server";
-
-import { listDeadlinesInMonth } from "@/lib/db/queries/calendar";
+import { getUser } from "@/lib/auth/session";
+import { listPersonalEvents } from "@/lib/db/queries/calendar";
+import { EVENT_LABELS } from "@/lib/exams/report";
 import { env } from "@/lib/env";
 
 /**
- * A month of deadlines as an .ics file.
+ * The reader's own dates as an .ics file.
  *
  * Generated rather than linked out, so a deadline lands in whatever calendar
- * the person already uses instead of only living in this app. Everything here
- * is public content, so the response is cacheable like any other page.
+ * the person already uses instead of only living in this app.
+ *
+ * This used to export a month of *every* published deadline, and took `?m=` to
+ * say which month. Both are gone with the page's: what it exports now is the
+ * same curated set the page draws — the exams this account saved or tracks, all
+ * of them, with no month parameter, because a calendar app has no notion of
+ * "the month I was looking at" and importing twelve files to get a year is not
+ * a feature anybody wanted.
+ *
+ * Per-user and therefore never cached. The old handler carried an `s-maxage`
+ * that would now be actively dangerous — a CDN holding one account's exams and
+ * serving them to the next caller.
  */
-export async function GET(request: NextRequest) {
-  const raw = request.nextUrl.searchParams.get("m");
-
-  // Absent means "this month". *Present but wrong* is an error, and both kinds
-  // of wrong are treated the same: an earlier version fell back to the current
-  // month for unparseable input while rejecting 2026-13, so `?m=abc`
-  // downloaded a file named for one month containing another. Silently
-  // substituting data in a file someone is about to import into their calendar
-  // is worse than refusing.
-  const now = new Date();
-  let year = now.getUTCFullYear();
-  let month = now.getUTCMonth() + 1;
-
-  if (raw !== null) {
-    const match = /^(\d{4})-(\d{2})$/.exec(raw);
-    if (!match) return new Response("Invalid month.", { status: 400 });
-
-    year = Number(match[1]);
-    month = Number(match[2]);
-
-    if (month < 1 || month > 12 || year < 2000 || year > 2100) {
-      return new Response("Invalid month.", { status: 400 });
-    }
+export async function GET() {
+  const user = await getUser();
+  if (!user) {
+    return new Response("Sign in to export your calendar.", {
+      status: 401,
+      headers: { "Cache-Control": "private, no-store" },
+    });
   }
 
-  const events = await listDeadlinesInMonth(year, month);
+  const events = await listPersonalEvents();
 
   const lines = [
     "BEGIN:VCALENDAR",
@@ -43,31 +37,33 @@ export async function GET(request: NextRequest) {
     "PRODID:-//JobsTrackr//Exam Calendar//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
-    `X-WR-CALNAME:JobsTrackr deadlines ${String(year)}-${pad(month)}`,
+    "X-WR-CALNAME:My exam dates",
   ];
 
   for (const event of events) {
     const stamp = event.date.replaceAll("-", "");
+    const label = EVENT_LABELS[event.type];
+    const phase = event.phase ? ` (${event.phase})` : "";
+
     lines.push(
       "BEGIN:VEVENT",
-      // Stable across regenerations: the same deadline must update the
-      // existing entry rather than duplicate it every time someone re-imports.
-      `UID:${event.id}@jobstrackr.in`,
+      // Stable across regenerations: re-importing must update the existing
+      // entry rather than duplicate it. `PersonalEvent.id` is already
+      // subject + type + date, which is exactly the identity wanted here.
+      `UID:${event.id.replaceAll("|", "-")}@jobstrackr.in`,
       `DTSTAMP:${stamp}T000000Z`,
       // An all-day event. DTEND is exclusive in iCalendar, so it is the *next*
       // day — using the same date produces a zero-length event that several
       // clients simply do not show.
       `DTSTART;VALUE=DATE:${stamp}`,
       `DTEND;VALUE=DATE:${nextDay(event.date)}`,
-      `SUMMARY:${escapeIcs(`Last date — ${event.title}`)}`,
-      `URL:${env.NEXT_PUBLIC_SITE_URL}/jobs/${event.slug}`,
-      `DESCRIPTION:${escapeIcs(
-        event.organization
-          ? `${event.organization}. Applications close today.`
-          : "Applications close today.",
-      )}`,
-      "END:VEVENT",
+      `SUMMARY:${escapeIcs(`${label}${phase} — ${event.subject}`)}`,
+      `DESCRIPTION:${escapeIcs(describe(event.predicted, event.organization))}`,
     );
+
+    if (event.href) lines.push(`URL:${env.NEXT_PUBLIC_SITE_URL}${event.href}`);
+
+    lines.push("END:VEVENT");
   }
 
   lines.push("END:VCALENDAR");
@@ -78,14 +74,29 @@ export async function GET(request: NextRequest) {
   return new Response(body, {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
-      "Content-Disposition": `attachment; filename="jobstrackr-${String(year)}-${pad(month)}.ics"`,
-      // Public content and stable within a month, so it may sit on the CDN.
-      "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+      "Content-Disposition": 'attachment; filename="jobstrackr.ics"',
+      "Cache-Control": "private, no-store",
     },
   });
 }
 
-const pad = (n: number) => String(n).padStart(2, "0");
+/**
+ * The note that rides into the reader's phone.
+ *
+ * The "expected" caveat matters more here than on the page: once a date is in
+ * somebody's own calendar it has lost every visual cue this app gave it, and an
+ * alarm at 9am for an admit card a model guessed at is worse than no alarm.
+ */
+function describe(predicted: boolean, organization: string | null): string {
+  const parts: string[] = [];
+  if (organization) parts.push(organization);
+  parts.push(
+    predicted
+      ? "Expected date — not officially confirmed. Check the conducting body's notice."
+      : "From the official notification.",
+  );
+  return parts.join(". ");
+}
 
 function nextDay(date: string): string {
   const next = new Date(`${date}T00:00:00Z`);

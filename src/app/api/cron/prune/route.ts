@@ -13,8 +13,8 @@ import { getServerEnv } from "@/lib/env.server";
  * leak that shows up as a full disk months later, with no single change to
  * blame.
  *
- * This is one of the two cron slots Vercel Hobby allows, and daily granularity
- * is all it needs. Ingestion is not scheduled here: it runs from Apps Script
+ * A Vercel cron suits this because daily granularity is all it needs — which
+ * is the only cadence Hobby crons offer. Ingestion is not scheduled here: it runs from Apps Script
  * time-triggers, because a feed people rely on within the hour cannot be served
  * by a once-a-day cron (see REBUILD-PLAN §6).
  *

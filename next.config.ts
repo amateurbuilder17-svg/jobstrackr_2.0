@@ -18,12 +18,32 @@ const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
  */
 const isDev = process.env.NODE_ENV !== "production";
 
+/**
+ * Google Identity Services, named once and used across four directives.
+ *
+ * The credential screens ask Google for an ID token from this origin rather
+ * than letting Supabase's auth server ask on our behalf — that is the only
+ * thing that gets "to continue to JobsTrackr" onto the account chooser instead
+ * of "to continue to <project-ref>.supabase.co". The cost is that Google's
+ * script, its stylesheet, its token endpoint and its button iframe all have to
+ * be named here, because `default-src 'self'` refuses every one of them and
+ * does it silently: the button simply never appears.
+ *
+ * These are the exact origins in Google's own CSP guidance for GIS, not a
+ * wildcard on google.com. Nothing else on accounts.google.com is permitted, and
+ * the fallback redirect flow still works without any of them.
+ */
+const gsiScript = "https://accounts.google.com/gsi/client";
+const gsiStyle = "https://accounts.google.com/gsi/style";
+const gsiConnect = "https://accounts.google.com/gsi/";
+const gsiFrame = "https://accounts.google.com/gsi/";
+
 const contentSecurityPolicy = [
   "default-src 'self'",
   // No 'unsafe-eval' in production. Next's inline bootstrap needs
   // 'unsafe-inline' in both; see above.
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
-  "style-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline' ${gsiScript}${isDev ? " 'unsafe-eval'" : ""}`,
+  `style-src 'self' 'unsafe-inline' ${gsiStyle}`,
   // Named, not `https:`. The blanket form let this app load an image from
   // anywhere on the web and — because it is a *scheme* match — silently refused
   // the one origin it actually needs in development, where Supabase is
@@ -38,7 +58,10 @@ const contentSecurityPolicy = [
   // on a fallback for the one script that can outlive a deploy and intercept
   // every request is not the same as allowing it on purpose.
   "worker-src 'self'",
-  `connect-src 'self' ${supabaseOrigin} https://*.supabase.co wss://*.supabase.co`,
+  `connect-src 'self' ${supabaseOrigin} https://*.supabase.co wss://*.supabase.co ${gsiConnect}`,
+  // Google's button is an iframe. `frame-src` has no bearing on who may frame
+  // us — that is `frame-ancestors` below, and it stays at 'none'.
+  `frame-src 'self' ${gsiFrame}`,
   "frame-ancestors 'none'",
   "form-action 'self'",
   "base-uri 'self'",
@@ -280,7 +303,17 @@ const nextConfig: NextConfig = {
           { key: "Content-Security-Policy", value: contentSecurityPolicy },
           // Defence for the same class of problem from the other direction:
           // stops this origin being loaded as a resource by another site.
-          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          // `same-origin-allow-popups`, not `same-origin`, and the difference is
+          // one feature: Google's sign-in opens a popup and then has to talk to
+          // the window that opened it. Under `same-origin` that reference is
+          // severed, the popup authenticates, closes, and nothing here ever
+          // hears about it — the user is left on the sign-in page having just
+          // signed in. What the relaxation gives up is only the outbound
+          // direction: a window *this* page opens keeps its opener. A page on
+          // another origin that opens this one still gets no reference to it,
+          // and framing is refused outright by `frame-ancestors` and
+          // X-Frame-Options above.
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
           { key: "X-DNS-Prefetch-Control", value: "on" },
         ],
       },

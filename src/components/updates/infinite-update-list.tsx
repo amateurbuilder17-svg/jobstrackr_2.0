@@ -6,6 +6,7 @@ import { SortToggle, type SortOption } from "@/components/filters/filter-bar";
 import { UpdateCard, UpdateCardSkeleton } from "@/components/updates/update-card";
 import type { ExamUpdateCard as UpdateData } from "@/lib/db/queries/exam-updates";
 import { useInfiniteFeed } from "@/lib/hooks/use-infinite-feed";
+import { guardedJson } from "@/lib/net/guarded-fetch";
 
 export interface UpdateFilterValues {
   category?: string | undefined;
@@ -43,23 +44,32 @@ export function InfiniteUpdateList({
       if (filterParams.sort === "oldest") params.set("sort", "oldest");
       params.set("after", cursor);
 
-      const res = await fetch(`/api/updates?${params.toString()}`);
-      if (!res.ok) {
-        throw new Error(`Failed to fetch updates: ${String(res.status)}`);
-      }
-      return (await res.json()) as { items: UpdateData[]; nextCursor: string | null };
+      // Guarded rather than bare: a page of the feed is requested by an
+      // observer that re-fires whenever the sentinel is in view, so an
+      // endpoint that is down must be allowed to stop being asked.
+      return await guardedJson<{ items: UpdateData[]; nextCursor: string | null }>(
+        `/api/updates?${params.toString()}`,
+      );
     },
     [filterParams],
   );
 
-  const { items, nextCursor, isLoading, isError, loadMore, sentinelRef, recordClickPosition } =
-    useInfiniteFeed<UpdateData>({
-      storagePrefix: "updates",
-      filterKey,
-      initialItems,
-      initialCursor,
-      fetchNextPage,
-    });
+  const {
+    items,
+    nextCursor,
+    isLoading,
+    isError,
+    retryIn,
+    loadMore,
+    sentinelRef,
+    recordClickPosition,
+  } = useInfiniteFeed<UpdateData>({
+    storagePrefix: "updates",
+    filterKey,
+    initialItems,
+    initialCursor,
+    fetchNextPage,
+  });
 
   const hasFilters = Boolean(filterParams.category ?? filterParams.exam ?? filterParams.q);
 
@@ -108,18 +118,24 @@ export function InfiniteUpdateList({
       {/* Error state with retry */}
       {isError ? (
         <div className="mt-4 flex flex-col items-center justify-center gap-2 py-4">
-          <p className="text-xs text-ink-3">Could not load more updates.</p>
+          <p className="text-xs text-ink-3">
+            {retryIn > 0
+              ? "The server is not responding. Waiting before trying again."
+              : "Could not load more updates."}
+          </p>
           <button
             type="button"
+            disabled={retryIn > 0}
             onClick={() => {
               void loadMore();
             }}
             className={
               "inline-flex h-9 items-center rounded-md border border-line bg-surface px-4 " +
-              "text-xs font-medium text-ink transition-colors hover:border-line-strong hover:bg-surface-2"
+              "text-xs font-medium text-ink transition-colors hover:border-line-strong hover:bg-surface-2 " +
+              "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-line disabled:hover:bg-surface"
             }
           >
-            Retry
+            {retryIn > 0 ? `Retry in ${String(retryIn)}s` : "Retry"}
           </button>
         </div>
       ) : null}

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { adminDb, sessionDb } from "../clients";
+import { adminDb, type Db, sessionDb } from "../clients";
 import { PAGE_SIZE } from "../cursor";
 import { unwrap } from "../errors";
 import { hasRole } from "@/lib/auth/session";
@@ -254,15 +254,37 @@ export interface TableStat {
 /**
  * Per-table storage figures.
  *
- * The only function here that uses the secret-key client, because `pg_class` is
- * not readable by the app roles. That makes the role check below load-bearing
- * rather than ceremonial: `adminDb()` ignores RLS entirely, so nothing beneath
- * this line would stop a non-admin. The layout checks too — this is the check
- * that would still be here if the layout were deleted.
+ * `pg_class` is not readable by the app roles, so this goes through the
+ * secret-key client — which makes the role check load-bearing rather than
+ * ceremonial. See `adminOnly`.
  */
 export async function getTableStats(): Promise<TableStat[]> {
-  const admin = await hasRole("admin");
-  if (!admin) throw new Error("getTableStats: not an admin");
+  const db = await adminOnly("getTableStats");
+  return unwrap("getTableStats", await db.rpc("admin_table_stats"));
+}
 
-  return unwrap("getTableStats", await adminDb().rpc("admin_table_stats"));
+/* ── The secret-key gate ───────────────────────────────────────────────── */
+
+/**
+ * The secret-key client, or an exception. The only way to reach `adminDb()`
+ * from a request in this codebase.
+ *
+ * Every `admin_*` RPC is `security definer` and granted to `service_role`
+ * alone, which is what makes them safe to write against `auth.users` and
+ * `pg_class` — and what makes this function the entire authorisation boundary
+ * in front of them. `adminDb()` ignores RLS, so there is no second line of
+ * defence below this call: if the check is skipped, nothing else stops a
+ * signed-in stranger reading every account's address.
+ *
+ * The admin layout checks too, and `notFound()`s. This is the check that would
+ * still be here if the layout were deleted — which is the point of having both.
+ *
+ * It throws rather than returning null so that forgetting to handle the failure
+ * cannot silently produce an empty table that reads as "no data" instead of
+ * "you are not allowed". The nearest error boundary renders it.
+ */
+export async function adminOnly(who: string): Promise<Db> {
+  const admin = await hasRole("admin");
+  if (!admin) throw new Error(`${who}: not an admin`);
+  return adminDb();
 }

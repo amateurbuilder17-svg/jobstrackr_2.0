@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 
 import { CloseIcon } from "@/components/icons";
+import { BrandMark } from "@/components/brand/artwork";
+
 import { closeMenu, useMenuOpen } from "./menu-store";
 
 /**
@@ -141,7 +143,10 @@ export function MenuDrawer({ children }: { children: ReactNode }) {
         }
       >
         <div className="flex h-13 shrink-0 items-center justify-between border-b border-line px-4">
-          <span className="text-base font-bold tracking-tight text-ink">JobsTrackr</span>
+          <span className="flex items-center gap-2 text-base font-bold tracking-tight text-ink">
+            <BrandMark className="w-[1.375rem]" />
+            JobsTrackr
+          </span>
           <button
             type="button"
             onClick={closeMenu}

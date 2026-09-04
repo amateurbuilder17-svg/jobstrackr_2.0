@@ -1,7 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
+import { ChevronDownIcon, SlidersHorizontalIcon } from "@/components/icons";
+import { cn } from "@/lib/cn";
 import { EMPTY_FORM_STATE } from "@/lib/auth/form-state";
 import {
   CATEGORY_LABELS,
@@ -35,6 +37,10 @@ const STATE_OPTIONS = INDIAN_STATES.map((s) => ({ value: s, label: s }));
 
 export function ProfileForm({ profile }: { profile: Profile | null }) {
   const [state, formAction] = useActionState(updateProfileAction, EMPTY_FORM_STATE);
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
+
+  const sectorCount = profile ? profile.preferred_sectors.length : 0;
+  const stateCount = profile ? profile.preferred_states.length : 0;
 
   // Uncontrolled inputs with defaultValue: the server already knows the saved
   // values, and mirroring them into React state would buy nothing but a
@@ -164,22 +170,79 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
         </Field>
       </div>
 
-      <CheckboxGroup
-        legend="Preferred sectors"
-        name="preferredSectors"
-        options={SECTORS.map((s) => ({ value: s.value, label: s.label }))}
-        selected={profile?.preferred_sectors ?? []}
-      />
+      {/* Collapsible Bar for Preferred Sectors and States */}
+      <div className="overflow-hidden rounded-2xl border border-line bg-surface-2/40 transition-all duration-200">
+        <button
+          type="button"
+          onClick={() => {
+            setPreferencesOpen((prev) => !prev);
+          }}
+          aria-expanded={preferencesOpen}
+          className="flex w-full items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-surface-2/70 focus:outline-none"
+        >
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex size-9 sm:size-10 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand">
+              <SlidersHorizontalIcon className="size-4 sm:size-4.5" aria-hidden="true" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-bold text-ink sm:text-base">
+                  Job preferences (Sectors & States)
+                </span>
+                <span className="rounded-full border border-line bg-surface px-2 py-0.5 text-[11px] font-medium text-ink-3">
+                  Optional
+                </span>
+              </div>
+              <p className="mt-0.5 truncate text-xs text-ink-3">
+                {sectorCount > 0 || stateCount > 0
+                  ? `${String(sectorCount)} sectors · ${String(stateCount)} states configured`
+                  : "Tap to set preferred recruitment sectors and posting locations"}
+              </p>
+            </div>
+          </div>
 
-      <CheckboxGroup
-        legend="Preferred states"
-        name="preferredStates"
-        options={STATE_OPTIONS}
-        selected={profile?.preferred_states ?? []}
-      />
+          <div className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-brand">
+            <span>{preferencesOpen ? "Hide" : "Open"}</span>
+            <ChevronDownIcon
+              className={cn(
+                "size-4 text-ink-3 transition-transform duration-200",
+                preferencesOpen && "rotate-180 text-brand",
+              )}
+              aria-hidden="true"
+            />
+          </div>
+        </button>
 
-      <div>
-        <SubmitButton variant="primary" size="lg" pendingLabel="Saving…">
+        {/* Collapsible Body */}
+        <div
+          className={cn(
+            "space-y-6 border-t border-line/60 bg-surface px-4 py-5 sm:px-5",
+            !preferencesOpen && "hidden",
+          )}
+        >
+          <CheckboxGroup
+            legend="Preferred sectors"
+            name="preferredSectors"
+            options={SECTORS.map((s) => ({ value: s.value, label: s.label }))}
+            selected={profile?.preferred_sectors ?? []}
+          />
+
+          <CheckboxGroup
+            legend="Preferred states"
+            name="preferredStates"
+            options={STATE_OPTIONS}
+            selected={profile?.preferred_states ?? []}
+          />
+        </div>
+      </div>
+
+      <div className="pt-2">
+        <SubmitButton
+          variant="primary"
+          size="lg"
+          pendingLabel="Saving profile…"
+          className="w-full sm:w-auto rounded-xl bg-brand font-semibold text-white shadow-xs transition-colors hover:bg-brand-deep"
+        >
           Save profile
         </SubmitButton>
       </div>
@@ -206,25 +269,25 @@ function CheckboxGroup({
   const chosen = new Set(selected);
 
   return (
-    <fieldset className="flex flex-col gap-2">
-      <legend className="text-sm font-medium text-ink">
-        {legend} <span className="ml-1 text-xs font-normal text-ink-3">Optional</span>
+    <fieldset className="flex flex-col gap-2.5">
+      <legend className="text-xs font-bold uppercase tracking-wider text-ink-2">
+        {legend}
       </legend>
 
-      <div className="mt-1 flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2">
         {options.map((o) => (
           <label
             key={o.value}
-            className="flex cursor-pointer items-center gap-2 rounded-md border border-line bg-surface px-3 py-1.5 text-sm text-ink-2 transition-colors hover:border-line-strong has-checked:border-accent has-checked:bg-accent/10 has-checked:text-ink"
+            className="flex cursor-pointer select-none items-center gap-2 rounded-xl border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-2 transition-all hover:border-line-strong hover:bg-surface-2 has-checked:border-brand has-checked:bg-brand-soft has-checked:font-semibold has-checked:text-brand sm:text-sm"
           >
             <input
               type="checkbox"
               name={name}
               value={o.value}
               defaultChecked={chosen.has(o.value)}
-              className="size-3.5 accent-accent"
+              className="size-3.5 rounded accent-brand"
             />
-            {o.label}
+            <span>{o.label}</span>
           </label>
         ))}
       </div>

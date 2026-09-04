@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { GuestCta } from "@/components/home/guest-cta";
 import {
-  HomeEmptySearchResults,
+  HomeEmptyFilterResults,
   HomeSearchBar,
   HomeSearchProvider,
 } from "@/components/home/home-search-context";
@@ -28,6 +28,8 @@ import { listPopularExams } from "@/lib/db/queries/exams";
 import { listExamUpdates } from "@/lib/db/queries/exam-updates";
 import { listJobs } from "@/lib/db/queries/jobs";
 import { listMatchedJobs } from "@/lib/db/queries/match";
+import { env } from "@/lib/env";
+import { websiteJsonLd } from "@/lib/seo/site-jsonld";
 
 export const metadata = {
   title: "Jobstrackr — Track Indian Government Exams & Jobs",
@@ -52,6 +54,18 @@ export default function Home() {
           job detail page buys nothing. It costs no JavaScript on any route:
           see `AppSplash`. */}
       <AppSplash />
+
+      {/* The site's own identity, emitted here and nowhere else. It is a fact
+          about the site rather than about a page, so restating it on 5,000 job
+          documents would cost bytes on every one of them to say the same thing
+          again. See `websiteJsonLd`. */}
+      <script
+        type="application/ld+json"
+        // A constant built from the site URL; no user input reaches it.
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(websiteJsonLd(env.NEXT_PUBLIC_SITE_URL)),
+        }}
+      />
 
       <div className="mx-auto w-full max-w-md space-y-6 px-4 pt-4 pb-28 sm:max-w-2xl sm:space-y-7 lg:max-w-4xl">
         <HomeSearchProvider>
@@ -87,8 +101,8 @@ export default function Home() {
             <LatestUpdatesSection />
           </Suspense>
 
-          {/* Dynamic Empty Search Results (when searching/filtering) */}
-          <HomeEmptySearchResults />
+          {/* Shown only when the filter chips have hidden every job row. */}
+          <HomeEmptyFilterResults />
 
           {/* 7. Guest sign-up CTA for visitors */}
           <Suspense fallback={null}>

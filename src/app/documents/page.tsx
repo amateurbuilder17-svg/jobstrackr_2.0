@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { requireUser } from "@/lib/auth/session";
+import { SignInRequired } from "@/components/auth/sign-in-required";
+import { ScanTextIcon } from "@/components/icons";
+import { getUser } from "@/lib/auth/session";
 import { sessionDb } from "@/lib/db/clients";
 import { DOCUMENT_TYPES } from "@/lib/ai/prompts/ocr";
 import { DocumentRow } from "./document-row";
@@ -39,10 +41,12 @@ export default function DocumentsPage() {
         you say so.
       </p>
 
-      <Uploader />
-
-      <Suspense fallback={<ListSkeleton />}>
-        <DocumentList />
+      {/* The uploader moved inside the boundary with the list. It writes to one
+          account — a signed URL issued from the session — so showing it to a
+          guest offers a button that can only fail; both halves are replaced by
+          the sign-in card instead. */}
+      <Suspense fallback={<BodySkeleton />}>
+        <Documents />
       </Suspense>
 
       <p className="mt-10 border-t border-line pt-6 text-sm leading-relaxed text-ink-3">
@@ -57,8 +61,21 @@ export default function DocumentsPage() {
   );
 }
 
-async function DocumentList() {
-  const user = await requireUser("/documents");
+async function Documents() {
+  // Before the signed-URL call and before the list query, so a guest triggers
+  // neither.
+  const user = await getUser();
+  if (!user) {
+    return (
+      <SignInRequired
+        title="Sign in to scan a document"
+        description="Your scans and everything read from them are private to your account, so this one needs you signed in."
+        next="/documents"
+        icon={ScanTextIcon}
+      />
+    );
+  }
+
   const db = await sessionDb();
 
   const { data } = await db
@@ -70,35 +87,37 @@ async function DocumentList() {
 
   const documents = data ?? [];
 
-  if (documents.length === 0) {
-    return (
-      <div className="mt-6 rounded-md border border-dashed border-line px-4 py-8 text-center">
-        <p className="font-semibold text-ink">Nothing uploaded yet</p>
-        <p className="mx-auto mt-1.5 max-w-sm text-sm text-ink-3">
-          A clear photo of one page works best. Flat, in good light, with all four corners in
-          frame.
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <ul className="mt-6 flex flex-col gap-2.5">
-      {documents.map((doc) => (
-        <DocumentRow
-          key={doc.id}
-          doc={{
-            id: doc.id,
-            kind: doc.kind,
-            label: doc.label ?? typeLabel(doc.kind),
-            status: doc.ocr_status,
-            error: doc.ocr_error,
-            reviewed: doc.reviewed_at !== null,
-            createdAt: doc.created_at,
-          }}
-        />
-      ))}
-    </ul>
+    <>
+      <Uploader />
+
+      {documents.length === 0 ? (
+        <div className="mt-6 rounded-md border border-dashed border-line px-4 py-8 text-center">
+          <p className="font-semibold text-ink">Nothing uploaded yet</p>
+          <p className="mx-auto mt-1.5 max-w-sm text-sm text-ink-3">
+            A clear photo of one page works best. Flat, in good light, with all four corners in
+            frame.
+          </p>
+        </div>
+      ) : (
+        <ul className="mt-6 flex flex-col gap-2.5">
+          {documents.map((doc) => (
+            <DocumentRow
+              key={doc.id}
+              doc={{
+                id: doc.id,
+                kind: doc.kind,
+                label: doc.label ?? typeLabel(doc.kind),
+                status: doc.ocr_status,
+                error: doc.ocr_error,
+                reviewed: doc.reviewed_at !== null,
+                createdAt: doc.created_at,
+              }}
+            />
+          ))}
+        </ul>
+      )}
+    </>
   );
 }
 
@@ -106,12 +125,15 @@ function typeLabel(kind: string): string {
   return DOCUMENT_TYPES.find((t) => t.value === kind)?.label ?? "Document";
 }
 
-function ListSkeleton() {
+function BodySkeleton() {
   return (
-    <ul className="mt-6 flex flex-col gap-2.5" aria-hidden="true">
-      {[0, 1].map((i) => (
-        <li key={i} className="h-28 rounded-md border border-line bg-surface-2" />
-      ))}
-    </ul>
+    <div aria-hidden="true">
+      <div className="mt-6 h-40 rounded-md border border-line bg-surface-2" />
+      <ul className="mt-6 flex flex-col gap-2.5">
+        {[0, 1].map((i) => (
+          <li key={i} className="h-28 rounded-md border border-line bg-surface-2" />
+        ))}
+      </ul>
+    </div>
   );
 }

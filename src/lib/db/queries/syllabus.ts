@@ -121,15 +121,36 @@ export async function putSyllabus(params: {
     console.error(`[syllabus] cache write failed for ${params.slug}: ${error.message}`);
 }
 
-/** Every cached slug, for the sitemap. */
-export async function listSyllabusSlugs(): Promise<{ slug: string; fetchedAt: string }[]> {
+/** One row of the cached-syllabus directory. */
+export interface SyllabusDirectoryEntry {
+  slug: string;
+  examName: string;
+  year: number | null;
+  fetchedAt: string;
+}
+
+/**
+ * Every cached syllabus, for the sitemap and the finder page.
+ *
+ * The extra two columns over the old `slug, fetched_at` are the whole reason
+ * the finder needs no second query and no suggestions endpoint. The old app's
+ * search box fired two Supabase selects per keystroke — one against
+ * `syllabus_cache` and one against `jobs` — behind a 300 ms debounce, which on
+ * a free tier is the most expensive thing on the page by a wide margin. This
+ * list is already fetched once per cache window and shared by every visitor,
+ * so the finder filters it in the browser and the typeahead costs nothing.
+ *
+ * `exam_name` and `year` also mean the cards can say "SSC CGL · 2025" instead
+ * of un-hyphenating the slug and hoping.
+ */
+export async function listSyllabusSlugs(): Promise<SyllabusDirectoryEntry[]> {
   "use cache";
   cacheLife("content");
   cacheTag(tags.syllabusList());
 
   const { data, error } = await publicDb()
     .from("syllabus_cache")
-    .select("slug, fetched_at")
+    .select("slug, exam_name, year, fetched_at")
     .order("fetched_at", { ascending: false })
     .limit(500);
 
@@ -137,7 +158,12 @@ export async function listSyllabusSlugs(): Promise<{ slug: string; fetchedAt: st
   // and a sitemap missing its syllabus entries for one cache window is a small
   // self-healing problem, where a throw is a failed build.
   if (error) return [];
-  return data.map((row) => ({ slug: row.slug, fetchedAt: row.fetched_at }));
+  return data.map((row) => ({
+    slug: row.slug,
+    examName: row.exam_name,
+    year: row.year,
+    fetchedAt: row.fetched_at,
+  }));
 }
 
 interface Row {

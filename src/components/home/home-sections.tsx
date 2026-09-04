@@ -9,7 +9,6 @@ import type { PopularExam } from "@/lib/db/queries/exams";
 import type { JobCard as JobCardData } from "@/lib/db/queries/jobs";
 import type { MatchedJob } from "@/lib/db/queries/match";
 import { daysUntil } from "@/lib/format/deadline";
-import { STATUS_LABELS, type AttemptStatus } from "@/lib/tracker/enums";
 import {
   ClosingSoonCard,
   ExamUpdateCard,
@@ -76,29 +75,15 @@ function matchesLocation(job: JobCardData, locationFilters: string[]): boolean {
   });
 }
 
+/**
+ * The exams this reader is tracking.
+ *
+ * Unfiltered, and that is the point: this row is the reader's own shelf, not a
+ * slice of the database. The qualification and deadline chips describe openings
+ * to apply for; hiding an exam already being tracked because its qualification
+ * chip is unticked would be answering a question nobody asked.
+ */
 export function TrackedExamsFeed({ attempts }: { attempts: ExamAttempt[] }) {
-  const { query, registerResults, unregisterResults } = useHomeSearch();
-
-  const filtered = useMemo(() => {
-    if (!query) return attempts;
-    return attempts.filter((attempt) => {
-      const name = attempt.exam?.name ?? attempt.custom_name ?? attempt.job?.title ?? "";
-      const org = attempt.exam?.short_name ?? "";
-      const status = attempt.status ? STATUS_LABELS[attempt.status as AttemptStatus] : "";
-      const text = `${name} ${org} ${status}`.toLowerCase();
-      return text.includes(query);
-    });
-  }, [attempts, query]);
-
-  useEffect(() => {
-    registerResults("tracked-exams", filtered.length);
-    return () => {
-      unregisterResults("tracked-exams");
-    };
-  }, [filtered.length, registerResults, unregisterResults]);
-
-  if (filtered.length === 0) return null;
-
   return (
     <section aria-labelledby="tracked-exams-heading">
       <SectionHeader
@@ -109,7 +94,7 @@ export function TrackedExamsFeed({ attempts }: { attempts: ExamAttempt[] }) {
         href="/tracker"
       />
       <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 no-scrollbar snap-x scroll-pl-4 scroll-px-4">
-        {filtered.map((attempt) => (
+        {attempts.map((attempt) => (
           <TrackedExamCard key={attempt.id} attempt={attempt} />
         ))}
       </div>
@@ -142,25 +127,35 @@ const LOCATION_CHIPS = [
   "Uttar Pradesh",
 ];
 
-function useJobFilter<T extends JobCardData>(jobs: T[], query: string, filters: string[]): T[] {
+/**
+ * Narrows a row to the chips that are ticked.
+ *
+ * Text search used to run here too, against the same arrays. It searched the
+ * ~30 cards these six sections happen to hold, out of ~2,700 open jobs — so a
+ * department with nothing in the closing-soon or just-published window came
+ * back as "No matches found", which reads as *there is nothing* rather than
+ * *not on this page*. Search now leaves for `/jobs` the moment the field is
+ * touched (see `HomeSearchBar`) and reaches Postgres against the whole table.
+ *
+ * The chips stayed because they are honest about their scope: they refine rows
+ * that are already on screen, and every card they hide is a card the reader can
+ * see was there.
+ */
+function useJobFilter<T extends JobCardData>(jobs: T[], filters: string[]): T[] {
   return useMemo(() => {
+    if (filters.length === 0) return jobs;
+
     const qual = filters.filter((f) => QUALIFICATION_CHIPS.includes(f));
     const deadline = filters.filter((f) => DEADLINE_CHIPS.includes(f));
     const location = filters.filter((f) => LOCATION_CHIPS.includes(f));
 
-    return jobs.filter((job) => {
-      if (query) {
-        const text =
-          `${job.title} ${job.organization?.name ?? ""} ${job.organization?.short_name ?? ""} ${job.qualification_summary ?? ""} ${job.location ?? ""}`.toLowerCase();
-        if (!text.includes(query)) return false;
-      }
-      return (
+    return jobs.filter(
+      (job) =>
         matchesQualification(job, qual) &&
         matchesDeadline(job, deadline) &&
-        matchesLocation(job, location)
-      );
-    });
-  }, [jobs, query, filters]);
+        matchesLocation(job, location),
+    );
+  }, [jobs, filters]);
 }
 
 /**
@@ -179,8 +174,8 @@ function useJobFilter<T extends JobCardData>(jobs: T[], query: string, filters: 
  * rebuild removed.
  */
 export function MatchedForYouFeed({ jobs }: { jobs: MatchedJob[] }) {
-  const { query, filters, registerResults, unregisterResults } = useHomeSearch();
-  const filtered = useJobFilter(jobs, query, filters);
+  const { filters, registerResults, unregisterResults } = useHomeSearch();
+  const filtered = useJobFilter(jobs, filters);
 
   useEffect(() => {
     registerResults("matched-for-you", filtered.length);
@@ -217,9 +212,9 @@ export function MatchedForYouFeed({ jobs }: { jobs: MatchedJob[] }) {
 }
 
 export function ClosingSoonFeed({ jobs }: { jobs: JobCardData[] }) {
-  const { query, filters, registerResults, unregisterResults } = useHomeSearch();
+  const { filters, registerResults, unregisterResults } = useHomeSearch();
 
-  const filtered = useJobFilter(jobs, query, filters);
+  const filtered = useJobFilter(jobs, filters);
 
   useEffect(() => {
     registerResults("closing-soon", filtered.length);
@@ -249,9 +244,9 @@ export function ClosingSoonFeed({ jobs }: { jobs: JobCardData[] }) {
 }
 
 export function JustPublishedFeed({ jobs }: { jobs: JobCardData[] }) {
-  const { query, filters, registerResults, unregisterResults } = useHomeSearch();
+  const { filters, registerResults, unregisterResults } = useHomeSearch();
 
-  const filtered = useJobFilter(jobs, query, filters);
+  const filtered = useJobFilter(jobs, filters);
 
   useEffect(() => {
     registerResults("just-published", filtered.length);
@@ -281,10 +276,12 @@ export function JustPublishedFeed({ jobs }: { jobs: JobCardData[] }) {
 }
 
 export function PopularExamsFeed({ exams }: { exams: PopularExam[] }) {
-  const { query, filters } = useHomeSearch();
+  const { filters } = useHomeSearch();
 
-  // Show popular exams when not filtering by text/filters
-  if (query || filters.length > 0) return null;
+  // An exam is not an opening, so it has no qualification, deadline or location
+  // for the chips to test. Rather than let the row sit there ignoring a filter
+  // the reader just ticked, it steps aside until the filters are cleared.
+  if (filters.length > 0) return null;
 
   return (
     <section aria-labelledby="popular-exams-heading">
@@ -302,27 +299,15 @@ export function PopularExamsFeed({ exams }: { exams: PopularExam[] }) {
   );
 }
 
+/**
+ * Admit cards, answer keys and results.
+ *
+ * Unfiltered, like the tracked row above: an update is an announcement, not a
+ * vacancy, so none of the three chip groups has anything to say about one.
+ * Searching them is what `/updates` is for, and its own field is in the top bar
+ * on that route.
+ */
 export function LatestUpdatesFeed({ updates }: { updates: ExamUpdateCardData[] }) {
-  const { query, registerResults, unregisterResults } = useHomeSearch();
-
-  const filtered = useMemo(() => {
-    if (!query) return updates;
-    return updates.filter((update) => {
-      const text =
-        `${update.title} ${update.organization?.name ?? ""} ${update.category} ${update.summary ?? ""}`.toLowerCase();
-      return text.includes(query);
-    });
-  }, [updates, query]);
-
-  useEffect(() => {
-    registerResults("latest-updates", filtered.length);
-    return () => {
-      unregisterResults("latest-updates");
-    };
-  }, [filtered.length, registerResults, unregisterResults]);
-
-  if (filtered.length === 0) return null;
-
   return (
     <section aria-labelledby="latest-updates-heading">
       <SectionHeader
@@ -333,7 +318,7 @@ export function LatestUpdatesFeed({ updates }: { updates: ExamUpdateCardData[] }
         href="/updates"
       />
       <div className="space-y-3">
-        {filtered.map((update) => (
+        {updates.map((update) => (
           <ExamUpdateCard key={update.id} update={update} />
         ))}
       </div>

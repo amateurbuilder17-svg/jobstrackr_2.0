@@ -61,7 +61,9 @@ export function ImportantDates({ value }: { value: Json | null }) {
       <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-xs">
         <dl className="divide-y divide-line">
           {dates.map((entry) => {
-            const isClosing = /last[\s-]?date|closing|apply[\s-]?end|deadline/i.test(entry.event);
+            const isClosing = /last[\s-]?date|closing|apply[\s-]?end|deadline/i.test(
+              entry.event,
+            );
             const Icon = isClosing ? ClockIcon : CalendarIcon;
 
             return (
@@ -212,7 +214,9 @@ export function QuickLinks({ links }: { links: QuickLink[] }) {
                 className="flex items-center gap-3 px-4 py-3.5 text-sm transition-colors duration-(--duration-fast) hover:bg-surface-2"
               >
                 {link.category ? <Badge className="shrink-0">{link.category}</Badge> : null}
-                <span className="min-w-0 flex-1 truncate font-medium text-ink">{link.label}</span>
+                <span className="min-w-0 flex-1 truncate font-medium text-ink">
+                  {link.label}
+                </span>
                 <ExternalLinkIcon className="size-4 shrink-0 text-ink-3" />
               </a>
             </li>

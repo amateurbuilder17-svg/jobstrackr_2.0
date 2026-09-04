@@ -30,6 +30,8 @@ import {
 } from "@/lib/db/queries/exam-updates";
 import { getJobById } from "@/lib/db/queries/jobs";
 import { env } from "@/lib/env";
+import { breadcrumbJsonLd } from "@/lib/seo/site-jsonld";
+import { examUpdateJsonLd } from "@/lib/seo/update-jsonld";
 import { formatDate, formatVacancies } from "@/lib/format/deadline";
 import { decodeEntities } from "@/lib/format/text";
 import { CATEGORY_CTA, CATEGORY_LABELS, CATEGORY_TONE } from "@/lib/updates/categories";
@@ -129,6 +131,22 @@ export default async function UpdatePage({ params }: { params: Promise<{ slug: s
 
   return (
     <article className="relative mx-auto max-w-3xl px-4 pt-6 pb-28 lg:px-6 lg:pb-12">
+      {/* Emitted server-side so a crawler sees it in the initial HTML, and as
+          one array for the same reason the job page does it. */}
+      <script
+        type="application/ld+json"
+        // Built from typed database columns, not user input.
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify([
+            examUpdateJsonLd(update, env.NEXT_PUBLIC_SITE_URL),
+            breadcrumbJsonLd(env.NEXT_PUBLIC_SITE_URL, [
+              { name: "Exam updates", path: "/updates" },
+              { name: title },
+            ]),
+          ]),
+        }}
+      />
+
       {/* Top back navigation */}
       <div className="flex items-center justify-between">
         <Link

@@ -1051,6 +1051,69 @@ export type Database = {
         }
         Relationships: []
       }
+      seo_ping_log: {
+        Row: {
+          error: string | null
+          http_status: number | null
+          id: number
+          ok: boolean
+          pinged_at: string
+          target: string
+          url: string
+        }
+        Insert: {
+          error?: string | null
+          http_status?: number | null
+          id?: never
+          ok: boolean
+          pinged_at?: string
+          target: string
+          url: string
+        }
+        Update: {
+          error?: string | null
+          http_status?: number | null
+          id?: never
+          ok?: boolean
+          pinged_at?: string
+          target?: string
+          url?: string
+        }
+        Relationships: []
+      }
+      seo_ping_state: {
+        Row: {
+          last_error: string | null
+          last_run_at: string | null
+          last_run_urls: number
+          last_url_updated_at: string
+          quota_day: string | null
+          quota_used: number
+          target: string
+          updated_at: string
+        }
+        Insert: {
+          last_error?: string | null
+          last_run_at?: string | null
+          last_run_urls?: number
+          last_url_updated_at?: string
+          quota_day?: string | null
+          quota_used?: number
+          target: string
+          updated_at?: string
+        }
+        Update: {
+          last_error?: string | null
+          last_run_at?: string | null
+          last_run_urls?: number
+          last_url_updated_at?: string
+          quota_day?: string | null
+          quota_used?: number
+          target?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       suggestions_grievances: {
         Row: {
           created_at: string
@@ -1366,6 +1429,166 @@ export type Database = {
       }
     }
     Functions: {
+      admin_ai_usage: {
+        Args: { p_days?: number }
+        Returns: {
+          calls: number
+          day: string
+          kind: string
+          users: number
+        }[]
+      }
+      admin_delete_expired_jobs: { Args: { p_ids: string[] }; Returns: number }
+      admin_duplicate_groups: {
+        Args: { p_limit?: number; p_offset?: number }
+        Returns: {
+          created_at: string
+          group_key: string
+          group_size: number
+          is_canonical: boolean
+          job_id: string
+          last_date: string
+          org_name: string
+          slug: string
+          source_url: string
+          title: string
+          total_groups: number
+          total_rows: number
+        }[]
+      }
+      admin_expired_jobs: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_query?: string
+          p_sort?: string
+          p_year?: number
+        }
+        Returns: {
+          created_at: string
+          job_id: string
+          last_date: string
+          org_name: string
+          reminders: number
+          saves: number
+          slug: string
+          status: string
+          title: string
+          total: number
+          vacancies: number
+        }[]
+      }
+      admin_expired_summary: {
+        Args: never
+        Returns: {
+          saved_by_users: number
+          still_published: number
+          total_expired: number
+          unreferenced: number
+        }[]
+      }
+      admin_expired_years: {
+        Args: never
+        Returns: {
+          n: number
+          year: number
+        }[]
+      }
+      admin_feedback_counts: {
+        Args: never
+        Returns: {
+          open_count: number
+          open_grievances: number
+          resolved_count: number
+          spam_count: number
+          triaged_count: number
+        }[]
+      }
+      admin_jobs_missing_last_date: {
+        Args: { p_limit?: number }
+        Returns: {
+          display: string
+          important_dates: Json
+          job_id: string
+          slug: string
+          title: string
+          total: number
+        }[]
+      }
+      admin_list_organizations: {
+        Args: {
+          p_limit?: number
+          p_missing?: boolean
+          p_offset?: number
+          p_query?: string
+        }
+        Returns: {
+          id: string
+          job_count: number
+          logo_path: string
+          name: string
+          short_name: string
+          slug: string
+          total: number
+        }[]
+      }
+      admin_list_users: {
+        Args: { p_limit?: number; p_offset?: number; p_query?: string }
+        Returns: {
+          ai_calls: number
+          created_at: string
+          email: string
+          full_name: string
+          highest_qualification: string
+          last_sign_in_at: string
+          onboarding_completed: boolean
+          state: string
+          total: number
+          user_id: string
+        }[]
+      }
+      admin_logo_coverage: {
+        Args: never
+        Returns: {
+          jobs_total: number
+          jobs_with_logo: number
+          total_orgs: number
+          with_logo: number
+        }[]
+      }
+      admin_set_feedback_status: {
+        Args: { p_id: string; p_status: string }
+        Returns: boolean
+      }
+      admin_source_health: {
+        Args: never
+        Returns: {
+          category: string
+          host: string
+          id: string
+          is_active: boolean
+          last_row_at: string
+          last_scraped_at: string
+          limit_per_run: number
+          name: string
+          rows_7d: number
+          rows_total: number
+          url: string
+        }[]
+      }
+      admin_sync_by_day: {
+        Args: { p_days?: number }
+        Returns: {
+          day: string
+          failures: number
+          inserted: number
+          kind: string
+          runs: number
+          seen: number
+          unchanged: number
+          updated: number
+        }[]
+      }
       admin_table_stats: {
         Args: never
         Returns: {
@@ -1373,6 +1596,29 @@ export type Database = {
           row_estimate: number
           table_name: string
           total_bytes: number
+        }[]
+      }
+      admin_user_stats: {
+        Args: never
+        Returns: {
+          ai_calls_today: number
+          onboarded_users: number
+          today_users: number
+          total_users: number
+          week_users: number
+        }[]
+      }
+      admin_vacancy_from_title: { Args: { p_title: string }; Returns: number }
+      admin_vacancy_mismatches: {
+        Args: { p_limit?: number; p_offset?: number }
+        Returns: {
+          extracted: number
+          job_id: string
+          slug: string
+          stored: number
+          title: string
+          total: number
+          vacancies_display: string
         }[]
       }
       blocker_skill_tags: { Args: never; Returns: string[] }

@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { SignInRequired } from "@/components/auth/sign-in-required";
+import { SparklesIcon } from "@/components/icons";
 import { JobCard, JobCardSkeleton } from "@/components/jobs/job-card";
 import { Badge } from "@/components/ui/badge";
-import { getProfile, requireUser } from "@/lib/auth/session";
+import { getProfile, getUser } from "@/lib/auth/session";
 import { listEducation } from "@/lib/db/queries/education";
 import { listFeed, type TieredJob } from "@/lib/db/queries/match";
 import { todayInIndia } from "@/lib/format/deadline";
@@ -65,7 +67,20 @@ export default function ForYouPage({
 }
 
 async function Matches({ searchParams }: { searchParams: Promise<{ prefs?: string }> }) {
-  await requireUser("/for-you");
+  // The tiers are computed against one person's age, qualification and
+  // discipline, so there is no version of this list for somebody with no
+  // profile. A guest gets the invitation instead — before any read runs.
+  const user = await getUser();
+  if (!user) {
+    return (
+      <SignInRequired
+        title="Sign in to see your matches"
+        description="Tell us your date of birth and qualification once, and we check the age limit, stream and closing date on every opening so you do not have to."
+        next="/for-you"
+        icon={SparklesIcon}
+      />
+    );
+  }
 
   const profile = await getProfile();
 

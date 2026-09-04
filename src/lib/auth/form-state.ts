@@ -19,6 +19,17 @@ export interface FormState {
   ok: boolean;
   message?: string;
   errors?: Record<string, string>;
+  /**
+   * Set when the action stopped because there is no signed-in user, holding the
+   * path to return to afterwards.
+   *
+   * An action in that position used to `redirect` to /sign-in. That is the same
+   * mistake the protected pages made: the person typed something, and what came
+   * back was a password field with no explanation and their input gone. A form
+   * that reads this renders `<SignInPrompt>` beside the field instead — the
+   * reason, a button, and the query still where they left it.
+   */
+  authRequired?: string;
 }
 
 export const EMPTY_FORM_STATE: FormState = { ok: false };

@@ -26,6 +26,21 @@ import "server-only";
 export const BUILD_SENTINEL_SLUG = "unavailable-at-build-time";
 
 /**
+ * How many pages each `generateStaticParams` prerenders.
+ *
+ * A number, not the whole table, and the reasoning is at
+ * `listJobSlugsForBuild` where the egress arithmetic lives. In short:
+ * prerendering is a cost decision and discovery is the sitemap's job, so the
+ * sitemap queries page to the full corpus and these do not.
+ *
+ * 1,000 is also what Supabase's `max_rows` was silently enforcing here before
+ * anyone noticed — so this changes no behaviour. It replaces a `.limit(20000)`
+ * that looked like "all of them" and meant "one thousand" with a number that
+ * means what it says.
+ */
+export const BUILD_PRERENDER_LIMIT = 1000;
+
+/**
  * Runs a slug query for `generateStaticParams`, degrading to the sentinel
  * rather than throwing.
  *

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { BrandMark } from "@/components/brand/artwork";
 import { ChevronRightIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 import { MENU_SECTIONS, type MenuItem } from "@/lib/menu";
@@ -30,7 +31,8 @@ export function Sidebar() {
     >
       {/* ── Brand ──────────────────────────────────────────────────────────── */}
       <div className="shrink-0 px-5 pt-6 pb-4">
-        <Link href="/" className="group inline-flex items-center gap-2">
+        <Link href="/" className="group inline-flex items-center gap-2.5">
+          <BrandMark className="w-7" />
           <span className="text-lg font-bold tracking-tight text-ink transition-colors group-hover:text-accent">
             JobsTrackr
           </span>

@@ -1,3 +1,4 @@
+import { logoUrl } from "@/lib/db/storage";
 import type { JobDetail } from "@/lib/db/queries/jobs";
 
 /**
@@ -42,12 +43,35 @@ export function jobPostingJsonLd(job: JobDetail, siteUrl: string): Record<string
     // End of day IST — the deadline is a calendar date in India, not an instant.
     ...(job.last_date ? { validThrough: `${job.last_date}T23:59:59+05:30` } : {}),
 
+    // Applying happens on the recruiting body's own portal, never here, and
+    // `directApply` is the field Google uses to say so. Claiming true would put
+    // this listing in front of people expecting a form on the other side of the
+    // click; omitting it entirely leaves Google to guess, and it guesses from
+    // the apply link, which points off-site anyway. Stating it is the honest
+    // and the better-performing option.
+    directApply: false,
+
+    // Every recruitment here is for posts in India, and the audience includes
+    // people searching from outside it. Without this, Google infers the
+    // applicant region from `jobLocation` and can filter the listing out of a
+    // search made from elsewhere.
+    applicantLocationRequirements: { "@type": "Country", name: "India" },
+
     ...(job.organization
       ? {
           hiringOrganization: {
             "@type": "Organization",
             name: job.organization.name,
-            ...(job.organization.website ? { sameAs: job.organization.website } : {}),
+            ...(job.organization.website
+              ? { url: job.organization.website, sameAs: job.organization.website }
+              : {}),
+            // The emblem, when one has been resolved for this body. Google
+            // shows it beside the listing in the Jobs card, and a card with a
+            // recognisable seal on it is the difference between a result that
+            // looks official and one that looks scraped.
+            ...(job.organization.logo_path
+              ? { logo: logoUrl(job.organization.logo_path) }
+              : {}),
           },
         }
       : {}),

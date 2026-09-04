@@ -2,13 +2,16 @@
 
 import { useToday } from "@/components/jobs/today-provider";
 import { daysUntilFrom, formatDate } from "@/lib/format/deadline";
+import { cn } from "@/lib/cn";
 
 export function JobCardMeta({
   publishedAt,
   isFeatured,
+  className,
 }: {
   publishedAt: string | null;
   isFeatured?: boolean | null;
+  className?: string;
 }) {
   const today = useToday();
 
@@ -16,13 +19,11 @@ export function JobCardMeta({
   if (today === null) {
     const formatted = formatDate(publishedAt);
     return (
-      <div className="flex items-center gap-2">
-        <span className="inline-flex items-center rounded-full border border-critical/20 bg-critical-soft px-2 py-0.5 text-[11px] font-semibold text-critical leading-tight">
+      <div className={cn("flex items-center gap-1.5 text-[11px] text-ink-3", className)}>
+        <span className="inline-flex items-center rounded-full border border-critical/20 bg-critical-soft px-1.5 py-0.2 text-[10px] font-semibold text-critical leading-tight">
           New
         </span>
-        <span className="text-xs text-ink-3">
-          {formatted ? `Posted ${formatted}` : "Posted today"}
-        </span>
+        <span>{formatted ? `Posted ${formatted}` : "Posted today"}</span>
       </div>
     );
   }
@@ -46,13 +47,13 @@ export function JobCardMeta({
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className={cn("flex items-center gap-1.5 text-[11px] text-ink-3", className)}>
       {isNew ? (
-        <span className="inline-flex items-center rounded-full border border-critical/20 bg-critical-soft px-2 py-0.5 text-[11px] font-semibold text-critical leading-tight">
+        <span className="inline-flex items-center rounded-full border border-critical/20 bg-critical-soft px-1.5 py-0.2 text-[10px] font-semibold text-critical leading-tight">
           New
         </span>
       ) : null}
-      <span className="text-xs text-ink-3">{text}</span>
+      <span>{text}</span>
     </div>
   );
 }

@@ -38,7 +38,9 @@ async function Credentials({ searchParams }: { searchParams: SearchParams }) {
 
       <SignUpForm next={next} />
 
-      {providers.google ? <GoogleAuth next={next} label="Sign up with Google" /> : null}
+      {providers.google ? (
+        <GoogleAuth next={next} label="Sign up with Google" text="signup_with" />
+      ) : null}
 
       <AuthFooter>
         Already have an account?

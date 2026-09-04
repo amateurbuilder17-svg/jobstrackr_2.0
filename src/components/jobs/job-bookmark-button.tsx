@@ -26,10 +26,7 @@ export function JobBookmarkButton({ jobId, title }: { jobId: string; title: stri
           : "text-ink-3 hover:bg-surface-2 hover:text-ink",
       )}
     >
-      <BookmarkIcon
-        className="size-4.5"
-        fill={saved ? "currentColor" : "none"}
-      />
+      <BookmarkIcon className="size-4.5" fill={saved ? "currentColor" : "none"} />
     </button>
   );
 }

@@ -25,15 +25,26 @@ export function SearchBar({
   filters,
   onToggleFilter,
   onClearAll,
+  onSearchFocus,
 }: {
   value: string;
   onChange: (v: string) => void;
   filters: string[];
   onToggleFilter: (option: string) => void;
   onClearAll?: () => void;
+  /**
+   * Fired when the field takes focus, told whether a pointer put it there.
+   *
+   * The distinction is the caller's to act on, but the input is the only thing
+   * that can observe it: a `focus` event does not say where it came from, so it
+   * has to be paired with the `pointerdown` that preceded it. Optional — the
+   * bar is still just a bar; the home page uses this to hand off to `/jobs`.
+   */
+  onSearchFocus?: (viaPointer: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const pointerFocus = useRef(false);
   const inputId = useId();
   const panelId = useId();
 
@@ -85,6 +96,15 @@ export function SearchBar({
             value={value}
             onChange={(e) => {
               onChange(e.target.value);
+            }}
+            onPointerDown={() => {
+              // Runs before the focus it causes, which is the whole trick.
+              pointerFocus.current = true;
+            }}
+            onFocus={() => {
+              const viaPointer = pointerFocus.current;
+              pointerFocus.current = false;
+              onSearchFocus?.(viaPointer);
             }}
             placeholder="Search exams, jobs, organizations..."
             className="h-full min-w-0 flex-1 bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/75"

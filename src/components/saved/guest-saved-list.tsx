@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { JobCard, JobCardSkeleton } from "@/components/jobs/job-card";
 import type { JobCard as JobCardData } from "@/lib/db/queries/jobs";
+import { guardedFetch } from "@/lib/net/guarded-fetch";
 import { useSaved } from "@/components/session/session-provider";
 
 /**
@@ -36,9 +37,10 @@ export function GuestSavedList() {
 
     void (async () => {
       try {
-        const response = await fetch(`/api/jobs/cards?ids=${key}`, {
+        const response = await guardedFetch(`/api/jobs/cards?ids=${key}`, {
           cache: "no-store",
           signal: controller.signal,
+          timeoutMs: 8_000,
         });
         if (!response.ok) throw new Error(String(response.status));
         const data = (await response.json()) as { jobs: JobCardData[] };

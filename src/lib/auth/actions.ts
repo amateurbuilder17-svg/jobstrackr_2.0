@@ -302,5 +302,17 @@ export async function updatePasswordAction(
   });
   if (error) return { ok: false, errors: { form: error.message } };
 
-  redirect("/profile");
+  // Deliberately not a redirect, and specifically not one to `/profile`.
+  //
+  // This flow ends on a full-bleed screen — the `(auth)` layout hides every
+  // piece of app chrome — so the only way out of it is one this action puts
+  // there. Sending the user to `/profile` instead handed them an onboarding
+  // form they never asked for, with no "skip" once `onboarding_completed` is
+  // true and no statement that the password had actually changed: a dead end
+  // dressed as a next step.
+  //
+  // Returning success keeps the confirmation on the screen that did the work
+  // and lets the form offer the way onward, the same shape `/forgot-password`
+  // already uses for a flow whose success is a message rather than a jump.
+  return { ok: true, message: "Your password has been updated." };
 }

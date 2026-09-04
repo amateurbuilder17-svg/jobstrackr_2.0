@@ -67,7 +67,13 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         <nav aria-label="Admin sections" className="flex flex-wrap gap-1">
           <AdminLink href="/admin">Overview</AdminLink>
           <AdminLink href="/admin/jobs">Jobs</AdminLink>
+          <AdminLink href="/admin/expired">Expired</AdminLink>
           <AdminLink href="/admin/updates">Updates</AdminLink>
+          <AdminLink href="/admin/feedback">Feedback</AdminLink>
+          <AdminLink href="/admin/discover">Discover</AdminLink>
+          <AdminLink href="/admin/logos">Logos</AdminLink>
+          <AdminLink href="/admin/users">Users</AdminLink>
+          <AdminLink href="/admin/api">API</AdminLink>
           <AdminLink href="/admin/egress">Egress</AdminLink>
         </nav>
       </header>

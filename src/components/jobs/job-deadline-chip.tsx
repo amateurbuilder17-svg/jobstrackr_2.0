@@ -20,11 +20,11 @@ export function JobDeadlineChip({
     return (
       <span
         className={cn(
-          "inline-flex shrink-0 items-center gap-1 rounded-full border border-line bg-surface-2 px-2.5 py-0.5 text-xs font-medium text-ink-2 tabular",
+          "inline-flex shrink-0 items-center gap-1 rounded-full border border-line bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-ink-2 tabular",
           className,
         )}
       >
-        <ClockIcon className="size-3.5" aria-hidden="true" />
+        <ClockIcon className="size-3 shrink-0" aria-hidden="true" />
         {formatted ? `Last date: ${formatted}` : "Date not announced"}
       </span>
     );
@@ -60,12 +60,12 @@ export function JobDeadlineChip({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium tabular leading-normal",
+        "inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium tabular leading-normal",
         toneClass,
         className,
       )}
     >
-      <ClockIcon className="size-3.5 shrink-0" aria-hidden="true" />
+      <ClockIcon className="size-3 shrink-0" aria-hidden="true" />
       {label}
     </span>
   );

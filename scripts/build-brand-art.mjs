@@ -69,53 +69,13 @@ await variants({
   },
 });
 
-/**
- * The emblem. The master is 135×150 with an anti-aliased alpha channel; it is
- * upscaled 4× and the alpha ramp re-sharpened, which reconstructs clean edges
- * for a mark made of circles and strokes and gives a source that stays crisp
- * at 3× on the largest placement.
- *
- * The PNG fallback is greyscale-plus-alpha rather than RGBA: every visible
- * pixel is pure white, so three identical colour channels are two channels of
- * waste.
+/*
+ * The emblem used to be generated here too. It moved to
+ * `build-brand-icons.mjs`, which derives the white mark, the navy mark, the
+ * app icons and the favicon from one 1024px master — so the tab icon, the
+ * home-screen icon and the header cannot drift apart. This file now owns only
+ * the two photographs.
  */
-{
-  const src = sharp(join(masters, "logo.png")).ensureAlpha();
-  const { width, height } = await src.metadata();
-  const w = width * 4;
-  const h = height * 4;
-  const alpha = await src
-    .clone()
-    .extractChannel("alpha")
-    .resize(w, h, { kernel: "lanczos3" })
-    // Steepen the 0→1 ramp around the midpoint: hard edges back, ~1px of
-    // anti-aliasing kept.
-    .linear(6, -0.5 * 6 * 255 + 127.5)
-    .raw()
-    .toBuffer();
-
-  // Greyscale-plus-alpha, interleaved by hand. `joinChannel` onto a 3-channel
-  // white gives RGBA, and three identical colour planes are 44 kB against 23
-  // for an image whose every visible pixel is the same white. sharp will not
-  // create a 2-channel image, but it will read one as raw.
-  const greyAlpha = Buffer.alloc(w * h * 2);
-  for (let i = 0; i < w * h; i++) {
-    greyAlpha[i * 2] = 255;
-    greyAlpha[i * 2 + 1] = alpha[i];
-  }
-
-  await sharp(greyAlpha, { raw: { width: w, height: h, channels: 2 } })
-    .png({ compressionLevel: 9, effort: 10 })
-    .toFile(join(out, "logo-mark.png"));
-
-  // AVIF wants three colour planes. They are constant, so they cost nothing.
-  await sharp({ create: { width: w, height: h, channels: 3, background: "#fff" } })
-    .joinChannel(Buffer.from(alpha), { raw: { width: w, height: h, channels: 1 } })
-    .avif({ quality: 72 })
-    .toFile(join(out, "logo-mark.avif"));
-  report("logo-mark.png");
-  report("logo-mark.avif");
-}
 
 async function variants({ master, name, widths, fallbackWidth, fallbackQuality, crop }) {
   let base = sharp(master);

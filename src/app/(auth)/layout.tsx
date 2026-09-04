@@ -1,8 +1,9 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { AuthArtwork, LogoMark } from "@/components/brand/artwork";
+import { AuthArtwork, BrandMark } from "@/components/brand/artwork";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
+import { AuthDarkDefault } from "./auth-theme";
 import styles from "./auth.module.css";
 
 /**
@@ -15,12 +16,14 @@ import styles from "./auth.module.css";
  *
  * A Server Component with no state. The only JavaScript any of these screens
  * ships is the theme toggle — which the shell already carried on every route,
- * so it is not new — plus the password reveal and the submit buttons' pending
- * state. The artwork, the glass, the tabs and the corner flares are CSS.
+ * so it is not new — the one-effect `AuthDarkDefault`, the password reveal,
+ * and the submit buttons' pending state. The artwork, the glass, the tabs and
+ * the corner flares are CSS.
  */
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div data-fullbleed className={styles.viewport}>
+      <AuthDarkDefault />
       <div className={styles.art}>
         <AuthArtwork className={styles.artImage} />
       </div>
@@ -32,7 +35,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
 
       <section className={styles.editorial}>
         <Link href="/" className={styles.brandLink}>
-          <LogoMark className={styles.brandMark} />
+          <BrandMark className={styles.brandMark} />
           <span className={styles.brandWord}>
             JobsTrackr<span className={styles.dot}>.</span>
           </span>
@@ -93,7 +96,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
               elements, and a media query cannot be wrong about the viewport
               the way a server-side guess can. */}
           <Link href="/" className={styles.cardBrand}>
-            <LogoMark className={styles.cardBrandMark} />
+            <BrandMark className={styles.cardBrandMark} />
             <span className={styles.cardBrandWord}>
               JobsTrackr<span className={styles.dot}>.</span>
             </span>

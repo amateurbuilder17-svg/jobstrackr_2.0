@@ -768,6 +768,32 @@
   opacity: 0.6;
 }
 
+/* ── Google Identity Services ────────────────────────────────────────────
+   Google draws its own button into `.gsiSlot`, so almost nothing here is
+   styling — it is a reservation. The slot holds the button's exact height
+   (44px at size="large") from first paint, or the card reflows the moment
+   Google's script finishes and every field below it moves. */
+.gsiSlot {
+  display: flex;
+  width: 100%;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The button is capped at 400px by Google and the card is narrower than that
+   on a phone, so it is centred rather than stretched. */
+.gsiSlot > div {
+  margin-inline: auto;
+}
+
+.gsiError {
+  margin-top: 0.625rem;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--color-critical);
+}
+
 .footer {
   margin-top: clamp(1rem, 2vh, 1.625rem);
   text-align: center;

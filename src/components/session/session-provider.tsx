@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { guardedFetch } from "@/lib/net/guarded-fetch";
 import { mergeGuestSavesAction, setJobSavedAction } from "@/lib/saved/actions";
 import { trackJobAction, untrackJobAction } from "@/lib/tracker/actions";
 import {
@@ -119,6 +120,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // not detach the `online` listener and lose the flush.
   const signedInRef = useRef(false);
 
+  /**
+   * The auth cookies as they were when we last asked `/api/session` about
+   * them. `recheck` compares against this rather than against `signedIn`, and
+   * that difference is the whole guardrail — see it for why.
+   */
+  const askedAboutRef = useRef<string | null>(null);
+
   /* ── Send one queued intent, and clear it if the server agrees ────────── */
   const push = useCallback(async (jobId: string, saved: boolean) => {
     const result = await setJobSavedAction(jobId, saved);
@@ -174,6 +182,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const controller = new AbortController();
     const { signal } = controller;
 
+    // Recorded before the request, not after it. If this were written on
+    // success, a failed hydrate would leave the old value in place and the
+    // next navigation would ask again — which is the loop this is here to
+    // prevent, rebuilt.
+    askedAboutRef.current = authCookies();
+
     // Read through a call, not directly. After one `if (signal.aborted) return`
     // the compiler narrows the property to `false` for the rest of the function
     // and flags every later guard as dead — but it can flip during any of the
@@ -190,7 +204,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       let who: Identity | null = null;
 
       try {
-        const response = await fetch("/api/session", { cache: "no-store", signal });
+        // Guarded, and this is the call that most needs it. `recheck` runs on
+        // every client navigation, and while the server is down the cookie
+        // check it guards on can never agree with what we know — so a person
+        // browsing a cached, static site would fire one failed request per
+        // page, indefinitely. The breaker turns that into one request per
+        // cooldown, and the deadline is what stops a hung socket from leaving
+        // `ready` false and every save button inert for the whole session.
+        const response = await guardedFetch("/api/session", {
+          cache: "no-store",
+          signal,
+          timeoutMs: 8_000,
+          retries: 1,
+        });
         if (response.ok) {
           const data = (await response.json()) as {
             signedIn: boolean;
@@ -204,7 +230,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           who = data.identity;
         }
       } catch {
-        // Offline on first load. Fall through with whatever is local; a guest
+        // Offline, hung, or an endpoint the breaker has given up on for now.
+        // Fall through with whatever is local; a guest
         // still sees their shortlist, and a signed-in user sees an empty one
         // that fills in when the network returns.
       }
@@ -288,7 +315,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
    * and this exposes the recheck for it to call.
    */
   const recheck = useCallback(() => {
-    if (hasAuthCookie() !== signedInRef.current) hydrate();
+    // Compared against the cookies we last asked about, not against
+    // `signedIn`. The old test — "is there a cookie, and does that agree with
+    // what the server told us" — had a state it could never leave: a stale
+    // cookie the server does not honour makes the two disagree permanently,
+    // so every navigation re-asked, for the whole life of the tab. That is one
+    // dynamic request per page view for a guest, on an app whose pages are
+    // static precisely so guests cost nothing.
+    //
+    // It was not hypothetical. An abandoned Google sign-in leaves
+    // `sb-<ref>-auth-token-code-verifier` behind indefinitely, and the old
+    // check counted any `sb-` cookie as a session.
+    //
+    // Asking "have the cookies changed since we last asked?" cannot get stuck:
+    // whatever the answer turns out to be, the same cookies are never asked
+    // about twice. Signing in and signing out both change them, which is the
+    // only thing this ever needed to notice.
+    const cookies = authCookies();
+    if (cookies !== askedAboutRef.current) hydrate();
   }, [hydrate]);
 
   /* ── Replay when the network comes back ───────────────────────────────── */
@@ -393,10 +437,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/** Whether a Supabase auth cookie is present. A hint, never the authority. */
-function hasAuthCookie(): boolean {
-  if (typeof document === "undefined") return false;
-  return document.cookie.split("; ").some((c) => c.startsWith("sb-"));
+/**
+ * The names of the Supabase *session* cookies, as one comparable string.
+ *
+ * A hint, never the authority — `/api/session` decides who is signed in. This
+ * only has to change when the session does.
+ *
+ * `sb-<ref>-auth-token`, plus the `.0`/`.1` chunks a session too large for one
+ * cookie is split across. Deliberately not every `sb-` cookie: the PKCE
+ * verifier `@supabase/ssr` writes when a Google sign-in starts is also named
+ * `sb-…`, it outlives an abandoned sign-in, and counting it as a session is
+ * what made this check disagree with the server forever.
+ */
+function authCookies(): string {
+  if (typeof document === "undefined") return "";
+  return document.cookie
+    .split("; ")
+    .map((cookie) => cookie.split("=")[0] ?? "")
+    .filter((name) => /^sb-.+-auth-token(\.\d+)?$/.test(name))
+    .sort()
+    .join(",");
 }
 
 function useSessionContext(): SessionContextValue {

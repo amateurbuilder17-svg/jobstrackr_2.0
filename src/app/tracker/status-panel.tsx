@@ -8,6 +8,7 @@ import { useToday } from "@/components/jobs/today-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { FetchGuardError, guardedFetch } from "@/lib/net/guarded-fetch";
 import { daysUntilFrom, formatDate } from "@/lib/format/deadline";
 import {
   EVENT_LABELS,
@@ -86,10 +87,16 @@ export function StatusPanel({ attemptId, name, initial }: Props) {
     setNotice(null);
 
     try {
-      const response = await fetch("/api/exam-status", {
+      // A grounded model call is allowed sixty seconds by the route, so the
+      // deadline here matches it rather than the default. No retries: this
+      // costs the day's quota whether or not the answer arrives, and it is a
+      // POST that may already have been applied.
+      const response = await guardedFetch("/api/exam-status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ attemptId, force: true }),
+        timeoutMs: 60_000,
+        retries: 0,
       });
 
       const data = (await response.json()) as RefreshResponse;
@@ -110,9 +117,19 @@ export function StatusPanel({ attemptId, name, initial }: Props) {
       }
 
       router.refresh();
-    } catch {
-      setNotice({ text: "No connection. Try again when you are back online.", bad: true });
-      startCooldown(10);
+    } catch (cause) {
+      // The breaker has stopped trying, which is a different sentence from
+      // "you are offline" — the button is not broken, it is being held back on
+      // purpose, and the cooldown it names is how long for.
+      const held = cause instanceof FetchGuardError ? cause.retryInMs : 0;
+      setNotice({
+        text:
+          held > 0
+            ? "The status service is not responding. Pausing before trying again."
+            : "No connection. Try again when you are back online.",
+        bad: true,
+      });
+      startCooldown(held > 0 ? Math.min(Math.ceil(held / 1000), 300) : 10);
     } finally {
       setPending(false);
     }

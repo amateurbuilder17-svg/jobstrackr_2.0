@@ -46,7 +46,24 @@ export function AttemptList({
   counts: Record<ExamCategory, number>;
 }) {
   const [filter, setFilter] = useState<FilterKey>("all");
-  const [expandedId, setExpandedId] = useState<string | null>(items[0]?.attempt.id ?? null);
+  /**
+   * Which cards the user has *closed*, not which ones are open.
+   *
+   * Every exam is expanded by default — this page exists to show admit-card,
+   * exam and result dates, and a card that starts collapsed hides exactly the
+   * thing the visit was for. Tracking the closures rather than the openings is
+   * what makes that hold: a set of open ids would have to be seeded from
+   * `items`, and any exam added or re-categorised after that seeding would
+   * arrive collapsed. An id absent from this set is open, so new rows are open
+   * for free.
+   *
+   * It is also no longer an accordion. Opening one card used to close the
+   * others, which is the wrong trade here — these are independent exams a
+   * candidate compares side by side, not sections of one document.
+   */
+  const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(
+    () => new Set<string>(),
+  );
 
   const tabCounts = useMemo<Partial<Record<FilterKey, number>>>(
     () => ({ all: items.length, ...counts }),
@@ -96,9 +113,13 @@ export function AttemptList({
                     attempt={attempt}
                     report={report}
                     quiet={section.quiet}
-                    expanded={expandedId === attempt.id}
+                    expanded={!collapsedIds.has(attempt.id)}
                     onToggle={() => {
-                      setExpandedId((cur) => (cur === attempt.id ? null : attempt.id));
+                      setCollapsedIds((cur) => {
+                        const next = new Set(cur);
+                        if (!next.delete(attempt.id)) next.add(attempt.id);
+                        return next;
+                      });
                     }}
                   />
                 ))}

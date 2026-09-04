@@ -18,6 +18,19 @@ import type { Database } from "../database.types";
 
 type AttemptRow = Database["public"]["Tables"]["exam_attempts"]["Row"];
 
+/**
+ * The conducting body, as an attempt needs it: an emblem and a name to print.
+ *
+ * Named rather than inlined twice because an exam and a job reach the same
+ * table by different joins, and the two shapes drifting apart is how one of
+ * them quietly stops rendering a logo.
+ */
+interface OrganizationLabel {
+  logo_path: string | null;
+  short_name: string | null;
+  name: string;
+}
+
 export type ExamAttempt = Pick<
   AttemptRow,
   | "id"
@@ -44,8 +57,12 @@ export type ExamAttempt = Pick<
      * It comes through the organisation rather than `exams.logo_path` because
      * that column has never been populated — the logo import resolves against
      * `organizations`, which is where the 164 images actually landed.
+     *
+     * The names ride along for the calendar, which labels a card "SSC ·
+     * Tracked" and has nothing else to get the acronym from. Two short strings
+     * on a join this query already performs — the row was always being read.
      */
-    organization: { logo_path: string | null } | null;
+    organization: OrganizationLabel | null;
   } | null;
   /**
    * Set when the attempt was started by pressing Track on a job page.
@@ -62,15 +79,15 @@ export type ExamAttempt = Pick<
     application_start_date: string | null;
     status: Database["public"]["Enums"]["job_status"];
     /** The other route to a logo: most attempts start as Track on a job. */
-    organization: { logo_path: string | null } | null;
+    organization: OrganizationLabel | null;
   } | null;
 };
 
 const ATTEMPT_COLUMNS = `
   id, exam_id, job_id, custom_name, stage, status,
   applied_at, exam_date, result_date, roll_number, score, notes,
-  exam:exams ( slug, name, short_name, organization:organizations ( logo_path ) ),
-  job:jobs ( slug, title, last_date, application_start_date, status, organization:organizations ( logo_path ) )
+  exam:exams ( slug, name, short_name, organization:organizations ( logo_path, short_name, name ) ),
+  job:jobs ( slug, title, last_date, application_start_date, status, organization:organizations ( logo_path, short_name, name ) )
 ` as const;
 
 export async function listExamAttempts(): Promise<ExamAttempt[]> {

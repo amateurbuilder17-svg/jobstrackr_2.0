@@ -3,45 +3,22 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { ExternalLinkIcon, SearchIcon } from "@/components/icons";
-import { Badge } from "@/components/ui/badge";
+import { ExternalLinkIcon, SearchIcon, ShieldCheckIcon } from "@/components/icons";
+import { toInitials } from "@/components/home/monogram";
 import { getSyllabusBySlug } from "@/lib/db/queries/syllabus";
-import type { SyllabusSection, SyllabusStage } from "@/lib/syllabus/schema";
+import { SyllabusActions } from "./syllabus-actions";
+import { SyllabusView } from "./syllabus-view";
 
 /**
- * One exam's syllabus.
+ * One exam's syllabus detail.
  *
- * Everything here is a Server Component: nine sections and a topic list for
- * every subject, and the browser pays nothing beyond the HTML. The page reads
- * through `publicDb` — no cookies — so it is cacheable and served from the CDN
- * to everybody after the first person paid for the model call.
- */
-
-/**
- * This route does not prerender, and the reason is structural rather than lazy.
- *
- * The shell reads the URL — `NavLink` needs `usePathname()` to know which tab
- * is current, and that is not optional furniture. For a dynamic route whose
- * params are known at build time (`/jobs/[slug]`, via `generateStaticParams`)
- * every pathname is concrete and the shell prerenders happily. This corpus is
- * built at *runtime*: a slug exists because somebody searched for it five
- * minutes ago, so there is no list to enumerate, and Cache Components rejects a
- * `generateStaticParams` that returns nothing.
- *
- * That leaves three options. Wrapping the sidebar and bottom nav in `<Suspense>`
- * would fix it globally but makes the app's primary navigation stream on every
- * route, to pay for one. Seeding a placeholder row would put a fabricated
- * syllabus at a real URL. This is the third, and it is the escape hatch Next
- * documents for exactly this shape.
- *
- * What it costs: a function invocation per request instead of a CDN hit. What
- * it does *not* cost is a database read per request — `getSyllabusBySlug` is a
- * `"use cache"` scope keyed on the slug, so Supabase is touched once per
- * revalidation window however many people arrive. Crawlers get fully rendered
- * HTML either way.
- *
- * Revisit when the corpus stops growing: at that point `generateStaticParams`
- * over the cached slugs becomes viable and this line can go.
+ * Everything here is a Server Component with Cache Components `"use cache"`.
+ * Styled to match the app's Gazette theme:
+ * - Editorial header with squircle monogram emblem.
+ * - Official verified badges.
+ * - Stage overview headers with brand accents.
+ * - Subject cards with emerald topic bullets and weightage tags.
+ * - Rounded-2xl source document list.
  */
 export const instant = false;
 
@@ -70,25 +47,9 @@ export async function generateMetadata({
   };
 }
 
-/**
- * The shell, which is static, and the body, which is not.
- *
- * There is deliberately no `generateStaticParams` here, and the reason is worth
- * writing down because the obvious fix is the wrong one. This corpus is built
- * at *runtime* — a slug exists because somebody searched for it five minutes
- * ago — so there is nothing to enumerate at build time, and Cache Components
- * rejects a `generateStaticParams` that returns an empty list outright.
- *
- * So `params` is read inside a `<Suspense>` boundary instead. The breadcrumb
- * and the frame prerender into a static shell; the syllabus streams into it.
- * And because `getSyllabusBySlug` is itself a `"use cache"` scope keyed on the
- * slug, the second visitor to any given exam is served from that cache rather
- * than from Postgres — which is the same economics as a prerender, arrived at
- * a different way.
- */
 export default function SyllabusDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   return (
-    <div className="mx-auto w-full max-w-[72ch] px-4 py-8 sm:px-6 lg:py-12">
+    <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 lg:py-10">
       <Suspense fallback={<SyllabusSkeleton />}>
         <SyllabusBody params={params} />
       </Suspense>
@@ -100,177 +61,151 @@ async function SyllabusBody({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const cached = await getSyllabusBySlug(slug);
 
-  // A miss here is a syllabus that was never fetched *or* one that expired.
-  // Both are the same thing to a reader — it is not here — and both are fixed
-  // the same way: search for it, which the 404 page offers.
   if (!cached) notFound();
 
   const { syllabus, grounded, fetchedAt } = cached;
   const multiStage = syllabus.stages.length > 1;
+  const initials = toInitials(syllabus.examName);
 
   return (
     <>
-      <nav aria-label="Breadcrumb" className="text-xs text-ink-3">
-        <Link href="/syllabus" className="hover:text-ink-2 hover:underline">
-          Syllabus finder
+      {/* Top back navigation, with the old result screen's two actions */}
+      <div className="flex items-center justify-between gap-3 pb-4">
+        <Link
+          href="/syllabus"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-ink transition-colors hover:text-ink-2"
+        >
+          <span className="text-base font-bold" aria-hidden="true">
+            ←
+          </span>
+          <span>Syllabus finder</span>
         </Link>
-        <span aria-hidden> / </span>
-        <span className="text-ink-2">{syllabus.examName}</span>
-      </nav>
-
-      <h1 className="mt-3 font-cond text-3xl font-bold tracking-tight text-balance text-ink">
-        {syllabus.examName}
-        <span className="text-ink-3"> syllabus</span>
-      </h1>
-
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        {syllabus.year ? <Badge>{syllabus.year}</Badge> : null}
-        {multiStage ? <Badge>{syllabus.stages.length} stages</Badge> : null}
-        {/* An ungrounded answer is the model recalling rather than reading, and
-            for a document that gets revised that is a genuinely weaker claim.
-            Labelled rather than hidden — and never presented as equivalent. */}
-        {grounded ? null : <Badge tone="warn">Not searched — from memory</Badge>}
+        <SyllabusActions syllabus={syllabus} slug={slug} />
       </div>
 
-      {/* The disclaimer is above the content, not buried under it. Somebody
-          plans three months of study from this page; the one thing they must
-          know is that it is a reading of the notification and not the
-          notification. */}
-      <p className="mt-5 rounded-md border border-line bg-surface-2 px-3.5 py-3 text-sm leading-relaxed text-ink-2">
-        Read from official sources and checked for shape, not for truth. Confirm against the
-        conducting body&rsquo;s current notification before you plan around it — a syllabus is
-        revised, and this page was fetched{" "}
-        <time dateTime={fetchedAt}>{formatWhen(fetchedAt)}</time>.
-      </p>
+      {/* Hero Header */}
+      <header className="mt-2 flex items-start gap-3.5 sm:gap-4">
+        {/* Squircle Emblem */}
+        <div
+          className="relative flex size-14 sm:size-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-line/70 bg-logo-plate p-1.5 shadow-xs"
+          aria-hidden="true"
+        >
+          <span className="cond select-none text-base sm:text-lg font-extrabold tracking-wider text-ink-2">
+            {initials}
+          </span>
+        </div>
 
-      {syllabus.stages.map((stage, index) => (
-        <Stage
-          key={`${stage.name ?? "stage"}-${String(index)}`}
-          stage={stage}
-          showHeading={multiStage || Boolean(stage.name)}
-        />
-      ))}
+        {/* Title & Badges */}
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-ink leading-tight">
+            {syllabus.examName} <span className="text-brand">Syllabus</span>
+          </h1>
 
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            {syllabus.year ? (
+              <span className="inline-flex items-center rounded-full border border-line bg-surface-2 px-2.5 py-0.5 text-xs font-semibold text-ink-2">
+                {syllabus.year}
+              </span>
+            ) : null}
+            {multiStage ? (
+              <span className="inline-flex items-center rounded-full border border-line bg-surface-2 px-2.5 py-0.5 text-xs font-medium text-ink-2">
+                {syllabus.stages.length} stages
+              </span>
+            ) : null}
+            {grounded ? (
+              <span className="inline-flex items-center gap-1 rounded-full border border-good/25 bg-good-soft px-2.5 py-0.5 text-xs font-medium text-good">
+                <ShieldCheckIcon className="size-3.5 shrink-0" aria-hidden="true" />
+                <span>Official Source Verified</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center rounded-full border border-warn/25 bg-warn-soft px-2.5 py-0.5 text-xs font-medium text-warn">
+                Not searched — from memory
+              </span>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* Verification Notice Card */}
+      <div className="mt-6 flex items-start gap-3 rounded-2xl border border-line bg-surface p-4 text-xs sm:text-sm leading-relaxed text-ink-2 shadow-xs">
+        <ShieldCheckIcon className="size-4.5 text-brand shrink-0 mt-0.5" aria-hidden="true" />
+        <p>
+          Extracted directly from recruiting body notifications. Always confirm against the
+          latest official notification before planning your preparation — a syllabus is subject
+          to board revisions. Fetched{" "}
+          <time dateTime={fetchedAt} className="font-semibold text-ink">
+            {formatWhen(fetchedAt)}
+          </time>
+          .
+        </p>
+      </div>
+
+      {/* Stage tabs, pattern stats, weightage and topics */}
+      <SyllabusView syllabus={syllabus} />
+
+      {/* Official Sources Card */}
       {syllabus.sources.length > 0 ? (
-        <section className="mt-10 border-t border-line pt-6">
-          <h2 className="text-lg font-semibold text-ink">Sources</h2>
-          <ul className="mt-3 flex flex-col gap-2">
+        <section className="mt-10">
+          <div className="mb-3 flex items-center gap-2.5">
+            <span className="h-4.5 w-1 shrink-0 rounded-full bg-brand" aria-hidden="true" />
+            <h2 className="text-base sm:text-lg font-bold tracking-tight text-ink">
+              Official Sources
+            </h2>
+          </div>
+          <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-xs divide-y divide-line">
             {syllabus.sources.map((url) => (
-              <li key={url}>
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow"
-                  className="inline-flex items-start gap-1.5 text-sm text-accent underline underline-offset-2"
-                >
-                  <ExternalLinkIcon className="mt-0.5 size-3.5 shrink-0" />
-                  <span className="break-all">{url}</span>
-                </a>
-              </li>
+              <a
+                key={url}
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                className="flex items-center justify-between gap-3 px-4 py-3 text-xs sm:text-sm text-ink transition-colors hover:bg-surface-2"
+              >
+                <span className="truncate min-w-0 font-medium text-brand hover:underline">
+                  {url}
+                </span>
+                <ExternalLinkIcon className="size-4 shrink-0 text-ink-3" />
+              </a>
             ))}
-          </ul>
+          </div>
         </section>
       ) : null}
 
-      <p className="mt-10 border-t border-line pt-6">
+      {/* Search Another Exam Action */}
+      <div className="mt-10 pt-6 border-t border-line">
         <Link
           href="/syllabus"
-          className="inline-flex items-center gap-2 text-sm font-medium text-accent hover:underline"
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-line bg-surface px-5 text-sm font-semibold text-ink shadow-xs transition-colors hover:bg-surface-2 hover:border-line-strong"
         >
-          <SearchIcon className="size-4" />
-          Search another exam
+          <SearchIcon className="size-4 text-brand" />
+          <span>Search another exam</span>
         </Link>
-      </p>
+      </div>
     </>
   );
 }
 
-/**
- * What the static shell shows while the syllabus streams in.
- *
- * Sized to the real thing rather than being a spinner: a heading block and a
- * few section blocks, so the page does not jump when the content lands.
- */
 function SyllabusSkeleton() {
   return (
     <div aria-hidden="true" className="flex flex-col gap-4">
-      <div className="h-3 w-40 rounded bg-surface-2" />
-      <div className="h-9 w-3/4 rounded bg-surface-2" />
-      <div className="h-16 rounded-md border border-line bg-surface-2" />
-      <div className="mt-4 flex flex-col gap-6">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="flex flex-col gap-2">
-            <div className="h-5 w-48 rounded bg-surface-2" />
-            <div className="h-4 w-full rounded bg-surface-2" />
-            <div className="h-4 w-5/6 rounded bg-surface-2" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Stage({ stage, showHeading }: { stage: SyllabusStage; showHeading: boolean }) {
-  const meta = [
-    stage.examType,
-    stage.totalMarks === null ? null : `${String(stage.totalMarks)} marks`,
-    stage.durationMins === null ? null : `${String(stage.durationMins)} min`,
-  ].filter(Boolean);
-
-  return (
-    <section className="mt-9">
-      {showHeading ? (
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-line pb-2">
-          <h2 className="text-xl font-semibold text-ink">{stage.name ?? "Syllabus"}</h2>
-          {meta.length > 0 ? (
-            <span className="text-sm text-ink-3">{meta.join(" · ")}</span>
-          ) : null}
+      <div className="h-4 w-36 rounded-md skeleton" />
+      <div className="flex items-start gap-4">
+        <div className="size-16 rounded-2xl skeleton shrink-0" />
+        <div className="flex-1 space-y-2">
+          <div className="h-7 w-3/4 rounded-md skeleton" />
+          <div className="h-4 w-1/3 rounded-md skeleton" />
         </div>
-      ) : null}
-
-      <div className="mt-4 flex flex-col gap-6">
-        {stage.sections.map((section, index) => (
-          <SectionBlock
-            key={`${section.subject ?? section.sectionTitle ?? "section"}-${String(index)}`}
-            section={section}
-          />
+      </div>
+      <div className="h-16 rounded-2xl border border-line bg-surface skeleton" />
+      <div className="mt-4 flex flex-col gap-4">
+        {[0, 1].map((i) => (
+          <div key={i} className="h-36 rounded-2xl border border-line bg-surface skeleton" />
         ))}
       </div>
-    </section>
-  );
-}
-
-function SectionBlock({ section }: { section: SyllabusSection }) {
-  const heading = section.subject ?? section.sectionTitle;
-  const sub = section.subject && section.sectionTitle ? section.sectionTitle : null;
-  const weight =
-    section.marksWeightage ??
-    (section.marks === null ? null : `${String(section.marks)} marks`);
-
-  return (
-    <div>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h3 className="font-semibold text-ink">{heading ?? "Topics"}</h3>
-        {weight ? <span className="text-sm text-ink-3">{weight}</span> : null}
-      </div>
-      {sub ? <p className="mt-0.5 text-sm text-ink-3">{sub}</p> : null}
-
-      {/* Topics as a list, not as chips. A syllabus topic is a phrase — "Data
-          interpretation and sufficiency" — and a wall of pill-shaped phrases at
-          mixed widths is harder to read down than a plain list, which is what
-          somebody does with this page. */}
-      <ul className="mt-2 flex flex-col gap-1.5 pl-5">
-        {section.topics.map((topic) => (
-          <li key={topic} className="list-disc leading-relaxed text-ink-2 marker:text-ink-3">
-            {topic}
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }
 
-/** "3 days ago" is the useful framing for a cached document, not a timestamp. */
 function formatWhen(iso: string): string {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
   if (!Number.isFinite(days) || days < 0) return "recently";

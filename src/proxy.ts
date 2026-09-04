@@ -18,10 +18,13 @@ import { env } from "@/lib/env";
  *    Component may read cookies but not set them — so without this, a session
  *    silently expires and the user is signed out by a page refresh.
  *
- * 2. **Redirect before render.** Protection decided on the server means an
- *    unauthenticated visitor to /profile never receives the page at all. The
- *    alternative — render, discover there is no user, redirect on the client —
- *    is the "auth flash": a frame of signed-in layout for someone who is not.
+ * 2. **Refuse before render.** Whatever a guest gets on an account-only route,
+ *    the decision is made here, on the server, before a page renders. The
+ *    alternative — render, discover there is no user, react on the client — is
+ *    the "auth flash": a frame of signed-in layout for someone who is not.
+ *    What that refusal *looks* like now differs by route: `/admin` is
+ *    redirected away, while the user-facing routes render a sign-in card in
+ *    place of their data (see `PROTECTED`).
  *
  * ## Why the matcher is narrow
  *
@@ -37,22 +40,29 @@ import { env } from "@/lib/env";
  * would be dynamic anyway, and would need its own reason to opt in.
  */
 
-/** Routes that require a signed-in user. Prefix match, so children are covered. */
 /**
- * `/saved` is deliberately absent: a signed-out visitor has a real shortlist in
- * their browser, and redirecting them to sign in to see their own saved jobs
- * would be the app hiding their data from them. The page renders from
+ * Routes a guest is redirected away from. Prefix match, so children are covered.
+ *
+ * Only `/admin` is left here, and only because it is not a feature anyone is
+ * being invited into — there is nothing to explain to a visitor who is not
+ * staff, and the honest response to an unauthenticated /admin request is to
+ * behave as though the area is not there.
+ *
+ * Every *user-facing* route that needs an account — `/profile`, `/tracker`,
+ * `/for-you`, `/my-details`, `/documents` — is deliberately absent. They render
+ * `<SignInRequired>` in place of their data instead: a redirect answered a tap
+ * on "My Exams" with a bare password field, which never says why, reads as
+ * having been logged out, and buries the page they asked for in a `next`
+ * parameter. Access is unchanged — the gate sits in front of every read, so a
+ * guest still triggers no query — but the refusal now has a sentence and a
+ * button on it.
+ *
+ * `/saved` was never here for a related reason: a signed-out visitor has a real
+ * shortlist in their browser, and asking them to sign in to see their own saved
+ * jobs would be the app hiding their data from them. The page renders from
  * localStorage for guests and from the database for everyone else.
  */
-const PROTECTED = [
-  "/profile",
-  "/tracker",
-  "/for-you",
-  "/admin",
-  // Both hold identity data and neither has anything to show a guest.
-  "/my-details",
-  "/documents",
-] as const;
+const PROTECTED = ["/admin"] as const;
 
 /**
  * Routes a signed-in user has no reason to see. `/reset-password` is
@@ -122,7 +132,12 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   // Literal prefixes only — Next parses this statically, so the arrays above
-  // cannot be interpolated here. Keep the two in step when adding a route.
+  // cannot be interpolated here.
+  //
+  // Deliberately wider than `PROTECTED`. Job 1 is the reason: /tracker and the
+  // rest no longer redirect, but they still read the session, and only a
+  // response from here can persist a rotated token. Dropping them from the
+  // matcher would sign people out on a page refresh.
   matcher: [
     "/profile/:path*",
     "/my-details/:path*",

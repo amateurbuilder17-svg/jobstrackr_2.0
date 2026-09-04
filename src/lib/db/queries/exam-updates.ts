@@ -3,10 +3,11 @@ import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import type { QueryData } from "@supabase/supabase-js";
 
-import { BUILD_SENTINEL_SLUG, slugsForBuild } from "../build-params";
+import { BUILD_PRERENDER_LIMIT, BUILD_SENTINEL_SLUG, slugsForBuild } from "../build-params";
 import { publicDb } from "../clients";
 import { decodeCursor, toPage, type Page, PAGE_SIZE } from "../cursor";
 import { unwrap, unwrapMaybe } from "../errors";
+import { fetchAllRows } from "../paginate";
 import { SEARCH_CONFIG, tags } from "../tags";
 import type { Database } from "../database.types";
 import { linkLabel } from "@/lib/updates/detail-shape";
@@ -148,7 +149,8 @@ export async function listExamUpdateSlugsForBuild(): Promise<{ slug: string }[]>
       .select("slug")
       .eq("is_published", true)
       .order("updated_at", { ascending: false })
-      .limit(20000);
+      // Capped on purpose; see `listJobSlugsForBuild` for the arithmetic.
+      .limit(BUILD_PRERENDER_LIMIT);
 
     if (error) throw error;
     return data;
@@ -162,15 +164,18 @@ export async function listExamUpdateSlugs(): Promise<{ slug: string; updated_at:
 
   // Caught here, not by the caller — see `listJobSlugs` for why a rejection
   // inside a `"use cache"` scope cannot be handled from outside it.
+  //
+  // Paged, and ordered by the unique `slug`, for the reason given there: this
+  // query said `.limit(20000)` and was returning exactly 1,000 rows, because
+  // Supabase's `max_rows` truncates server-side without erroring.
   try {
-    return unwrap(
-      "listExamUpdateSlugs",
-      await publicDb()
+    return await fetchAllRows("listExamUpdateSlugs", (from, to) =>
+      publicDb()
         .from("exam_updates")
         .select("slug, updated_at")
         .eq("is_published", true)
-        .order("updated_at", { ascending: false })
-        .limit(20000),
+        .order("slug", { ascending: true })
+        .range(from, to),
     );
   } catch (error) {
     console.warn(

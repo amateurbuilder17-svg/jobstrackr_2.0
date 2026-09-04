@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { FetchGuardError } from "@/lib/net/guarded-fetch";
+
 interface SavedFeedCache<T> {
   filterKey: string;
   items: T[];
@@ -68,6 +70,19 @@ export function useInfiniteFeed<T extends { id: string | number }>({
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
+  /**
+   * Seconds until another attempt is worth making, or zero.
+   *
+   * The observer already stops on `isError`, so the automatic half of the loop
+   * was never the problem. The Retry button was: it is offered the instant the
+   * failure renders, and on a dead server a frustrated person can press it as
+   * fast as they like. `guardedFetch` refuses those presses in memory once the
+   * endpoint has failed three times running, and this is that refusal made
+   * visible — a disabled button counting down beats one that looks live and
+   * silently does nothing.
+   */
+  const [retryIn, setRetryIn] = useState(0);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // When filterKey prop changes, adjust state during render
   if (filterKey !== prevFilterKey) {
@@ -76,6 +91,7 @@ export function useInfiniteFeed<T extends { id: string | number }>({
     setItems(cached ? cached.items : initialItems);
     setNextCursor(cached ? cached.nextCursor : initialCursor);
     setIsError(false);
+    setRetryIn(0);
   }
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -146,6 +162,32 @@ export function useInfiniteFeed<T extends { id: string | number }>({
     };
   }, [persistState]);
 
+  /** Counts a cooldown down to zero, so the button can say when. */
+  const startCountdown = useCallback((ms: number) => {
+    if (countdownRef.current) clearInterval(countdownRef.current);
+
+    const seconds = Math.ceil(ms / 1000);
+    setRetryIn(seconds);
+    if (seconds <= 0) return;
+
+    countdownRef.current = setInterval(() => {
+      setRetryIn((remaining) => {
+        if (remaining <= 1) {
+          if (countdownRef.current) clearInterval(countdownRef.current);
+          countdownRef.current = null;
+          return 0;
+        }
+        return remaining - 1;
+      });
+    }, 1000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
+  }, []);
+
   // Load next page function
   const loadMore = useCallback(async () => {
     const cursor = nextCursorRef.current;
@@ -167,13 +209,19 @@ export function useInfiniteFeed<T extends { id: string | number }>({
       setNextCursor(response.nextCursor);
       nextCursorRef.current = response.nextCursor;
       persistState();
-    } catch {
+    } catch (cause) {
       setIsError(true);
+      // `guardedFetch` says how long it intends to leave the endpoint alone.
+      // Anything else — a malformed body, a 4xx — is not an outage, so the
+      // button stays live and a press is worth making.
+      if (cause instanceof FetchGuardError && cause.retryInMs > 0) {
+        startCountdown(cause.retryInMs);
+      }
     } finally {
       setIsLoading(false);
       isFetchingRef.current = false;
     }
-  }, [fetchNextPage, persistState]);
+  }, [fetchNextPage, persistState, startCountdown]);
 
   // IntersectionObserver for lazy loading
   useEffect(() => {
@@ -210,6 +258,8 @@ export function useInfiniteFeed<T extends { id: string | number }>({
     nextCursor,
     isLoading,
     isError,
+    /** Seconds until Retry is worth offering again. Zero means now. */
+    retryIn,
     loadMore,
     sentinelRef,
     recordClickPosition,

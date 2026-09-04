@@ -3,6 +3,12 @@
 import { useCallback, useSyncExternalStore } from "react";
 
 import { MoonIcon, SunIcon } from "@/components/icons";
+import {
+  getServerTheme,
+  isDark as isDarkNow,
+  setTheme,
+  subscribeToTheme,
+} from "@/components/shell/theme-store";
 
 /**
  * Light/dark toggle.
@@ -17,48 +23,21 @@ import { MoonIcon, SunIcon } from "@/components/icons";
  * React's cascading-render lint for good reason: it renders once with a guess,
  * then again with the truth, and on this particular control the intermediate
  * frame is a visibly wrong icon.
+ *
+ * The store it reads from is shared (`theme-store.ts`) rather than private to
+ * this file, because the credential screens also write the theme — see
+ * `AuthDarkDefault`. A write that did not notify these subscribers would leave
+ * this button showing the wrong icon on the sign-in page.
  */
-
-const listeners = new Set<() => void>();
-
-function subscribe(onChange: () => void) {
-  listeners.add(onChange);
-  return () => {
-    listeners.delete(onChange);
-  };
-}
-
-function getSnapshot(): boolean {
-  return document.documentElement.classList.contains("dark");
-}
-
-/**
- * The server cannot know the theme — it is resolved from localStorage in the
- * browser. Returning `null` lets the button render a same-sized placeholder,
- * so the icon appears without the layout moving.
- */
-function getServerSnapshot(): null {
-  return null;
-}
-
 export function ThemeToggle() {
   const isDark = useSyncExternalStore<boolean | null>(
-    subscribe,
-    getSnapshot,
-    getServerSnapshot,
+    subscribeToTheme,
+    isDarkNow,
+    getServerTheme,
   );
 
   const toggle = useCallback(() => {
-    const next = !document.documentElement.classList.contains("dark");
-    document.documentElement.classList.toggle("dark", next);
-    document.documentElement.style.colorScheme = next ? "dark" : "light";
-    try {
-      localStorage.setItem("theme", next ? "dark" : "light");
-    } catch {
-      // Private mode, or storage disabled. The toggle still works for this page
-      // view; it simply will not be remembered.
-    }
-    for (const listener of listeners) listener();
+    setTheme(!isDarkNow(), { persist: true });
   }, []);
 
   return (

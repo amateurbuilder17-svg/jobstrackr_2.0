@@ -8,7 +8,7 @@ export interface NavIconProps extends SVGProps<SVGSVGElement> {
  * Custom bespoke navigation icons matching user designs:
  * 1. Home - Solid home with arched door cutout
  * 2. Jobs - Bold search glass with thick rounded handle
- * 3. Updates - Full flame silhouette with inner flame cutout (not clipped)
+ * 3. Updates - Solid megaphone with chamber, handle, flared horn and sound rays
  * 4. My Exams - Document with lines and checkmark badge
  * 5. Calendar - Calendar with binder rings, dot grid and clock badge
  */
@@ -54,7 +54,7 @@ export function JobsNavIcon({ active: _active, ...props }: NavIconProps) {
 export function UpdatesNavIcon({ active: _active, ...props }: NavIconProps) {
   return (
     <svg
-      viewBox="0 0 24 24"
+      viewBox="0 0 512 512"
       width="22"
       height="22"
       fill="currentColor"
@@ -64,7 +64,7 @@ export function UpdatesNavIcon({ active: _active, ...props }: NavIconProps) {
       <path
         fillRule="evenodd"
         clipRule="evenodd"
-        d="M12 2.2c.4 1.8 1.4 3.5 2.6 5 1.3 1.6 2.4 3.2 2.4 5.3 0 1.3-.4 2.5-1.2 3.5 1.3-1 2.2-2.6 2.2-4.5 1.6 1.7 2.6 3.9 2.6 6.4 0 4.6-3.8 8.3-8.6 8.3S3.4 22.5 3.4 18c0-3.6 2-6.8 5-8.2.3 1.7 1.2 3.2 2.5 4.1.8-2.6 1.1-6.8 1.1-11.7Zm0 11.6c-.4 1.7-1.4 3.1-2.7 4.1 1.6 1.2 3.8.9 5.1-.5.4-.5.7-1.2.7-2 0-1.6-1-3.2-2.1-4.4-.3 1-.7 1.9-1 2.8Z"
+        d="M0 189h30v120H0z M60 159h120v180H60z M90 369h90v90H90z M210 158.5 A552 552 0 0 0 391 53v391 A552 552 0 0 0 210 338.5z M452 233.5h60v30h-60z M419.68 169.11l42.43-42.43 21.21 21.21-42.43 42.43z M419.68 327.89l21.21-21.21 42.43 42.43-21.21 21.21z"
       />
     </svg>
   );

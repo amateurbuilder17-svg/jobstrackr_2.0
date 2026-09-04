@@ -3,11 +3,11 @@ import type { ComponentType, SVGProps } from "react";
 import {
   BookmarkIcon,
   CalendarIcon,
-  FlameIcon,
+  GraduationCapIcon,
   HomeIcon,
+  MegaphoneIcon,
   SearchIcon,
-  SparkIcon,
-  TrackerIcon,
+  SparklesIcon,
   UserIcon,
 } from "@/components/icons";
 
@@ -30,10 +30,10 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { label: "Home", href: "/", icon: HomeIcon, primary: true },
   { label: "Jobs", href: "/jobs", icon: SearchIcon, primary: true },
-  { label: "Updates", href: "/updates", icon: FlameIcon, primary: true },
-  { label: "My Exams", href: "/tracker", icon: TrackerIcon, primary: true },
+  { label: "Updates", href: "/updates", icon: MegaphoneIcon, primary: true },
+  { label: "My Exams", href: "/tracker", icon: GraduationCapIcon, primary: true },
   { label: "Calendar", href: "/calendar", icon: CalendarIcon, primary: true },
-  { label: "For You", href: "/for-you", icon: SparkIcon },
+  { label: "For You", href: "/for-you", icon: SparklesIcon },
   { label: "Saved", href: "/saved", icon: BookmarkIcon },
   { label: "Profile", href: "/profile", icon: UserIcon },
 ];

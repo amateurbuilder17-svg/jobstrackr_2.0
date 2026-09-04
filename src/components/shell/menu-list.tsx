@@ -23,9 +23,10 @@ import { ThemeToggle } from "./theme-toggle";
  * out" is a drawer people stop using. The page has the room and keeps them.
  *
  * Items behind sign-in are linked directly rather than pointed at
- * `/sign-in?next=…`. Middleware already redirects a guest who taps "My Exams"
- * to sign-in with the right `next`, so duplicating that decision here would be
- * a second place for it to be wrong.
+ * `/sign-in?next=…`. A guest who taps "My Exams" lands on that page and gets
+ * its `<SignInRequired>` card — the name of the thing, why it needs an account
+ * and a button — which is a better answer than a bare password field, and is
+ * decided in one place rather than duplicated here.
  */
 export function MenuList({ dense = false }: { dense?: boolean }) {
   return (

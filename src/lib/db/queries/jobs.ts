@@ -3,10 +3,11 @@ import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
 import type { QueryData } from "@supabase/supabase-js";
 
-import { BUILD_SENTINEL_SLUG, slugsForBuild } from "../build-params";
+import { BUILD_PRERENDER_LIMIT, BUILD_SENTINEL_SLUG, slugsForBuild } from "../build-params";
 import { publicDb } from "../clients";
 import { decodeCursor, toPage, type Page, PAGE_SIZE } from "../cursor";
 import { unwrap, unwrapMaybe } from "../errors";
+import { fetchAllRows } from "../paginate";
 import { SEARCH_CONFIG, tags } from "../tags";
 import type { Database } from "../database.types";
 import { todayInIndia } from "@/lib/format/deadline";
@@ -363,11 +364,23 @@ export async function listJobCardsByIds(ids: string[]): Promise<JobCard[]> {
 }
 
 /**
- * Every published slug, for `generateStaticParams` and the sitemap.
+ * Every published slug, for the sitemap.
  *
- * The one intentionally large read in this module: it runs at build and on
- * sitemap revalidation, not per request. Two columns keep it to roughly 60
- * bytes a row — about 350 kB across the whole corpus, a handful of times a day.
+ * The one intentionally large read in this module: it runs on sitemap
+ * revalidation, not per request. Two columns keep it to roughly 60 bytes a row
+ * — about 350 kB across the whole corpus, a handful of times a day.
+ *
+ * That claim used to be false. The query said `.limit(20000)` and returned
+ * exactly 1,000 rows, because Supabase caps responses at `max_rows`
+ * server-side, after the query's own LIMIT, without erroring. The sitemap
+ * advertised a fifth of the site and nothing reported it. `fetchAllRows` is
+ * the fix and carries the full account.
+ *
+ * Ordered by `slug`, not `updated_at`. Offset paging re-reads the table per
+ * request, so the sort key has to be unique or rows shuffle between pages and
+ * get duplicated or dropped; `slug` is uniquely constrained and `updated_at`
+ * is not. The sitemap does not care about order — every entry carries its own
+ * `lastmod`.
  */
 export async function listJobSlugs(): Promise<{ slug: string; updated_at: string }[]> {
   "use cache";
@@ -380,14 +393,13 @@ export async function listJobSlugs(): Promise<{ slug: string; updated_at: string
   // costs one cache window of a four-URL sitemap, which self-heals on the next
   // revalidation; the alternative costs the whole deploy.
   try {
-    return unwrap(
-      "listJobSlugs",
-      await publicDb()
+    return await fetchAllRows("listJobSlugs", (from, to) =>
+      publicDb()
         .from("jobs")
         .select("slug, updated_at")
         .eq("status", "published")
-        .order("updated_at", { ascending: false })
-        .limit(20000),
+        .order("slug", { ascending: true })
+        .range(from, to),
     );
   } catch (error) {
     console.warn(
@@ -399,10 +411,91 @@ export async function listJobSlugs(): Promise<{ slug: string; updated_at: string
 }
 
 /**
+ * Titles of open vacancies, for the syllabus finder's typeahead.
+ *
+ * The old app suggested job titles by running `jobs ILIKE '%…%'` on every
+ * keystroke. This is the same suggestion delivered the opposite way round: one
+ * cached read per cache window, shared by every visitor, filtered in the
+ * browser. The arithmetic was done before it was built — a per-keystroke fetch
+ * would have cost roughly 1,260 invocations a month against a million-call
+ * ceiling, so it was never a quota problem; it was a round trip per keystroke
+ * for an answer that changes a few times a day.
+ *
+ * Two caps, and they are the whole cost control:
+ *
+ *   - `limit(800)` bounds what leaves Postgres. At ~100 bytes a row that is
+ *     80 kB per cache window, roughly 2.4 MB a month on the `content` profile.
+ *   - The caller dedupes to ~250 distinct exams before any of it reaches a
+ *     browser. Job titles repeat heavily across years and regions — measured
+ *     at 75% on the seeded corpus, 240 rows collapsing to 60 exams — so 800
+ *     rows is already more than 250 distinct ones in practice.
+ *
+ * Only open vacancies. A closed one is not something to send somebody to from
+ * a page about preparing for an exam, and excluding them is also what keeps
+ * the row count bounded as the corpus grows.
+ */
+export async function listOpenJobTitles(): Promise<{ title: string; slug: string }[]> {
+  "use cache";
+  cacheLife("content");
+  cacheTag(tags.jobList());
+
+  // `today` rather than `now()`: `last_date` is a date, and a job closing today
+  // is open today.
+  const today = new Date().toISOString().slice(0, 10);
+
+  try {
+    return unwrap(
+      "listOpenJobTitles",
+      await publicDb()
+        .from("jobs")
+        .select("title, slug")
+        .eq("status", "published")
+        // An undated job is open until it says otherwise — the same reading
+        // `JobActions` takes on the detail page.
+        .or(`last_date.gte.${today},last_date.is.null`)
+        .order("updated_at", { ascending: false })
+        .limit(800),
+    );
+  } catch (error) {
+    // Degrades to no vacancy suggestions rather than failing the render. The
+    // syllabus typeahead's own exam suggestions are unaffected, so the box
+    // still works — it is simply narrower for one cache window.
+    console.warn(
+      "[listOpenJobTitles] Unreachable; syllabus typeahead omits vacancies this cache window.",
+      error instanceof Error ? error.message : error,
+    );
+    return [];
+  }
+}
+
+/**
  * Slugs for `generateStaticParams`, uncached and failure-tolerant.
  *
  * Deliberately separate from `listJobSlugs`; the reasoning lives in
  * `src/lib/db/build-params.ts`, next to the sentinel it returns.
+ *
+ * ── Why this one is still capped ───────────────────────────────────────────
+ * `listJobSlugs` above now pages to the whole corpus, because a sitemap that
+ * omits four-fifths of the site is a discovery bug. This one does not, and the
+ * difference is deliberate rather than an oversight left behind.
+ *
+ * Prerendering is a cost decision, not a discovery one. A slug that is not in
+ * this list is still in the sitemap, still crawlable, and still cached for
+ * thirty days after its first request — it costs one render, once. A slug that
+ * *is* in this list costs a render on every deploy, and the job detail page
+ * reads the `job_details` JSONB, so each one is ~15 kB of Supabase egress.
+ * Across two routes that call this — `/jobs/[slug]` and `/countdown/[slug]` —
+ * the whole corpus would be ~10,400 renders and ~150 MB per deploy, or about
+ * 4.5 GB a month at thirty deploys, against a 5 GB free-tier ceiling. The cap
+ * is what keeps a deploy from being the most expensive thing this app does.
+ *
+ * Ordered by `updated_at` descending, so the pages that are prerendered are
+ * the ones most recently touched — which is what a crawler arriving on the
+ * strength of a push notification will ask for first.
+ *
+ * Raising `BUILD_PRERENDER_LIMIT` is a legitimate thing to want; do the
+ * arithmetic above with the current corpus size before you do, and re-run
+ * `pnpm traffic`.
  */
 export async function listJobSlugsForBuild(): Promise<{ slug: string }[]> {
   return slugsForBuild("listJobSlugsForBuild", async () => {
@@ -411,7 +504,7 @@ export async function listJobSlugsForBuild(): Promise<{ slug: string }[]> {
       .select("slug")
       .eq("status", "published")
       .order("updated_at", { ascending: false })
-      .limit(20000);
+      .limit(BUILD_PRERENDER_LIMIT);
 
     if (error) throw error;
     return data;

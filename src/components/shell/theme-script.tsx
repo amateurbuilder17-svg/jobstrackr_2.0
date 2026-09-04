@@ -27,7 +27,24 @@ import Script from "next/script";
  * into `<head>` here; it renders inline at the top of `<body>`, which still runs
  * before any body content paints, so the anti-flash guarantee holds.
  */
-const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem('theme');var d=t?t==='dark':matchMedia('(prefers-color-scheme:dark)').matches;var e=document.documentElement;e.classList.toggle('dark',d);e.style.colorScheme=d?'dark':'light'}catch(e){}})()`;
+/**
+ * The credential screens are dark by default.
+ *
+ * They are the one place in the app that is designed dark-first — full-bleed
+ * artwork behind a glass card — so a visitor who has never touched the toggle
+ * should land on the screen as it was drawn, rather than on whatever their OS
+ * happens to prefer. An explicit choice still wins: the check below only
+ * replaces the *system* fallback, so someone who has picked light stays in
+ * light here too, and the toggle on the screen keeps working.
+ *
+ * Matched on the pathname because this script runs before React exists and has
+ * no other way to know the route. Client-side navigation into these routes
+ * does not re-run it — `AuthDarkDefault` in the auth layout covers that case,
+ * and the two have to agree on this list.
+ */
+const AUTH_ROUTES = /^\/(sign-in|sign-up|forgot-password|reset-password)\/?$/;
+
+const THEME_SCRIPT = `(function(){try{var t=localStorage.getItem('theme');var a=${String(AUTH_ROUTES)}.test(location.pathname);var d=t?t==='dark':a||matchMedia('(prefers-color-scheme:dark)').matches;var e=document.documentElement;e.classList.toggle('dark',d);e.style.colorScheme=d?'dark':'light'}catch(e){}})()`;
 
 export function ThemeScript() {
   return (

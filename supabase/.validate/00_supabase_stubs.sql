@@ -7,7 +7,11 @@ create table if not exists auth.users (
   email text unique,
   encrypted_password text,
   raw_user_meta_data jsonb,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  -- Real `auth.users` carries this; the admin users page reads it to show who
+  -- is still coming back. Stubbed here so the migration that selects it can be
+  -- proved on a vanilla container.
+  last_sign_in_at timestamptz
 );
 create or replace function auth.uid() returns uuid language sql stable as $$
   select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid

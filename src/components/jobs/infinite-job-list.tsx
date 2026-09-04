@@ -6,6 +6,7 @@ import { SortToggle, type SortOption } from "@/components/filters/filter-bar";
 import { JobCard, JobCardSkeleton } from "@/components/jobs/job-card";
 import type { JobCard as JobCardData } from "@/lib/db/queries/jobs";
 import { useInfiniteFeed } from "@/lib/hooks/use-infinite-feed";
+import { guardedJson } from "@/lib/net/guarded-fetch";
 
 export interface JobFilterValues {
   q?: string | undefined;
@@ -51,30 +52,39 @@ export function InfiniteJobList({
         params.set("sort", filterParams.sort);
       params.set("after", cursor);
 
-      const res = await fetch(`/api/jobs?${params.toString()}`);
-      if (!res.ok) {
-        throw new Error(`Failed to fetch jobs: ${String(res.status)}`);
-      }
-      return (await res.json()) as { items: JobCardData[]; nextCursor: string | null };
+      // Guarded rather than bare: a page of the feed is requested by an
+      // observer that re-fires whenever the sentinel is in view, so an
+      // endpoint that is down must be allowed to stop being asked.
+      return await guardedJson<{ items: JobCardData[]; nextCursor: string | null }>(
+        `/api/jobs?${params.toString()}`,
+      );
     },
     [filterParams],
   );
 
-  const { items, nextCursor, isLoading, isError, loadMore, sentinelRef, recordClickPosition } =
-    useInfiniteFeed<JobCardData>({
-      storagePrefix: "jobs",
-      filterKey,
-      initialItems,
-      initialCursor,
-      fetchNextPage,
-    });
+  const {
+    items,
+    nextCursor,
+    isLoading,
+    isError,
+    retryIn,
+    loadMore,
+    sentinelRef,
+    recordClickPosition,
+  } = useInfiniteFeed<JobCardData>({
+    storagePrefix: "jobs",
+    filterKey,
+    initialItems,
+    initialCursor,
+    fetchNextPage,
+  });
 
   const hasFilters = Boolean(
     filterParams.q ??
-      filterParams.state ??
-      filterParams.level ??
-      filterParams.stream ??
-      filterParams.sector,
+    filterParams.state ??
+    filterParams.level ??
+    filterParams.stream ??
+    filterParams.sector,
   );
 
   const countLabel = useMemo(() => {
@@ -122,18 +132,24 @@ export function InfiniteJobList({
       {/* Error state with retry */}
       {isError ? (
         <div className="mt-4 flex flex-col items-center justify-center gap-2 py-4">
-          <p className="text-xs text-ink-3">Could not load more jobs.</p>
+          <p className="text-xs text-ink-3">
+            {retryIn > 0
+              ? "The server is not responding. Waiting before trying again."
+              : "Could not load more jobs."}
+          </p>
           <button
             type="button"
+            disabled={retryIn > 0}
             onClick={() => {
               void loadMore();
             }}
             className={
               "inline-flex h-9 items-center rounded-md border border-line bg-surface px-4 " +
-              "text-xs font-medium text-ink transition-colors hover:border-line-strong hover:bg-surface-2"
+              "text-xs font-medium text-ink transition-colors hover:border-line-strong hover:bg-surface-2 " +
+              "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-line disabled:hover:bg-surface"
             }
           >
-            Retry
+            {retryIn > 0 ? `Retry in ${String(retryIn)}s` : "Retry"}
           </button>
         </div>
       ) : null}

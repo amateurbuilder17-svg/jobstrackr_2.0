@@ -10,6 +10,7 @@ import { EMPTY_FORM_STATE } from "@/lib/auth/form-state";
 import { cn } from "@/lib/cn";
 import type { SubjectSuggestion } from "@/lib/db/queries/attempts";
 import { formatDate } from "@/lib/format/deadline";
+import { guardedFetch } from "@/lib/net/guarded-fetch";
 import { saveAttemptAction } from "@/lib/tracker/actions";
 
 /**
@@ -185,8 +186,14 @@ function SubjectField({ error }: { error?: string | undefined }) {
       const controller = new AbortController();
       abort.current = controller;
 
-      fetch(`/api/tracker/suggest?q=${encodeURIComponent(key)}`, {
+      // No retries: a keystroke's suggestions are worth one attempt and no
+      // more — by the time a backoff elapsed the query would be stale anyway,
+      // and the breaker behind this stops a fast typist turning a dead
+      // endpoint into a request per character.
+      guardedFetch(`/api/tracker/suggest?q=${encodeURIComponent(key)}`, {
         signal: controller.signal,
+        timeoutMs: 6_000,
+        retries: 0,
       })
         .then((res) => (res.ok ? res.json() : { items: [] }))
         .then((body: { items?: SubjectSuggestion[] }) => {

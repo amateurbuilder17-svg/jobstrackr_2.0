@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { BrandMark } from "@/components/brand/artwork";
+
 /**
  * Site footer.
  *
@@ -27,6 +29,14 @@ export function SiteFooter() {
   return (
     <footer data-shell="site-footer" className="mt-auto border-t border-line bg-surface">
       <div className="mx-auto w-full max-w-6xl px-4 py-7 sm:px-6">
+        {/* The mark signs the page off. It is the last thing on every route,
+            and on a phone it is the only place the brand appears once the top
+            bar has given its row to the section name. */}
+        <Link href="/" className="mb-4 inline-flex items-center gap-2">
+          <BrandMark className="w-6" />
+          <span className="text-sm font-bold tracking-tight text-ink">JobsTrackr</span>
+        </Link>
+
         <nav aria-label="Footer">
           <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
             {LINKS.map(({ href, label }) => (

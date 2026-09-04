@@ -62,9 +62,19 @@ export async function searchSyllabusAction(
   if (cached) redirect(`/syllabus/${cached.slug}`);
 
   // ── 3. Spending money needs a name ────────────────────────────────────
+  // Answered in place rather than with a redirect. Throwing somebody who typed
+  // an exam name into a password field loses both the search and the reason for
+  // asking; `authRequired` lets the form say what it needs and offer the way in
+  // with the query still in the box.
   const user = await getUser();
   if (!user) {
-    redirect(`/sign-in?next=${encodeURIComponent(`/syllabus?q=${encodeURIComponent(query)}`)}`);
+    return {
+      ok: false,
+      authRequired: `/syllabus?q=${encodeURIComponent(query)}`,
+      errors: {
+        form: "Sign in to look up a syllabus — it is free, and your searches stay with your account.",
+      },
+    };
   }
 
   // ── 4. The cheap refusal ──────────────────────────────────────────────

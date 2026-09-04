@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { requireUser } from "@/lib/auth/session";
+import { SignInRequired } from "@/components/auth/sign-in-required";
+import { TrackerIcon } from "@/components/icons";
+import { getUser } from "@/lib/auth/session";
 import { listExamAttempts } from "@/lib/db/queries/attempts";
 import { listStatusReports } from "@/lib/db/queries/exam-status";
 import { listUpdateSignals, type ExamUpdateSignal } from "@/lib/db/queries/exam-updates";
@@ -34,7 +36,20 @@ export default function TrackerPage() {
 }
 
 async function Tracker() {
-  await requireUser("/tracker");
+  // A guest gets the invitation rather than a password field. Placed before the
+  // first read on purpose: everything below belongs to one account, so there is
+  // nothing to fetch for somebody who does not have one.
+  const user = await getUser();
+  if (!user) {
+    return (
+      <SignInRequired
+        title="Sign in to use My Exams"
+        description="Keep every exam you are preparing for in one place — deadlines, admit cards and what to do next, updated for you."
+        next="/tracker"
+        icon={TrackerIcon}
+      />
+    );
+  }
 
   // `listExams()` used to ride along here to fill the add-form's picker. The
   // picker is gone (the table holds no rows, and the form suggests live

@@ -101,6 +101,31 @@
   --color-danger: oklch(0.56 0.17 25);
   --color-danger-soft: oklch(0.96 0.03 25);
 
+  /* ── Calendar events ───────────────────────────────────────────────────
+     Five dates can happen to an exam, and on a month grid they are told apart
+     by hue alone — there is no room in a 32px square for a label. So these are
+     spaced around the wheel rather than drawn from the deadline ramp, and each
+     is paired with a `-soft` companion that carries it as a chip background.
+
+     Two deliberately re-state existing meaning: `close` is the `critical` red,
+     because the last date to apply *is* the deadline this app already paints
+     red everywhere else, and `open` is the accent green. The other three are
+     new hues, and they are the only new hues in the file.
+
+     The state colours above are reserved for state and these are not an
+     exception to that — an event type *is* a state, just one belonging to the
+     exam rather than to the row. They are still never decoration. */
+  --color-ev-open: oklch(45% 0.09 165);
+  --color-ev-open-soft: oklch(93.6% 0.026 165);
+  --color-ev-close: oklch(50.9% 0.165 34);
+  --color-ev-close-soft: oklch(94.2% 0.023 37);
+  --color-ev-admit: oklch(52% 0.115 72);
+  --color-ev-admit-soft: oklch(95.2% 0.036 82);
+  --color-ev-exam: oklch(47% 0.155 292);
+  --color-ev-exam-soft: oklch(94.4% 0.026 292);
+  --color-ev-result: oklch(48% 0.115 245);
+  --color-ev-result-soft: oklch(94% 0.026 245);
+
   /* ── Type ─────────────────────────────────────────────────────────────── */
   /* Archivo is a grotesque drawn for signage and functional typography; Archivo
      Narrow is its condensed sibling from the same foundry, used for metadata
@@ -251,6 +276,21 @@
     --color-danger: oklch(71.5% 0.13 34);
     --color-danger-soft: oklch(25.8% 0.045 35);
 
+    /* Lightness and chroma swap roles on a dark ground: the base rises to stay
+       legible as text, the soft drops to stay legible as a background. The hues
+       themselves do not move — a violet exam dot has to be the same idea in
+       both themes or the legend has to be re-learned. */
+    --color-ev-open: oklch(76.1% 0.107 163);
+    --color-ev-open-soft: oklch(29.8% 0.041 169);
+    --color-ev-close: oklch(71.5% 0.13 34);
+    --color-ev-close-soft: oklch(25.8% 0.045 35);
+    --color-ev-admit: oklch(79% 0.12 78);
+    --color-ev-admit-soft: oklch(28.4% 0.045 80);
+    --color-ev-exam: oklch(76% 0.115 292);
+    --color-ev-exam-soft: oklch(28.6% 0.055 292);
+    --color-ev-result: oklch(75% 0.098 243);
+    --color-ev-result-soft: oklch(27.8% 0.048 245);
+
     --shadow-xs: 0 0 #0000;
     --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.5), 0 2px 8px -4px oklch(0% 0 0 / 0.6);
     --shadow-md: 0 1px 3px oklch(0% 0 0 / 0.5), 0 8px 24px -12px oklch(0% 0 0 / 0.7);
@@ -400,6 +440,31 @@
   &::-webkit-scrollbar {
     display: none;
   }
+}
+
+/* The calendar's today marker.
+
+   A ring that expands and fades rather than a filled square that blinks: the
+   square is already filled, and the reader needs to find it in a 42-cell grid
+   at a glance without the cell's own number changing legibility. The animation
+   is on the shadow alone, so it never reflows and never touches contrast.
+
+   `prefers-reduced-motion` kills it via the global rule above, which leaves the
+   solid fill — the marker still reads as today, it just stops moving. */
+@keyframes jt-today-pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--color-accent);
+  }
+  70% {
+    box-shadow: 0 0 0 7px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@utility today-pulse {
+  animation: jt-today-pulse 2.4s var(--ease-out-quart) infinite;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

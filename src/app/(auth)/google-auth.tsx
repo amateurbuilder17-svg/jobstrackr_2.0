@@ -1,31 +1,62 @@
 import { signInWithGoogleAction } from "@/lib/auth/actions";
+import { env } from "@/lib/env";
 import { SocialSubmit } from "./auth-submit";
 import { AuthDivider } from "./auth-ui";
+import { GoogleIdentity, type GoogleButtonText } from "./google-identity";
 
 /**
  * "Continue with Google", in the credential card's own styling.
  *
- * The same shape as `@/components/auth/google-auth` — one form, one hidden
- * `next`, one server action — and it posts to exactly that action. What is not
- * shared is the chrome: the app's version renders a `Button` on paper, and the
- * divider it draws sits above the button rather than below it, which is the
- * wrong order for this card.
+ * Two paths, and which one runs is decided by whether
+ * `NEXT_PUBLIC_GOOGLE_CLIENT_ID` is set:
  *
- * A Server Component. It renders inside the client forms without pulling
- * anything into their bundles, because `children` crossing that boundary is
- * already-rendered output rather than code.
+ *   • **Google Identity Services** (preferred). The consent request is made by
+ *     this origin, so Google's account chooser reads "to continue to
+ *     JobsTrackr". This is the whole reason it exists — see `google-identity.tsx`.
+ *
+ *   • **The Supabase redirect** (fallback). One form, one hidden `next`, one
+ *     server action. Correct, and slightly slower, and Google labels it with
+ *     the Supabase project host because Supabase is the party asking.
+ *
+ * The fallback is not dead code on a configured deployment: it is what renders
+ * when Google's script is blocked, which an ad blocker or a corporate proxy
+ * does often enough to matter.
+ *
+ * A Server Component. `GoogleIdentity` is the only client code here, and the
+ * fallback crosses into it as already-rendered output rather than as code.
  */
-export function GoogleAuth({ next, label }: { next?: string | undefined; label?: string }) {
+export function GoogleAuth({
+  next,
+  label,
+  text = "continue_with",
+}: {
+  next?: string | undefined;
+  label?: string;
+  text?: GoogleButtonText;
+}) {
+  const redirectForm = (
+    <form action={signInWithGoogleAction}>
+      <input type="hidden" name="next" value={next ?? ""} />
+      <SocialSubmit>
+        <GoogleMark />
+        {label ?? "Continue with Google"}
+      </SocialSubmit>
+    </form>
+  );
+
   return (
     <>
       <AuthDivider label="or continue with" />
-      <form action={signInWithGoogleAction}>
-        <input type="hidden" name="next" value={next ?? ""} />
-        <SocialSubmit>
-          <GoogleMark />
-          {label ?? "Continue with Google"}
-        </SocialSubmit>
-      </form>
+      {env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ? (
+        <GoogleIdentity
+          clientId={env.NEXT_PUBLIC_GOOGLE_CLIENT_ID}
+          next={next}
+          text={text}
+          fallback={redirectForm}
+        />
+      ) : (
+        redirectForm
+      )}
     </>
   );
 }

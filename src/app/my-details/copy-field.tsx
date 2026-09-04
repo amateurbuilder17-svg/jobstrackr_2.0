@@ -95,14 +95,18 @@ export function CopyField({
   }
 
   return (
-    <div className="flex items-start justify-between gap-3 border-b border-line py-2.5 last:border-0">
+    <div className="flex items-center justify-between gap-4 px-4 py-3 transition-colors duration-(--duration-fast) hover:bg-surface-2/40 sm:px-5 sm:py-3.5">
       <div className="min-w-0 flex-1">
-        <p className="text-xs text-ink-3">{label}</p>
-        <p className="truncate text-sm font-medium text-ink">
-          {empty ? <span className="font-normal text-ink-3 italic">Not saved</span> : value}
+        <p className="text-xs font-medium text-ink-3">{label}</p>
+        <p className="mt-0.5 truncate text-sm font-semibold text-ink sm:text-[0.9375rem]">
+          {empty ? (
+            <span className="text-xs font-normal italic text-ink-3 sm:text-sm">Not saved</span>
+          ) : (
+            value
+          )}
         </p>
         {message ? (
-          <p role="alert" className="mt-0.5 text-xs text-critical">
+          <p role="alert" className="mt-1 text-xs font-medium text-critical">
             {message}
           </p>
         ) : null}
@@ -115,28 +119,30 @@ export function CopyField({
           disabled={pending}
           aria-label={state === "revealed" ? `Copy ${label} to clipboard` : `Copy ${label}`}
           className={
-            "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-line " +
-            "bg-surface px-2.5 text-xs font-medium text-ink-2 " +
-            "transition-colors duration-(--duration-fast) hover:border-line-strong " +
-            "hover:text-ink disabled:opacity-60"
+            "inline-flex h-8 sm:h-8.5 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition-all duration-150 active:scale-95 disabled:opacity-60 " +
+            (state === "copied"
+              ? "border-good/30 bg-good-soft font-semibold text-good"
+              : state === "revealed"
+                ? "border-accent-line bg-accent-soft font-semibold text-accent"
+                : "border-line bg-surface text-ink-2 hover:border-line-strong hover:bg-surface-2 hover:text-ink")
           }
         >
           {state === "copied" ? (
             <>
-              <CheckIcon className="size-3.5 text-accent" />
-              Copied
+              <CheckIcon className="size-3.5 text-good" />
+              <span>Copied</span>
             </>
           ) : state === "revealed" ? (
             <>
-              <FileIcon className="size-3.5" />
-              Copy now
+              <FileIcon className="size-3.5 text-accent" />
+              <span>Copy now</span>
             </>
           ) : pending ? (
             "…"
           ) : (
             <>
-              <FileIcon className="size-3.5" />
-              Copy
+              <FileIcon className="size-3.5 text-ink-3" />
+              <span>Copy</span>
             </>
           )}
         </button>

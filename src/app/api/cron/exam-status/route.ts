@@ -29,7 +29,8 @@ import { getServerEnv } from "@/lib/env.server";
  *     `stale_status_subjects` decides that in one indexed query — see 0023 for
  *     why it is a SQL function rather than a query here.
  *
- * This is the second and last of the two cron slots Vercel Hobby allows. Daily
+ * A Vercel cron rather than a ride on ingest, because daily is the cadence
+ * this wants — which is also the only cadence Hobby crons offer. Daily
  * is also all Hobby offers, which suits: exam schedules move on the scale of
  * days, and the button covers the hour somebody actually needs an answer.
  *

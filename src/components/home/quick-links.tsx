@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ComponentType, SVGProps } from "react";
 
-import { BookmarkIcon, CalendarIcon, FlameIcon, SparkIcon } from "@/components/icons";
+import { BookmarkIcon, CalendarIcon, MegaphoneIcon, SparklesIcon } from "@/components/icons";
 import { CardInteractive } from "@/components/ui/card";
 
 /**
@@ -27,7 +27,7 @@ const LINKS: {
     href: "/for-you",
     label: "For You",
     blurb: "Jobs you are actually eligible for",
-    icon: SparkIcon,
+    icon: SparklesIcon,
   },
   {
     href: "/calendar",
@@ -39,7 +39,7 @@ const LINKS: {
     href: "/updates",
     label: "Updates",
     blurb: "Admit cards, results, answer keys",
-    icon: FlameIcon,
+    icon: MegaphoneIcon,
   },
   {
     href: "/saved",

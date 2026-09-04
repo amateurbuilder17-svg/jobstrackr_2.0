@@ -42,6 +42,7 @@ import {
 import { listUpdateLinksForJob, listUpdatesForJob } from "@/lib/db/queries/exam-updates";
 import { CATEGORY_LABELS } from "@/lib/updates/categories";
 import { jobPostingJsonLd } from "@/lib/seo/job-jsonld";
+import { breadcrumbJsonLd } from "@/lib/seo/site-jsonld";
 
 /**
  * Job detail.
@@ -130,8 +131,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
     /admit[\s-]?card|hall[\s-]?ticket/i.test(d.event),
   );
   const examEntry = importantDates.find((d) => /exam/i.test(d.event));
-  const admitCardDate =
-    admitCardEntry?.date ?? (examEntry ? `Exam: ${examEntry.date}` : null);
+  const admitCardDate = admitCardEntry?.date ?? (examEntry ? `Exam: ${examEntry.date}` : null);
 
   const orgName = job.organization?.name.trim();
   const orgShort = job.organization?.short_name?.trim();
@@ -150,12 +150,20 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
     // rather than against the viewport. `pb-28` on mobile clears the fixed
     // action bar; without it the last section sits underneath it.
     <div className="relative mx-auto max-w-3xl px-4 pt-6 pb-28 lg:px-6 lg:pb-12">
-      {/* Emitted server-side so a crawler sees it in the initial HTML. */}
+      {/* Emitted server-side so a crawler sees it in the initial HTML.
+          One script holding an array rather than two scripts: JSON-LD permits
+          it, and the breadcrumb is only ever read alongside the posting. */}
       <script
         type="application/ld+json"
         // Content is built from typed database columns, not user input.
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(jobPostingJsonLd(job, env.NEXT_PUBLIC_SITE_URL)),
+          __html: JSON.stringify([
+            jobPostingJsonLd(job, env.NEXT_PUBLIC_SITE_URL),
+            breadcrumbJsonLd(env.NEXT_PUBLIC_SITE_URL, [
+              { name: "Jobs", path: "/jobs" },
+              { name: job.title },
+            ]),
+          ]),
         }}
       />
 
@@ -379,7 +387,7 @@ async function RelatedRail({
 
   return (
     <Section title="More from this department">
-      <ul className="overflow-hidden rounded-lg border border-line border-b-0">
+      <ul className="flex flex-col gap-3">
         {jobs.map((job) => (
           <li key={job.id}>
             <JobCard job={job} />
@@ -392,11 +400,10 @@ async function RelatedRail({
 
 function RailSkeleton({ title }: { title: string }) {
   return (
-    <section className="mt-8" aria-busy="true">
-      <h2 className="text-lg font-semibold text-ink">{title}</h2>
-      <div className="mt-3 flex flex-col gap-3">
+    <Section title={title}>
+      <div className="flex flex-col gap-3" aria-busy="true">
         <JobCardSkeleton />
       </div>
-    </section>
+    </Section>
   );
 }

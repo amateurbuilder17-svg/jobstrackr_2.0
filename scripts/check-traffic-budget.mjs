@@ -23,7 +23,23 @@ const LIMITS = {
   vercelBandwidthGb: 100, // Vercel Hobby
   vercelInvocations: 1_000_000, // Vercel Hobby
   vercelEdgeRequests: 1_000_000, // Vercel Hobby
+  // Vercel Hobby, under Fluid compute. These two are how function *time* is
+  // metered now, and this file modelled neither until the SEO worker made
+  // duration a thing this project spends — an `after()` callback runs inside
+  // its route's budget, so it is billed as that route running for longer.
+  //
+  // Active CPU is CPU actually consumed; waiting on a database or an HTTP call
+  // does not count towards it. Provisioned Memory is memory reserved times
+  // wall-clock time, so I/O waiting is exactly what it does count. Nearly
+  // everything this app does is waiting, which is why the two projections
+  // below come out an order of magnitude apart.
+  vercelActiveCpuHours: 4,
+  vercelProvisionedGbHours: 360,
 };
+
+// Hobby functions are 2 GB / 1 vCPU, fixed — not configurable on this plan.
+// Provisioned Memory is therefore 2 GB times however long a function runs.
+const FUNCTION_MEMORY_GB = 2;
 
 /* ── Traffic ───────────────────────────────────────────────────────────── */
 // From the plan §0.5: 99 registered users, ~30 daily. Crawler traffic is the
@@ -50,6 +66,13 @@ const TRAFFIC = {
   // The nightly cron adds its own fixed batch.
   statusRefreshesPerMonth: 30 * 30,
   statusCronCallsPerMonth: 30 * 6,
+  // Sitemap rebuilds. Bounded by invalidation, not by crawler appetite: the
+  // entry is only marked stale when an ingest actually writes something, so
+  // however often a crawler asks, it can regenerate at most once an hour. That
+  // upper bound is what is modelled — the real figure is the number of times a
+  // crawler happens to ask *after* an invalidation, which for a site this size
+  // is nearer ten a day than twenty-four.
+  sitemapRegenerationsPerMonth: 30 * 24,
 };
 
 /* ── Measured payloads, in kilobytes ───────────────────────────────────── */
@@ -120,6 +143,59 @@ const PAYLOAD = {
   // files on their own URLs, so a visitor fetches them once and every
   // subsequent view — including every other route — costs nothing.
   brandArtKb: 22,
+  // The SEO worker's own reads, per run: two `seo_ping_state` rows, then a
+  // slug and a timestamp for each candidate row. Modelled at the full
+  // `CAPS.indexNowPerRun` batch of 500 across the two content tables at ~90
+  // bytes a row — which is the backfill, not the steady state, where a run
+  // finds a handful of changed listings or none at all. The receipt written to
+  // `seo_ping_log` is smaller again.
+  //
+  // The outbound POSTs are not counted here: those bytes go to Bing and
+  // Google, not to Supabase, and at 500 URLs the IndexNow body is ~35 kB
+  // against a 100 GB Vercel transfer allowance.
+  seoWorkerKb: 45,
+  // One sitemap regeneration: a slug and an `updated_at` for every published
+  // job and update, at ~60 bytes a row across a ~5,200 + ~3,000 corpus, plus
+  // the per-request overhead of the nine paged round trips it now takes.
+  //
+  // This line did not exist while the query was silently truncated to 1,000
+  // rows a table by Supabase's `max_rows` — the read was a fifth of this size
+  // and the sitemap was a fifth of the site. Paging past the cap is what makes
+  // the sitemap complete, and this is what that costs.
+  sitemapRegenerationKb: 520,
+};
+
+/* ── Function time, per invocation ─────────────────────────────────────── */
+// Seconds. `wall` is what Provisioned Memory bills; `cpu` is what Active CPU
+// bills, and the gap between them is time spent waiting on Supabase, Gemini or
+// an indexing endpoint.
+//
+// UNLIKE the payload figures above, these are ESTIMATES rather than
+// measurements — this project has no production traffic to measure yet. They
+// are deliberately pessimistic, and the honest way to read the result is "two
+// orders of magnitude of headroom, so the estimate would have to be wrong by
+// 100x to matter", not "3.4% is the true figure". Replace them with real
+// numbers from Vercel Observability once there are any.
+const TIMING = {
+  // A page of matched jobs plus the session read: several Supabase round trips,
+  // very little computation.
+  personalisedRoute: { wall: 0.4, cpu: 0.15 },
+  adminRoute: { wall: 0.5, cpu: 0.25 },
+  // The ingest batch: diff, upsert, detail writes, revalidation.
+  syncRun: { wall: 4, cpu: 0.6 },
+  // The SEO worker, as an `after()` callback on the sync invocation above.
+  // Modelled at its hard ceiling (RUN_BUDGET_MS = 8s) rather than at the ~0.5s
+  // a steady-state run takes, because the worst case is what a budget is for:
+  // this is the backfill, and a run that spends its whole allowance every hour
+  // for a month.
+  seoWorker: { wall: 8, cpu: 0.1 },
+  // An LLM call with Google Search grounding. Ten to twenty seconds of waiting
+  // and almost no local work — the single largest line in the wall-clock
+  // column, and nearly absent from the CPU one.
+  statusRefresh: { wall: 15, cpu: 0.3 },
+  serverAction: { wall: 0.3, cpu: 0.2 },
+  // IndexNow's verifier fetching /<key>.txt. One env read and a string.
+  indexNowKeyFetch: { wall: 0.05, cpu: 0.02 },
 };
 
 /* ── Stored rows ───────────────────────────────────────────────────────── */
@@ -169,6 +245,8 @@ const supabaseKb =
   TRAFFIC.personalisedSessionsPerMonth * (PAYLOAD.forYouRpcKb + PAYLOAD.sessionPayloadKb) +
   TRAFFIC.adminSessionsPerMonth * PAYLOAD.adminSessionKb +
   TRAFFIC.syncRunsPerMonth * PAYLOAD.syncRunKb +
+  TRAFFIC.syncRunsPerMonth * PAYLOAD.seoWorkerKb +
+  TRAFFIC.sitemapRegenerationsPerMonth * PAYLOAD.sitemapRegenerationKb +
   TRAFFIC.personalisedSessionsPerMonth * PAYLOAD.trackerPageKb +
   (TRAFFIC.statusRefreshesPerMonth + TRAFFIC.statusCronCallsPerMonth) * PAYLOAD.statusRefreshKb;
 
@@ -180,7 +258,27 @@ const invocations =
   TRAFFIC.syncRunsPerMonth +
   TRAFFIC.statusRefreshesPerMonth +
   TRAFFIC.statusCronCallsPerMonth +
-  humanPageViews * 0.1; // server actions: saves, form posts
+  humanPageViews * 0.1 + // server actions: saves, form posts
+  // The SEO worker adds NO invocation of its own — it is an `after()` callback
+  // on the sync request, which is the whole reason it was put there. What it
+  // does add is IndexNow's verifier fetching the key file, at most once per
+  // submission.
+  TRAFFIC.syncRunsPerMonth;
+
+// Function time. Wall-clock seconds bill Provisioned Memory; CPU seconds bill
+// Active CPU. The SEO worker appears in both columns as an addition to the sync
+// invocation rather than as an invocation of its own.
+const functionSeconds = (pick) =>
+  TRAFFIC.personalisedSessionsPerMonth * 6 * TIMING.personalisedRoute[pick] +
+  TRAFFIC.adminSessionsPerMonth * 8 * TIMING.adminRoute[pick] +
+  TRAFFIC.syncRunsPerMonth * (TIMING.syncRun[pick] + TIMING.seoWorker[pick]) +
+  (TRAFFIC.statusRefreshesPerMonth + TRAFFIC.statusCronCallsPerMonth) *
+    TIMING.statusRefresh[pick] +
+  humanPageViews * 0.1 * TIMING.serverAction[pick] +
+  TRAFFIC.syncRunsPerMonth * TIMING.indexNowKeyFetch[pick];
+
+const activeCpuHours = functionSeconds("cpu") / 3600;
+const provisionedGbHours = (functionSeconds("wall") / 3600) * FUNCTION_MEMORY_GB;
 
 const storedMb =
   Object.values(STORED).reduce((sum, t) => sum + t.rows * t.bytesPerRow, 0) / (1024 * 1024);
@@ -211,6 +309,16 @@ const projection = {
     limit: LIMITS.vercelEdgeRequests,
     unit: "",
   },
+  "Vercel active CPU": {
+    value: activeCpuHours,
+    limit: LIMITS.vercelActiveCpuHours,
+    unit: "CPU-hr",
+  },
+  "Vercel provisioned memory": {
+    value: provisionedGbHours,
+    limit: LIMITS.vercelProvisionedGbHours,
+    unit: "GB-hr",
+  },
 };
 
 /* ── Report ────────────────────────────────────────────────────────────── */
@@ -220,9 +328,9 @@ const MARGIN = 0.5;
 
 console.log("");
 console.log(
-  `  ${"Resource".padEnd(20)} ${"Projected".padStart(12)} ${"Limit".padStart(10)}   Used`,
+  `  ${"Resource".padEnd(26)} ${"Projected".padStart(13)} ${"Limit".padStart(11)}   Used`,
 );
-console.log(`  ${"─".repeat(20)} ${"─".repeat(12)} ${"─".repeat(10)}   ────`);
+console.log(`  ${"─".repeat(26)} ${"─".repeat(13)} ${"─".repeat(11)}   ────`);
 
 const breaches = [];
 for (const [name, { value, limit, unit }] of Object.entries(projection)) {
@@ -235,7 +343,7 @@ for (const [name, { value, limit, unit }] of Object.entries(projection)) {
     : Math.round(value).toLocaleString("en-IN");
   const cap = unit ? `${String(limit)} ${unit}` : limit.toLocaleString("en-IN");
   console.log(
-    `${over ? "✗" : " "} ${name.padEnd(20)} ${shown.padStart(12)} ${cap.padStart(10)}   ${(ratio * 100).toFixed(1)}%`,
+    `${over ? "✗" : " "} ${name.padEnd(26)} ${shown.padStart(13)} ${cap.padStart(11)}   ${(ratio * 100).toFixed(1)}%`,
   );
 }
 console.log("");
