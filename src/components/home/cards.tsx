@@ -22,7 +22,6 @@ export function TrackedExamCard({ attempt }: { attempt: ExamAttempt }) {
     "EXAM";
   const logo = attempt.exam?.organization?.logo_path ?? attempt.job?.organization?.logo_path;
   const dateStr = formatDate(attempt.exam_date) ?? "No date yet";
-  const href = attempt.job ? `/jobs/${attempt.job.slug}` : "/tracker";
 
   // Calculate rough stage progress
   let stagesDone = 2;
@@ -36,7 +35,8 @@ export function TrackedExamCard({ attempt }: { attempt: ExamAttempt }) {
 
   return (
     <Link
-      href={href}
+      prefetch={false}
+      href="/tracker"
       className={cn(
         "group relative block w-[clamp(15rem,72vw,18rem)] shrink-0 snap-start rounded-2xl border border-border bg-card p-3 text-left shadow-card sm:p-3.5",
         "transition-all duration-200 ease-out hover:border-brand/25 hover:shadow-card-hover active:scale-[0.99]",
@@ -78,6 +78,7 @@ export function PopularExamCard({ exam }: { exam: PopularExam }) {
 
   return (
     <Link
+      prefetch={false}
       href={`/calendar?exam=${exam.slug}`}
       className={cn(
         "group flex w-[clamp(7.25rem,33vw,8.75rem)] shrink-0 snap-start flex-col gap-2 rounded-2xl border border-border bg-card p-3 text-left shadow-card sm:p-3.5",
@@ -105,6 +106,7 @@ export function JobCard({ job, compact = false }: { job: JobCardData; compact?: 
 
   return (
     <Link
+      prefetch={false}
       href={`/jobs/${job.slug}`}
       className={cn(
         "group relative block rounded-2xl border border-border bg-card p-3.5 text-left shadow-card sm:p-4",
@@ -146,6 +148,7 @@ export function ClosingSoonCard({ job }: { job: JobCardData }) {
 
   return (
     <Link
+      prefetch={false}
       href={`/jobs/${job.slug}`}
       className={cn(
         "group relative block w-[clamp(17rem,80vw,20rem)] shrink-0 snap-start rounded-2xl border border-brand/25 bg-brand-soft/70 p-3 text-left shadow-card sm:p-3.5",
@@ -211,6 +214,7 @@ export function ExamUpdateCard({ update }: { update: ExamUpdateCardData }) {
 
   return (
     <Link
+      prefetch={false}
       href={`/exam-update/${update.slug}`}
       className={cn(
         "group relative block rounded-2xl border border-border bg-card p-3.5 text-left shadow-card sm:p-4",

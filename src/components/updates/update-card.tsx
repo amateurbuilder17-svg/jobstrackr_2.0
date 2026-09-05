@@ -90,7 +90,10 @@ export function UpdateCard({
 
           {/* Update Title */}
           <h3 className="mt-1.5 text-[0.9375rem] sm:text-base font-bold leading-snug tracking-tight text-ink line-clamp-2">
+            {/* Not prefetched — see the note in `JobCard`. A list of cards is a
+                set of candidates, not a set of intents. */}
             <Link
+              prefetch={false}
               href={`/updates/${update.slug}`}
               className="after:absolute after:inset-0 hover:text-accent transition-colors"
             >

@@ -47,7 +47,11 @@ export function Spotlight({ job }: { job: JobCard }) {
       </div>
 
       <h3 className="mt-3 line-clamp-2 text-lg leading-snug font-bold text-ink lg:text-xl">
-        <Link href={`/jobs/${job.slug}`} className="after:absolute after:inset-0">
+        <Link
+          prefetch={false}
+          href={`/jobs/${job.slug}`}
+          className="after:absolute after:inset-0"
+        >
           {job.title}
         </Link>
       </h3>

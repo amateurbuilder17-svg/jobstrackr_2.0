@@ -122,7 +122,7 @@ function Row({ item, dense }: { item: MenuItem; dense: boolean }) {
   }
 
   return (
-    <Link href={href} className={cn(ROW, "hover:bg-surface-2")}>
+    <Link prefetch={false} href={href} className={cn(ROW, "hover:bg-surface-2")}>
       {body}
       <ChevronRightIcon className="size-4 shrink-0 text-ink-3" />
     </Link>

@@ -132,7 +132,16 @@ export function JobCard({
             <div className="min-w-0 flex-1">
               {/* Job Title */}
               <h3 className="text-[0.9375rem] sm:text-base font-bold leading-snug tracking-tight text-ink line-clamp-2">
+                {/* Not prefetched, and this is the single biggest lever on how
+                    fast this app feels. Next prefetches every `<Link>` that
+                    scrolls into view; a job detail payload is ~44 kB, so one
+                    settled view of /jobs was pulling ~444 kB of pages nobody
+                    had asked for — over the same connection the search box was
+                    waiting on, which is most of why typing there felt slow. A
+                    list is a set of candidates, not a set of intents. The one
+                    card that does get tapped can afford its own round trip. */}
                 <Link
+                  prefetch={false}
                   href={`/jobs/${job.slug}`}
                   className="after:absolute after:inset-0 hover:text-accent transition-colors"
                 >

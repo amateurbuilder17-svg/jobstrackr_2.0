@@ -23,7 +23,11 @@ export function ExamTile({ exam }: { exam: PopularExam }) {
       <Monogram name={name} />
 
       <h3 className="mt-3 line-clamp-2 text-sm leading-snug font-semibold text-ink">
-        <Link href={`/updates?exam=${exam.slug}`} className="after:absolute after:inset-0">
+        <Link
+          prefetch={false}
+          href={`/updates?exam=${exam.slug}`}
+          className="after:absolute after:inset-0"
+        >
           {name}
         </Link>
       </h3>

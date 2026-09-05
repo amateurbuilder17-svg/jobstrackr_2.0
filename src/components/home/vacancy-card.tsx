@@ -43,7 +43,11 @@ export function VacancyCard({ job }: { job: JobCard }) {
       <p className="text-2xs font-medium tracking-wide text-ink-3 uppercase">vacancies</p>
 
       <h3 className="mt-2.5 line-clamp-3 flex-1 text-sm leading-snug font-semibold text-ink">
-        <Link href={`/jobs/${job.slug}`} className="after:absolute after:inset-0">
+        <Link
+          prefetch={false}
+          href={`/jobs/${job.slug}`}
+          className="after:absolute after:inset-0"
+        >
           {job.title}
         </Link>
       </h3>
