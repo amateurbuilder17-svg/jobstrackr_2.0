@@ -1,0 +1,242 @@
+ID,Organization_Name,Sector,Organization_Type,Acronym,Official_Logo_Link
+1,Bank of Baroda (BOB),Banking & Finance,Bank / Regulator / Insurance,BOB,https://upload.wikimedia.org/wikipedia/commons/e/ec/Bank_of_Baroda_Logo_since_Dec_19.png
+2,Bank of India (BOI),Banking & Finance,Bank / Regulator / Insurance,BOI,https://raw.githubusercontent.com/praveenpuglia/indian-banks/main/assets/logos/bkid/logo.svg
+3,Bank of Maharashtra (BOM),Banking & Finance,Bank / Regulator / Insurance,BOM,https://upload.wikimedia.org/wikipedia/commons/e/e5/Bank_of_Maharashtra_logo.svg
+4,Canara Bank,Banking & Finance,Bank / Regulator / Insurance,CB,https://upload.wikimedia.org/wikipedia/commons/5/50/Canara_Bank_Logo.svg
+5,Central Bank of India (CBI),Banking & Finance,Bank / Regulator / Insurance,CBI,https://raw.githubusercontent.com/praveenpuglia/indian-banks/main/assets/logos/cbin/logo.svg
+6,General Insurance Corporation of India (GIC),Banking & Finance,Bank / Regulator / Insurance,GIC,https://vigilance.gicre.in/storage/setting/logo/gic-logo.png
+7,Indian Bank,Banking & Finance,Bank / Regulator / Insurance,IB,https://raw.githubusercontent.com/praveenpuglia/indian-banks/main/assets/logos/idib/logo.svg
+8,Indian Overseas Bank (IOB),Banking & Finance,Bank / Regulator / Insurance,IOB,https://upload.wikimedia.org/wikipedia/commons/2/29/Indian_Overseas_Bank_Logo.svg
+9,Institute of Banking Personnel Selection (IBPS),Banking & Finance,Bank / Regulator / Insurance,IBPS,https://www.ibps.in/wp-content/uploads/logo-2.png
+10,Life Insurance Corporation of India (LIC),Banking & Finance,Bank / Regulator / Insurance,LIC,https://upload.wikimedia.org/wikipedia/mr/a/aa/LIC_Logo.svg
+11,National Bank for Agriculture and Rural Development (NABARD),Banking & Finance,Bank / Regulator / Insurance,NABARD,https://upload.wikimedia.org/wikipedia/commons/8/8f/NABARD.jpg
+12,National Insurance Company Limited (NICL),Banking & Finance,Bank / Regulator / Insurance,NICL,https://nationalinsurance.nic.co.in/themes/custom/nicl/logo.svg
+13,New India Assurance Company (NIACL),Banking & Finance,Bank / Regulator / Insurance,NIACL,https://images.seeklogo.com/logo-png/28/1/new-india-assurance-logo-png_seeklogo-289935.png
+14,Oriental Insurance Company (OICL),Banking & Finance,Bank / Regulator / Insurance,OICL,https://oicl-cms-media.s3.ap-south-1.amazonaws.com/oicl_logo_f696d7368c.png
+15,Punjab & Sind Bank (PSB),Banking & Finance,Bank / Regulator / Insurance,PSB,https://raw.githubusercontent.com/praveenpuglia/indian-banks/main/assets/logos/psib/logo.svg
+16,Punjab National Bank (PNB),Banking & Finance,Bank / Regulator / Insurance,PNB,https://raw.githubusercontent.com/praveenpuglia/indian-banks/main/assets/logos/punb/logo.svg
+17,Reserve Bank of India (RBI),Banking & Finance,Bank / Regulator / Insurance,RBI,https://upload.wikimedia.org/wikipedia/commons/8/8d/Reserve_Bank_of_India_logo.svg
+18,Securities and Exchange Board of India (SEBI),Banking & Finance,Bank / Regulator / Insurance,SEBI,https://upload.wikimedia.org/wikipedia/commons/1/18/Securities_Exchange_Board_of_India.jpg
+19,Small Industries Development Bank of India (SIDBI),Banking & Finance,Bank / Regulator / Insurance,SIDBI,https://upload.wikimedia.org/wikipedia/commons/8/87/SIDBI_LOGO.png
+20,State Bank of India (SBI),Banking & Finance,Bank / Regulator / Insurance,SBI,https://upload.wikimedia.org/wikipedia/commons/3/33/State_Bank_of_India.svg
+21,UCO Bank,Banking & Finance,Bank / Regulator / Insurance,UB,https://raw.githubusercontent.com/praveenpuglia/indian-banks/main/assets/logos/ucba/logo.svg
+22,Union Bank of India (UBI),Banking & Finance,Bank / Regulator / Insurance,UBI,https://upload.wikimedia.org/wikipedia/commons/d/d0/Union_Bank_of_India_Logo.svg
+23,United India Insurance Company (UIIC),Banking & Finance,Bank / Regulator / Insurance,UIIC,https://upload.wikimedia.org/wikipedia/commons/d/df/United_India_Insurance.svg
+24,Comptroller and Auditor General of India (CAG),Central Government,Apex Body / Ministry,CAG,https://cag.gov.in/themes/c_o_e_f_a_j_o_u_r_n_a_l/assets/images/cagindia.png
+25,Election Commission of India (ECI),Central Government,Apex Body / Ministry,ECI,https://upload.wikimedia.org/wikipedia/commons/7/72/Election_Commission_of_India_Logo.svg
+26,Government of India Ministries (Standard National Emblem),Central Government,Apex Body / Ministry,Standard National Emblem,https://upload.wikimedia.org/wikipedia/commons/5/55/Emblem_of_India.svg
+27,India Post (Department of Posts),Central Government,Apex Body / Ministry,Department of Posts,https://upload.wikimedia.org/wikipedia/commons/b/be/India-post-logo.jpg
+28,National Testing Agency (NTA),Central Government,Apex Body / Ministry,NTA,https://upload.wikimedia.org/wikipedia/commons/2/22/NTA_logo.png
+29,Staff Selection Commission (SSC),Central Government,Apex Body / Ministry,SSC,https://ssc.gov.in/assets/sscLogo.webp
+30,Union Public Service Commission (UPSC),Central Government,Apex Body / Ministry,UPSC,https://upload.wikimedia.org/wikipedia/commons/6/67/Logo_-_Union_Public_Service_Commission_-_Government_of_India.jpg
+31,Assam Rifles (AR),Defence & Security,Armed Forces / Paramilitary,AR,https://upload.wikimedia.org/wikipedia/commons/0/01/Assam_Rifles_LOGO.svg
+32,Border Roads Organisation (BRO),Defence & Security,Armed Forces / Paramilitary,BRO,https://upload.wikimedia.org/wikipedia/en/thumb/6/6f/Border_Roads_Organisation_logo.png/220px-Border_Roads_Organisation_logo.png
+33,Border Security Force (BSF),Defence & Security,Armed Forces / Paramilitary,BSF,https://upload.wikimedia.org/wikipedia/commons/6/67/BSF_Logo.png
+34,Central Bureau of Investigation (CBI),Defence & Security,Armed Forces / Paramilitary,CBI,https://upload.wikimedia.org/wikipedia/commons/4/4b/Cbi_logo.svg
+35,Central Industrial Security Force (CISF),Defence & Security,Armed Forces / Paramilitary,CISF,https://upload.wikimedia.org/wikipedia/commons/5/52/CISF_LOGO.svg
+36,Central Reserve Police Force (CRPF),Defence & Security,Armed Forces / Paramilitary,CRPF,https://upload.wikimedia.org/wikipedia/commons/b/b3/CRPF_Logo.svg
+37,Indian Air Force (IAF),Defence & Security,Armed Forces / Paramilitary,IAF,https://upload.wikimedia.org/wikipedia/commons/f/fe/Indian_Air_Force_Crest.svg
+38,Indian Army,Defence & Security,Armed Forces / Paramilitary,IA,https://upload.wikimedia.org/wikipedia/commons/9/99/Emblem_of_the_Indian_Army.svg
+39,Indian Coast Guard (ICG),Defence & Security,Armed Forces / Paramilitary,ICG,https://upload.wikimedia.org/wikipedia/commons/7/7b/Indian_Coast_Guard_Logo.svg
+40,Indian Navy,Defence & Security,Armed Forces / Paramilitary,IN,https://upload.wikimedia.org/wikipedia/commons/5/5c/Indian_Navy_crest.svg
+41,Indo-Tibetan Border Police (ITBP),Defence & Security,Armed Forces / Paramilitary,ITBP,https://upload.wikimedia.org/wikipedia/commons/0/0a/ITBP_Logo.svg
+42,Intelligence Bureau (IB),Defence & Security,Armed Forces / Paramilitary,IB,https://upload.wikimedia.org/wikipedia/commons/3/3a/Intelligence_Bureau.svg
+43,Narcotics Control Bureau (NCB),Defence & Security,Armed Forces / Paramilitary,NCB,https://upload.wikimedia.org/wikipedia/en/thumb/0/0e/Narcotics_Control_Bureau_logo.png/220px-Narcotics_Control_Bureau_logo.png
+44,National Cadet Corps (NCC),Defence & Security,Armed Forces / Paramilitary,NCC,https://upload.wikimedia.org/wikipedia/commons/0/00/National_Cadet_Corps_%28India%29_logo.svg
+45,National Investigation Agency (NIA),Defence & Security,Armed Forces / Paramilitary,NIA,https://upload.wikimedia.org/wikipedia/commons/9/90/National_Investigation_Agency_Logo.png
+46,National Security Guard (NSG),Defence & Security,Armed Forces / Paramilitary,NSG,https://upload.wikimedia.org/wikipedia/commons/4/4f/National_Security_Guard-India.svg
+47,Sashastra Seema Bal (SSB),Defence & Security,Armed Forces / Paramilitary,SSB,https://upload.wikimedia.org/wikipedia/commons/a/a9/Sashastra_Seema_Bal.svg
+48,Aligarh Muslim University (AMU),Education & Research,Central University,AMU,https://upload.wikimedia.org/wikipedia/en/thumb/0/0c/Aligarh_Muslim_University_logo.png/250px-Aligarh_Muslim_University_logo.png
+49,Banaras Hindu University (BHU),Education & Research,Central University,BHU,https://upload.wikimedia.org/wikipedia/commons/a/a7/BHU_Logo_with_Tagline_Hindi_Banaras_Hindu_University.png
+50,Jamia Millia Islamia (JMI),Education & Research,Central University,JMI,https://upload.wikimedia.org/wikipedia/en/thumb/6/60/Jamia_Millia_Islamia_Logo.svg/250px-Jamia_Millia_Islamia_Logo.svg.png
+51,Jawaharlal Nehru University (JNU),Education & Research,Central University,JNU,https://upload.wikimedia.org/wikipedia/en/thumb/a/a6/Jawaharlal_Nehru_University_logo.svg/250px-Jawaharlal_Nehru_University_logo.svg.png
+52,University of Delhi (DU),Education & Research,Central University,DU,https://upload.wikimedia.org/wikipedia/commons/6/62/Delhi_University%27s_official_logo.png
+53,Indian Institute of Management Ahmedabad (IIM),Education & Research,IIM,IIM,https://upload.wikimedia.org/wikipedia/en/thumb/a/a2/IIM%2C_Ahmedabad_Logo.svg/250px-IIM%2C_Ahmedabad_Logo.svg.png
+54,Indian Institute of Management Bangalore (IIM),Education & Research,IIM,IIM,https://upload.wikimedia.org/wikipedia/en/thumb/0/06/IIM_Bangalore_Logo.svg/250px-IIM_Bangalore_Logo.svg.png
+55,Indian Institute of Management Calcutta (IIM),Education & Research,IIM,IIM,https://upload.wikimedia.org/wikipedia/en/thumb/a/ab/IIMC_LOGO.svg/250px-IIMC_LOGO.svg.png
+56,Indian Institute of Management Indore (IIM),Education & Research,IIM,IIM,https://upload.wikimedia.org/wikipedia/en/thumb/e/e0/IIM_Indore_Logo.svg/250px-IIM_Indore_Logo.svg.png
+57,Indian Institute of Management Kozhikode (IIM),Education & Research,IIM,IIM,https://upload.wikimedia.org/wikipedia/en/thumb/b/b3/IIMKozhikode_Logo.svg/250px-IIMKozhikode_Logo.svg.png
+58,Indian Institute of Management Lucknow (IIM),Education & Research,IIM,IIM,https://upload.wikimedia.org/wikipedia/en/thumb/2/25/IIM_Lucknow_Logo.svg/250px-IIM_Lucknow_Logo.svg.png
+59,Indian Institute of Technology Bombay (IIT),Education & Research,IIT,IIT,https://upload.wikimedia.org/wikipedia/en/thumb/1/1d/IIT_Bombay_Logo.svg/250px-IIT_Bombay_Logo.svg.png
+60,Indian Institute of Technology Delhi (IIT),Education & Research,IIT,IIT,https://upload.wikimedia.org/wikipedia/en/thumb/f/fd/IIT_Delhi_logo.svg/250px-IIT_Delhi_logo.svg.png
+61,Indian Institute of Technology Guwahati (IIT),Education & Research,IIT,IIT,https://upload.wikimedia.org/wikipedia/en/thumb/1/12/IIT_Guwahati_Logo.svg/250px-IIT_Guwahati_Logo.svg.png
+62,Indian Institute of Technology Hyderabad (IIT),Education & Research,IIT,IIT,https://upload.wikimedia.org/wikipedia/en/thumb/1/19/IIT_Hyderabad_Insignia.svg/250px-IIT_Hyderabad_Insignia.svg.png
+63,Indian Institute of Technology Kanpur (IIT),Education & Research,IIT,IIT,https://upload.wikimedia.org/wikipedia/en/thumb/a/a3/IIT_Kanpur_Logo.svg/250px-IIT_Kanpur_Logo.svg.png
+64,Indian Institute of Technology Kharagpur (IIT),Education & Research,IIT,IIT,https://upload.wikimedia.org/wikipedia/en/thumb/1/1c/IIT_Kharagpur_Logo.svg/250px-IIT_Kharagpur_Logo.svg.png
+65,Indian Institute of Technology Madras (IIT),Education & Research,IIT,IIT,https://upload.wikimedia.org/wikipedia/en/thumb/6/69/IIT_Madras_Logo.svg/250px-IIT_Madras_Logo.svg.png
+66,Indian Institute of Technology Roorkee (IIT),Education & Research,IIT,IIT,https://upload.wikimedia.org/wikipedia/en/thumb/6/6f/IIT_Roorkee_logo.png/250px-IIT_Roorkee_logo.png
+67,National Institute of Technology Calicut (NIT),Education & Research,NIT,NIT,https://upload.wikimedia.org/wikipedia/en/thumb/b/b8/National_Institute_of_Technology%2C_Calicut_Logo.png/250px-National_Institute_of_Technology%2C_Calicut_Logo.png
+68,National Institute of Technology Durgapur (NIT),Education & Research,NIT,NIT,https://upload.wikimedia.org/wikipedia/en/thumb/8/87/National_Institute_of_Technology%2C_Durgapur_Logo.svg/250px-National_Institute_of_Technology%2C_Durgapur_Logo.svg.png
+69,National Institute of Technology Nagpur (NIT),Education & Research,NIT,NIT,https://upload.wikimedia.org/wikipedia/en/thumb/4/4c/Visvesvaraya_National_Institute_of_Technology_logo.png/250px-Visvesvaraya_National_Institute_of_Technology_logo.png
+70,National Institute of Technology Rourkela (NIT),Education & Research,NIT,NIT,https://upload.wikimedia.org/wikipedia/en/thumb/9/91/National_Institute_of_Technology_Rourkela_Logo.svg/250px-National_Institute_of_Technology_Rourkela_Logo.svg.png
+71,National Institute of Technology Surathkal (NIT),Education & Research,NIT,NIT,https://upload.wikimedia.org/wikipedia/en/thumb/0/02/National_Institute_of_Technology_Karnataka_Logo.svg/250px-National_Institute_of_Technology_Karnataka_Logo.svg.png
+72,National Institute of Technology Trichy (NIT),Education & Research,NIT,NIT,https://upload.wikimedia.org/wikipedia/en/thumb/c/cc/NIT_Trichy_logo.png/250px-NIT_Trichy_logo.png
+73,National Institute of Technology Warangal (NIT),Education & Research,NIT,NIT,https://upload.wikimedia.org/wikipedia/en/thumb/8/89/NIT_Warangal_logo.png/250px-NIT_Warangal_logo.png
+74,All India Institute of Medical Sciences Bhopal (AIIMS),Health & Medicine,AIIMS,AIIMS,https://en.wikipedia.org/wiki/Special:FilePath/All%20India%20Institute%20of%20Medical%20Sciences%2C%20Bhopal%20Logo.png
+75,All India Institute of Medical Sciences Bhubaneswar (AIIMS),Health & Medicine,AIIMS,AIIMS,https://en.wikipedia.org/wiki/Special:FilePath/AIIMS%20Bhubaneswar%20logo.png
+76,All India Institute of Medical Sciences Jodhpur (AIIMS),Health & Medicine,AIIMS,AIIMS,https://en.wikipedia.org/wiki/Special:FilePath/The%20Official%20Seal%20of%20AIIMS%20Jodhpur.png
+77,All India Institute of Medical Sciences New Delhi (AIIMS),Health & Medicine,AIIMS,AIIMS,https://upload.wikimedia.org/wikipedia/commons/2/29/AIIMS_New_Delhi.png
+78,All India Institute of Medical Sciences Patna (AIIMS),Health & Medicine,AIIMS,AIIMS,https://en.wikipedia.org/wiki/Special:FilePath/All%20India%20Institute%20of%20Medical%20Sciences%2C%20Patna%20logo.png
+79,All India Institute of Medical Sciences Raipur (AIIMS),Health & Medicine,AIIMS,AIIMS,https://en.wikipedia.org/wiki/Special:FilePath/All%20India%20Institute%20of%20Medical%20Sciences%2C%20Raipur%20logo.png
+80,All India Institute of Medical Sciences Rishikesh (AIIMS),Health & Medicine,AIIMS,AIIMS,https://en.wikipedia.org/wiki/Special:FilePath/All%20India%20Institute%20of%20Medical%20Sciences%2C%20Rishikesh.svg
+81,Airports Authority of India (AAI),Public Sector Undertaking,Central PSU,AAI,https://upload.wikimedia.org/wikipedia/commons/9/92/Airports_authority_of_India_Logo.png
+82,Bharat Dynamics Limited (BDL),Public Sector Undertaking,Central PSU,BDL,https://upload.wikimedia.org/wikipedia/en/thumb/e/e0/Bharat_Dynamics_logo.svg/220px-Bharat_Dynamics_logo.svg.png
+83,Bharat Earth Movers Limited (BEML),Public Sector Undertaking,Central PSU,BEML,https://upload.wikimedia.org/wikipedia/en/thumb/9/9c/BEML_Limited_Logo.svg/220px-BEML_Limited_Logo.svg.png
+84,Bharat Electronics Limited (BEL),Public Sector Undertaking,Central PSU,BEL,https://upload.wikimedia.org/wikipedia/en/thumb/2/22/Bharat_Electronics_logo.svg/220px-Bharat_Electronics_logo.svg.png
+85,Bharat Heavy Electricals Limited (BHEL),Public Sector Undertaking,Central PSU,BHEL,https://upload.wikimedia.org/wikipedia/commons/c/c5/BHEL_logo.svg
+86,Bharat Petroleum Corporation Limited (BPCL),Public Sector Undertaking,Central PSU,BPCL,https://upload.wikimedia.org/wikipedia/commons/9/90/Bharat_Petroleum_Logo.svg
+87,Bharat Sanchar Nigam Limited (BSNL),Public Sector Undertaking,Central PSU,BSNL,https://upload.wikimedia.org/wikipedia/commons/9/94/BSNL_Logo.svg
+88,Coal India Limited (CIL),Public Sector Undertaking,Central PSU,CIL,https://upload.wikimedia.org/wikipedia/en/thumb/0/0a/Coal_India_Logo.svg/220px-Coal_India_Logo.svg.png
+89,Container Corporation of India (CONCOR),Public Sector Undertaking,Central PSU,CONCOR,https://upload.wikimedia.org/wikipedia/en/thumb/4/4b/Container_Corporation_of_India_Logo.svg/220px-Container_Corporation_of_India_Logo.svg.png
+90,Engineers India Limited (EIL),Public Sector Undertaking,Central PSU,EIL,https://upload.wikimedia.org/wikipedia/en/thumb/7/77/Engineers_India_Limited_Logo.svg/220px-Engineers_India_Limited_Logo.svg.png
+91,Food Corporation of India (FCI),Public Sector Undertaking,Central PSU,FCI,https://upload.wikimedia.org/wikipedia/commons/e/ec/FCI_logo.svg
+92,GAIL India Limited (GAIL),Public Sector Undertaking,Central PSU,GAIL,https://upload.wikimedia.org/wikipedia/commons/c/c3/GAIL_Logo.svg
+93,Garden Reach Shipbuilders (GRSE),Public Sector Undertaking,Central PSU,GRSE,https://upload.wikimedia.org/wikipedia/en/thumb/e/ec/Garden_Reach_Shipbuilders_%26_Engineers_Logo.svg/220px-Garden_Reach_Shipbuilders_%26_Engineers_Logo.svg.png
+94,Hindustan Aeronautics Limited (HAL),Public Sector Undertaking,Central PSU,HAL,https://upload.wikimedia.org/wikipedia/commons/7/74/Hindustan_Aeronautics_Limited_Logo.svg
+95,Hindustan Petroleum Corporation Limited (HPCL),Public Sector Undertaking,Central PSU,HPCL,https://upload.wikimedia.org/wikipedia/commons/c/c6/Hindustan_Petroleum_Logo.svg
+96,Housing and Urban Development Corporation (HUDCO),Public Sector Undertaking,Central PSU,HUDCO,https://upload.wikimedia.org/wikipedia/en/thumb/1/1a/HUDCO_Logo.svg/220px-HUDCO_Logo.svg.png
+97,IRCON International Limited (IRCON),Public Sector Undertaking,Central PSU,IRCON,https://upload.wikimedia.org/wikipedia/en/thumb/b/b3/Ircon_International_logo.svg/220px-Ircon_International_logo.svg.png
+98,Indian Oil Corporation Limited (IOCL),Public Sector Undertaking,Central PSU,IOCL,https://upload.wikimedia.org/wikipedia/commons/d/de/Indian_Oil_Logo.svg
+99,Indian Railway Catering and Tourism Corporation (IRCTC),Public Sector Undertaking,Central PSU,IRCTC,https://upload.wikimedia.org/wikipedia/en/thumb/4/45/IRCTC_Logo.svg/220px-IRCTC_Logo.svg.png
+100,Mahanagar Telephone Nigam Limited (MTNL),Public Sector Undertaking,Central PSU,MTNL,https://upload.wikimedia.org/wikipedia/commons/9/91/Mahanagar_Telephone_Nigam_Logo.svg
+101,Mazagon Dock Shipbuilders Limited (MDL),Public Sector Undertaking,Central PSU,MDL,https://upload.wikimedia.org/wikipedia/en/thumb/7/75/Mazagon_Dock_Shipbuilders_Logo.svg/220px-Mazagon_Dock_Shipbuilders_Logo.svg.png
+102,NLC India Limited (NLCIL),Public Sector Undertaking,Central PSU,NLCIL,https://upload.wikimedia.org/wikipedia/en/thumb/5/52/NLC_India_Limited_Logo.svg/220px-NLC_India_Limited_Logo.svg.png
+103,NTPC Limited (NTPC),Public Sector Undertaking,Central PSU,NTPC,https://upload.wikimedia.org/wikipedia/commons/c/c2/NTPC_Logo.svg
+104,National Aluminium Company (NALCO),Public Sector Undertaking,Central PSU,NALCO,https://upload.wikimedia.org/wikipedia/en/thumb/1/10/National_Aluminium_Company_Logo.svg/220px-National_Aluminium_Company_Logo.svg.png
+105,National Buildings Construction Corporation (NBCC),Public Sector Undertaking,Central PSU,NBCC,https://upload.wikimedia.org/wikipedia/en/thumb/4/41/NBCC_India_Logo.svg/220px-NBCC_India_Logo.svg.png
+106,National Mineral Development Corporation (NMDC),Public Sector Undertaking,Central PSU,NMDC,https://upload.wikimedia.org/wikipedia/en/thumb/2/2e/NMDC_Limited_Logo.svg/220px-NMDC_Limited_Logo.svg.png
+107,Nuclear Power Corporation of India Limited (NPCIL),Public Sector Undertaking,Central PSU,NPCIL,https://upload.wikimedia.org/wikipedia/commons/1/19/Nuclear_Power_Corporation_of_India_logo.svg
+108,Oil India Limited (OIL),Public Sector Undertaking,Central PSU,OIL,https://upload.wikimedia.org/wikipedia/commons/9/9f/Oil_India_Logo.svg
+109,Oil and Natural Gas Corporation (ONGC),Public Sector Undertaking,Central PSU,ONGC,https://upload.wikimedia.org/wikipedia/commons/4/47/ONGC_Logo.svg
+110,Power Finance Corporation (PFC),Public Sector Undertaking,Central PSU,PFC,https://upload.wikimedia.org/wikipedia/en/thumb/8/86/Power_Finance_Corporation_Logo.svg/220px-Power_Finance_Corporation_Logo.svg.png
+111,Power Grid Corporation of India Limited (POWERGRID),Public Sector Undertaking,Central PSU,POWERGRID,https://upload.wikimedia.org/wikipedia/commons/4/4c/Power_Grid_Corporation_of_India_Logo.svg
+112,RITES Limited (RITES),Public Sector Undertaking,Central PSU,RITES,https://upload.wikimedia.org/wikipedia/en/thumb/9/94/RITES_Logo.svg/220px-RITES_Logo.svg.png
+113,Rail Vikas Nigam Limited (RVNL),Public Sector Undertaking,Central PSU,RVNL,https://upload.wikimedia.org/wikipedia/en/thumb/c/cf/Rail_Vikas_Nigam_Logo.svg/220px-Rail_Vikas_Nigam_Logo.svg.png
+114,Rashtriya Ispat Nigam Limited (RINL),Public Sector Undertaking,Central PSU,RINL,https://upload.wikimedia.org/wikipedia/en/thumb/9/96/Rashtriya_Ispat_Nigam_Logo.svg/220px-Rashtriya_Ispat_Nigam_Logo.svg.png
+115,Rural Electrification Corporation (REC),Public Sector Undertaking,Central PSU,REC,https://upload.wikimedia.org/wikipedia/en/thumb/3/30/REC_Limited_Logo.svg/220px-REC_Limited_Logo.svg.png
+116,Shipping Corporation of India (SCI),Public Sector Undertaking,Central PSU,SCI,https://upload.wikimedia.org/wikipedia/commons/8/81/Shipping_Corporation_of_India_Logo.svg
+117,Steel Authority of India Limited (SAIL),Public Sector Undertaking,Central PSU,SAIL,https://upload.wikimedia.org/wikipedia/commons/0/07/Steel_Authority_of_India_Logo.svg
+118,Indian Railways (RRB / RRC Centralized Logo),Railways,Recruitment Board,RRB / RRC Centralized Logo,https://upload.wikimedia.org/wikipedia/commons/a/ab/Indian_Railways_logo.svg
+119,Bhabha Atomic Research Centre (BARC),Science & Research,Apex Research Organization,BARC,https://upload.wikimedia.org/wikipedia/commons/3/3d/Bhabha_Atomic_Research_Centre_Logo.svg
+120,Council of Scientific and Industrial Research (CSIR),Science & Research,Apex Research Organization,CSIR,https://upload.wikimedia.org/wikipedia/commons/c/cc/CSIR_India.svg
+121,Defence Research and Development Organisation (DRDO),Science & Research,Apex Research Organization,DRDO,https://upload.wikimedia.org/wikipedia/commons/6/6f/DRDO_seal.svg
+122,Department of Atomic Energy (DAE),Science & Research,Apex Research Organization,DAE,https://en.wikipedia.org/wiki/Special:FilePath/Department%20of%20Atomic%20Energy.svg
+123,Indian Council of Agricultural Research (ICAR),Science & Research,Apex Research Organization,ICAR,https://upload.wikimedia.org/wikipedia/commons/7/7b/Indian_Council_of_Agricultural_Research_Logo.svg
+124,Indian Council of Medical Research (ICMR),Science & Research,Apex Research Organization,ICMR,https://upload.wikimedia.org/wikipedia/commons/4/4e/Indian_Council_of_Medical_Research_Logo.svg
+125,Indian Space Research Organisation (ISRO),Science & Research,Apex Research Organization,ISRO,https://upload.wikimedia.org/wikipedia/commons/b/bd/Indian_Space_Research_Organisation_Logo.svg
+126,Andhra Pradesh Police Recruitment Board,State Government,State Commission / Board,APPRB,https://upload.wikimedia.org/wikipedia/te/e/ea/Appolice%28emblem%29.png
+127,Andhra Pradesh Public Service Commission (APPSC),State Government,State Commission / Board,APPSC,https://upload.wikimedia.org/wikipedia/commons/3/37/Emblem_of_Andhra_Pradesh.svg
+128,Andhra Pradesh State Electricity / Power Generation Board,State Government,State Commission / Board,APSEP,https://apgenco.gov.in/includes/assets/images/logos/apgenco2.png
+129,Andhra Pradesh State Road Transport Corporation,State Government,State Commission / Board,APSRT,https://www.apsrtc.ap.gov.in/images/apsrtc_logo1.gif
+130,Arunachal Pradesh Police Recruitment Board,State Government,State Commission / Board,APPRB,https://upload.wikimedia.org/wikipedia/en/c/c9/Arunachal_Pradesh_Police_Logo.png
+131,Arunachal Pradesh Public Service Commission (APPSC),State Government,State Commission / Board,APPSC,https://upload.wikimedia.org/wikipedia/commons/d/d4/Emblem_of_Arunachal_Pradesh.svg
+132,Arunachal Pradesh State Electricity / Power Generation Board,State Government,State Commission / Board,APSEP,https://upload.wikimedia.org/wikipedia/commons/d/d4/Emblem_of_Arunachal_Pradesh.svg
+133,Arunachal Pradesh State Road Transport Corporation,State Government,State Commission / Board,APSRT,https://en.wikipedia.org/wiki/Special:FilePath/Arunachal%20Pradesh%20Seal.svg
+134,Assam Police Recruitment Board,State Government,State Commission / Board,APRB,https://upload.wikimedia.org/wikipedia/en/2/24/Assam_Police_badge.png
+135,Assam Public Service Commission (APSC),State Government,State Commission / Board,APSC,https://upload.wikimedia.org/wikipedia/commons/7/70/Emblem_of_Assam.svg
+136,Assam State Electricity / Power Generation Board,State Government,State Commission / Board,ASEPG,https://kamrup.assam.gov.in/sites/default/files/inline-images/APDCL-ORG_0.png
+137,Assam State Road Transport Corporation,State Government,State Commission / Board,ASRTC,https://upload.wikimedia.org/wikipedia/commons/7/70/Emblem_of_Assam.svg
+138,Bihar Police Recruitment Board,State Government,State Commission / Board,BPRB,https://upload.wikimedia.org/wikipedia/en/8/89/Bihar_Police_Logo.svg
+139,Bihar Public Service Commission (BPSC),State Government,State Commission / Board,BPSC,https://upload.wikimedia.org/wikipedia/commons/e/e9/Emblem_of_Bihar.svg
+140,Bihar State Electricity / Power Generation Board,State Government,State Commission / Board,BSEPG,https://hrmspension.bsphcl.co.in:9010/images/bihar-logo.png
+141,Bihar State Road Transport Corporation,State Government,State Commission / Board,BSRTC,https://upload.wikimedia.org/wikipedia/commons/e/e9/Emblem_of_Bihar.svg
+142,Chhattisgarh Police Recruitment Board,State Government,State Commission / Board,CPRB,https://upload.wikimedia.org/wikipedia/commons/5/57/Emblem_of_Chhattisgarh.svg
+143,Chhattisgarh Public Service Commission (CPSC),State Government,State Commission / Board,CPSC,https://upload.wikimedia.org/wikipedia/commons/5/57/Emblem_of_Chhattisgarh.svg
+144,Chhattisgarh State Electricity / Power Generation Board,State Government,State Commission / Board,CSEPG,https://upload.wikimedia.org/wikipedia/commons/5/57/Emblem_of_Chhattisgarh.svg
+145,Chhattisgarh State Road Transport Corporation,State Government,State Commission / Board,CSRTC,https://upload.wikimedia.org/wikipedia/commons/5/57/Emblem_of_Chhattisgarh.svg
+146,Delhi Police Recruitment Board,State Government,State Commission / Board,DPRB,https://upload.wikimedia.org/wikipedia/commons/0/09/Delhi_Police_Logo.png
+147,Delhi Public Service Commission (DPSC),State Government,State Commission / Board,DPSC,https://dsssb.delhi.gov.in/sites/default/files/DSSSB/logo/dsssb.png
+148,Delhi State Electricity / Power Generation Board,State Government,State Commission / Board,DSEPG,https://dtl.gov.in/images/dtl-logo.png
+149,Delhi State Road Transport Corporation,State Government,State Commission / Board,DSRTC,https://upload.wikimedia.org/wikipedia/en/f/fb/Delhi_Transport_Corporation_logo.png
+150,Goa Police Recruitment Board,State Government,State Commission / Board,GPRB,https://upload.wikimedia.org/wikipedia/en/d/dd/Emblem_of_Goa_Police.png
+151,Goa Public Service Commission (GPSC),State Government,State Commission / Board,GPSC,https://upload.wikimedia.org/wikipedia/commons/5/5e/Emblem_of_Goa.svg
+152,Goa State Electricity / Power Generation Board,State Government,State Commission / Board,GSEPG,https://upload.wikimedia.org/wikipedia/commons/5/5e/Emblem_of_Goa.svg
+153,Goa State Road Transport Corporation,State Government,State Commission / Board,GSRTC,https://upload.wikimedia.org/wikipedia/en/0/05/Kadamba_Transport_Corporation_logo.png
+154,Gujarat Police Recruitment Board,State Government,State Commission / Board,GPRB,https://upload.wikimedia.org/wikipedia/commons/c/cd/Gujarat-police.png
+155,Gujarat Public Service Commission (GPSC),State Government,State Commission / Board,GPSC,https://gpsc.gujarat.gov.in/images/Logo-GPSC.png
+156,Gujarat State Electricity / Power Generation Board,State Government,State Commission / Board,GSEPG,https://www.guvnl.com/img/Logo_GSECL.png
+157,Gujarat State Road Transport Corporation,State Government,State Commission / Board,GSRTC,https://en.wikipedia.org/wiki/Special:FilePath/Gujarat%20State%20road%20transport%20corporation.jpg
+158,Haryana Police Recruitment Board,State Government,State Commission / Board,HPRB,https://upload.wikimedia.org/wikipedia/en/d/d0/Haryana-police-logo.png
+159,Haryana Public Service Commission (HPSC),State Government,State Commission / Board,HPSC,https://upload.wikimedia.org/wikipedia/commons/3/36/Emblem_of_Haryana.svg
+160,Haryana State Electricity / Power Generation Board,State Government,State Commission / Board,HSEPG,https://upload.wikimedia.org/wikipedia/commons/3/36/Emblem_of_Haryana.svg
+161,Haryana State Road Transport Corporation,State Government,State Commission / Board,HSRTC,https://upload.wikimedia.org/wikipedia/commons/3/36/Emblem_of_Haryana.svg
+162,Himachal Pradesh Police Recruitment Board,State Government,State Commission / Board,HPPRB,https://upload.wikimedia.org/wikipedia/en/9/9c/Himachal_Pradesh_Police_Logo.png
+163,Himachal Pradesh Public Service Commission (HPPSC),State Government,State Commission / Board,HPPSC,https://upload.wikimedia.org/wikipedia/commons/a/a6/Emblem_of_Himachal_Pradesh.svg
+164,Himachal Pradesh State Electricity / Power Generation Board,State Government,State Commission / Board,HPSEP,https://upload.wikimedia.org/wikipedia/commons/a/a6/Emblem_of_Himachal_Pradesh.svg
+165,Himachal Pradesh State Road Transport Corporation,State Government,State Commission / Board,HPSRT,https://upload.wikimedia.org/wikipedia/commons/a/a6/Emblem_of_Himachal_Pradesh.svg
+166,Jharkhand Police Recruitment Board,State Government,State Commission / Board,JPRB,https://upload.wikimedia.org/wikipedia/commons/9/97/Jharkhand_Police_Logo_%28India%29.svg
+167,Jharkhand Public Service Commission (JPSC),State Government,State Commission / Board,JPSC,https://upload.wikimedia.org/wikipedia/commons/a/a9/Emblem_of_Jharkhand.svg
+168,Jharkhand State Electricity / Power Generation Board,State Government,State Commission / Board,JSEPG,https://upload.wikimedia.org/wikipedia/commons/a/a9/Emblem_of_Jharkhand.svg
+169,Jharkhand State Road Transport Corporation,State Government,State Commission / Board,JSRTC,https://upload.wikimedia.org/wikipedia/commons/a/a9/Emblem_of_Jharkhand.svg
+170,Karnataka Police Recruitment Board,State Government,State Commission / Board,KPRB,https://upload.wikimedia.org/wikipedia/commons/a/aa/Seal_of_Karnataka.svg
+171,Karnataka Public Service Commission (KPSC),State Government,State Commission / Board,KPSC,https://upload.wikimedia.org/wikipedia/commons/a/aa/Seal_of_Karnataka.svg
+172,Karnataka State Electricity / Power Generation Board,State Government,State Commission / Board,KSEPG,https://upload.wikimedia.org/wikipedia/commons/a/aa/Seal_of_Karnataka.svg
+173,Karnataka State Road Transport Corporation,State Government,State Commission / Board,KSRTC,https://upload.wikimedia.org/wikipedia/commons/9/93/Karnataka_State_Road_Transport_Corporation_%28KSRTC%29_logo.png
+174,Kerala Police Recruitment Board,State Government,State Commission / Board,KPRB,https://upload.wikimedia.org/wikipedia/commons/a/a0/Kerala_State_Police_Logo.png
+175,Kerala Public Service Commission (KPSC),State Government,State Commission / Board,KPSC,https://upload.wikimedia.org/wikipedia/commons/5/5b/Emblem_of_Kerala.svg
+176,Kerala State Electricity / Power Generation Board,State Government,State Commission / Board,KSEPG,https://upload.wikimedia.org/wikipedia/commons/b/b0/K.S.E.B_Logo.png
+177,Kerala State Road Transport Corporation,State Government,State Commission / Board,KSRTC,https://upload.wikimedia.org/wikipedia/en/7/71/Kerala_State_Road_Transport_Corporation_logo.png
+178,Madhya Pradesh Police Recruitment Board,State Government,State Commission / Board,MPPRB,https://upload.wikimedia.org/wikipedia/commons/4/47/Police_Mono_Other_Format_Red.png
+179,Madhya Pradesh Public Service Commission (MPPSC),State Government,State Commission / Board,MPPSC,https://upload.wikimedia.org/wikipedia/commons/a/a4/Emblem_of_Madhya_Pradesh.svg
+180,Madhya Pradesh State Electricity / Power Generation Board,State Government,State Commission / Board,MPSEP,https://upload.wikimedia.org/wikipedia/commons/a/a4/Emblem_of_Madhya_Pradesh.svg
+181,Madhya Pradesh State Road Transport Corporation,State Government,State Commission / Board,MPSRT,https://upload.wikimedia.org/wikipedia/commons/a/a4/Emblem_of_Madhya_Pradesh.svg
+182,Maharashtra Police Recruitment Board,State Government,State Commission / Board,MPRB,https://upload.wikimedia.org/wikipedia/en/9/96/Maharashtra_Police_Insignia_India.svg
+183,Maharashtra Public Service Commission (MPSC),State Government,State Commission / Board,MPSC,https://upload.wikimedia.org/wikipedia/commons/8/80/Emblem_of_Maharashtra.svg
+184,Maharashtra State Electricity / Power Generation Board,State Government,State Commission / Board,MSEPG,https://upload.wikimedia.org/wikipedia/en/4/42/Maharashtra_State_Power_Generation_Company_%28logo%29.png
+185,Maharashtra State Road Transport Corporation,State Government,State Commission / Board,MSRTC,https://en.wikipedia.org/wiki/Special:FilePath/Maharashtra%20State%20Road%20Transport%20Corporation%20logo.png
+186,Manipur Police Recruitment Board,State Government,State Commission / Board,MPRB,https://upload.wikimedia.org/wikipedia/en/3/30/Manipur_Police_Logo.png
+187,Manipur Public Service Commission (MPSC),State Government,State Commission / Board,MPSC,https://upload.wikimedia.org/wikipedia/commons/e/ec/Emblem_of_Manipur.svg
+188,Manipur State Electricity / Power Generation Board,State Government,State Commission / Board,MSEPG,https://upload.wikimedia.org/wikipedia/commons/e/ec/Emblem_of_Manipur.svg
+189,Manipur State Road Transport Corporation,State Government,State Commission / Board,MSRTC,https://upload.wikimedia.org/wikipedia/commons/e/ec/Emblem_of_Manipur.svg
+190,Meghalaya Police Recruitment Board,State Government,State Commission / Board,MPRB,https://upload.wikimedia.org/wikipedia/commons/f/ff/Seal_of_Meghalaya.svg
+191,Meghalaya Public Service Commission (MPSC),State Government,State Commission / Board,MPSC,https://upload.wikimedia.org/wikipedia/commons/f/ff/Seal_of_Meghalaya.svg
+192,Meghalaya State Electricity / Power Generation Board,State Government,State Commission / Board,MSEPG,https://upload.wikimedia.org/wikipedia/commons/f/ff/Seal_of_Meghalaya.svg
+193,Meghalaya State Road Transport Corporation,State Government,State Commission / Board,MSRTC,https://upload.wikimedia.org/wikipedia/commons/f/ff/Seal_of_Meghalaya.svg
+194,Mizoram Police Recruitment Board,State Government,State Commission / Board,MPRB,https://upload.wikimedia.org/wikipedia/commons/c/c5/Emblem_of_Mizoram.svg
+195,Mizoram Public Service Commission (MPSC),State Government,State Commission / Board,MPSC,https://upload.wikimedia.org/wikipedia/commons/c/c5/Emblem_of_Mizoram.svg
+196,Mizoram State Electricity / Power Generation Board,State Government,State Commission / Board,MSEPG,https://upload.wikimedia.org/wikipedia/commons/c/c5/Emblem_of_Mizoram.svg
+197,Mizoram State Road Transport Corporation,State Government,State Commission / Board,MSRTC,https://upload.wikimedia.org/wikipedia/commons/c/c5/Emblem_of_Mizoram.svg
+198,Nagaland Police Recruitment Board,State Government,State Commission / Board,NPRB,https://upload.wikimedia.org/wikipedia/commons/6/69/Emblem_of_Nagaland.svg
+199,Nagaland Public Service Commission (NPSC),State Government,State Commission / Board,NPSC,https://upload.wikimedia.org/wikipedia/commons/6/69/Emblem_of_Nagaland.svg
+200,Nagaland State Electricity / Power Generation Board,State Government,State Commission / Board,NSEPG,https://upload.wikimedia.org/wikipedia/commons/6/69/Emblem_of_Nagaland.svg
+201,Nagaland State Road Transport Corporation,State Government,State Commission / Board,NSRTC,https://upload.wikimedia.org/wikipedia/commons/6/69/Emblem_of_Nagaland.svg
+202,Odisha Police Recruitment Board,State Government,State Commission / Board,OPRB,https://upload.wikimedia.org/wikipedia/commons/e/e0/Emblem_of_Odisha.svg
+203,Odisha Public Service Commission (OPSC),State Government,State Commission / Board,OPSC,https://upload.wikimedia.org/wikipedia/commons/e/e0/Emblem_of_Odisha.svg
+204,Odisha State Electricity / Power Generation Board,State Government,State Commission / Board,OSEPG,https://upload.wikimedia.org/wikipedia/commons/e/e0/Emblem_of_Odisha.svg
+205,Odisha State Road Transport Corporation,State Government,State Commission / Board,OSRTC,https://upload.wikimedia.org/wikipedia/commons/e/e0/Emblem_of_Odisha.svg
+206,Punjab Police Recruitment Board,State Government,State Commission / Board,PPRB,https://upload.wikimedia.org/wikipedia/en/9/91/Punjab_Police_%28India%29_Logo.png
+207,Punjab Public Service Commission (PPSC),State Government,State Commission / Board,PPSC,https://upload.wikimedia.org/wikipedia/commons/5/5a/Emblem_of_Punjab.svg
+208,Punjab State Electricity / Power Generation Board,State Government,State Commission / Board,PSEPG,https://upload.wikimedia.org/wikipedia/commons/5/5a/Emblem_of_Punjab.svg
+209,Punjab State Road Transport Corporation,State Government,State Commission / Board,PSRTC,https://upload.wikimedia.org/wikipedia/commons/5/5a/Emblem_of_Punjab.svg
+210,Rajasthan Police Recruitment Board,State Government,State Commission / Board,RPRB,https://upload.wikimedia.org/wikipedia/en/0/02/Rajasthan_Police_Logo.png
+211,Rajasthan Public Service Commission (RPSC),State Government,State Commission / Board,RPSC,https://rpsc.rajasthan.gov.in/Images/RPSC_Logo.png
+212,Rajasthan State Electricity / Power Generation Board,State Government,State Commission / Board,RSEPG,https://en.wikipedia.org/wiki/Special:FilePath/Emblem_Rajasthan.png
+213,Rajasthan State Road Transport Corporation,State Government,State Commission / Board,RSRTC,https://upload.wikimedia.org/wikipedia/commons/a/af/RSRTC_logo.png
+214,Sikkim Police Recruitment Board,State Government,State Commission / Board,SPRB,https://upload.wikimedia.org/wikipedia/commons/a/a2/Emblem_of_Sikkim.svg
+215,Sikkim Public Service Commission (SPSC),State Government,State Commission / Board,SPSC,https://upload.wikimedia.org/wikipedia/commons/a/a2/Emblem_of_Sikkim.svg
+216,Sikkim State Electricity / Power Generation Board,State Government,State Commission / Board,SSEPG,https://upload.wikimedia.org/wikipedia/commons/a/a2/Emblem_of_Sikkim.svg
+217,Sikkim State Road Transport Corporation,State Government,State Commission / Board,SSRTC,https://upload.wikimedia.org/wikipedia/commons/a/a2/Emblem_of_Sikkim.svg
+218,Tamil Nadu Police Recruitment Board,State Government,State Commission / Board,TNPRB,https://upload.wikimedia.org/wikipedia/commons/8/81/TamilNadu_Logo.svg
+219,Tamil Nadu Public Service Commission (TNPSC),State Government,State Commission / Board,TNPSC,https://upload.wikimedia.org/wikipedia/commons/8/81/TamilNadu_Logo.svg
+220,Tamil Nadu State Electricity / Power Generation Board,State Government,State Commission / Board,TNSEP,https://upload.wikimedia.org/wikipedia/commons/8/81/TamilNadu_Logo.svg
+221,Tamil Nadu State Road Transport Corporation,State Government,State Commission / Board,TNSRT,https://upload.wikimedia.org/wikipedia/commons/8/81/TamilNadu_Logo.svg
+222,Telangana Police Recruitment Board,State Government,State Commission / Board,TPRB,https://upload.wikimedia.org/wikipedia/commons/a/a0/Telangana_Police_logo.png
+223,Telangana Public Service Commission (TPSC),State Government,State Commission / Board,TPSC,https://upload.wikimedia.org/wikipedia/commons/e/ef/Government_of_Telangana_Logo.svg
+224,Telangana State Electricity / Power Generation Board,State Government,State Commission / Board,TSEPG,https://upload.wikimedia.org/wikipedia/commons/e/ef/Government_of_Telangana_Logo.svg
+225,Telangana State Road Transport Corporation,State Government,State Commission / Board,TSRTC,https://upload.wikimedia.org/wikipedia/en/thumb/5/55/TSRTC_Logo.png/220px-TSRTC_Logo.png
+226,Tripura Police Recruitment Board,State Government,State Commission / Board,TPRB,https://upload.wikimedia.org/wikipedia/commons/b/b9/Emblem_of_Tripura.svg
+227,Tripura Public Service Commission (TPSC),State Government,State Commission / Board,TPSC,https://upload.wikimedia.org/wikipedia/commons/b/b9/Emblem_of_Tripura.svg
+228,Tripura State Electricity / Power Generation Board,State Government,State Commission / Board,TSEPG,https://upload.wikimedia.org/wikipedia/commons/b/b9/Emblem_of_Tripura.svg
+229,Tripura State Road Transport Corporation,State Government,State Commission / Board,TSRTC,https://upload.wikimedia.org/wikipedia/commons/b/b9/Emblem_of_Tripura.svg
+230,Uttar Pradesh Police Recruitment Board,State Government,State Commission / Board,UPPRB,https://upload.wikimedia.org/wikipedia/commons/2/23/UP_Police_Emblem.png
+231,Uttar Pradesh Public Service Commission (UPPSC),State Government,State Commission / Board,UPPSC,https://upload.wikimedia.org/wikipedia/commons/f/fa/Seal_of_Uttar_Pradesh.svg
+232,Uttar Pradesh State Electricity / Power Generation Board,State Government,State Commission / Board,UPSEP,https://en.wikipedia.org/wiki/Special:FilePath/Uttar%20Pradesh%20Power%20Corporation%20Limited.svg
+233,Uttar Pradesh State Road Transport Corporation,State Government,State Commission / Board,UPSRT,https://upload.wikimedia.org/wikipedia/en/thumb/0/05/UPSRTC_logo.png/220px-UPSRTC_logo.png
+234,Uttarakhand Police Recruitment Board,State Government,State Commission / Board,UPRB,https://upload.wikimedia.org/wikipedia/commons/9/99/Seal_of_Uttarakhand.svg
+235,Uttarakhand Public Service Commission (UPSC),State Government,State Commission / Board,UPSC,https://upload.wikimedia.org/wikipedia/commons/9/99/Seal_of_Uttarakhand.svg
+236,Uttarakhand State Electricity / Power Generation Board,State Government,State Commission / Board,USEPG,https://upload.wikimedia.org/wikipedia/commons/9/99/Seal_of_Uttarakhand.svg
+237,Uttarakhand State Road Transport Corporation,State Government,State Commission / Board,USRTC,https://upload.wikimedia.org/wikipedia/commons/9/99/Seal_of_Uttarakhand.svg
+238,West Bengal Police Recruitment Board,State Government,State Commission / Board,WBPRB,https://en.wikipedia.org/wiki/Special:FilePath/West%20Bengal%20Police%20Logo.svg
+239,West Bengal Public Service Commission (WBPSC),State Government,State Commission / Board,WBPSC,https://upload.wikimedia.org/wikipedia/commons/d/d5/Emblem_of_West_Bengal.svg
+240,West Bengal State Electricity / Power Generation Board,State Government,State Commission / Board,WBSEP,https://en.wikipedia.org/wiki/Special:FilePath/WBSEDCL%20Logo.svg
+241,West Bengal State Road Transport Corporation,State Government,State Commission / Board,WBSRT,https://upload.wikimedia.org/wikipedia/commons/d/d5/Emblem_of_West_Bengal.svg

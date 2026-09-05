@@ -48,3 +48,13 @@ backups/
 /sheetjobs.json
 /sheetprobe.json
 /logs600.json
+
+# Logo pipeline staging
+#
+# `logos/` is the downloaded conducting-body image set — 241 files, 43 MB —
+# that `scripts/import-curated-logos.mjs` uploads to the Supabase storage
+# bucket. The app reads them from that bucket (see `logoUrl` in
+# `src/lib/db/storage.ts`), never from here, so committing them would put 43 MB
+# in history permanently to serve nothing. The CSVs beside it are tracked: they
+# are small, and the scripts read them as input.
+/logos/

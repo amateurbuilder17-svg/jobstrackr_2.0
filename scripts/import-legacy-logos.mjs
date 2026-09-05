@@ -538,7 +538,20 @@ async function main() {
   // A row that matched under an older version of the rules and no longer does
   // has its logo cleared rather than left standing, so re-running converges on
   // what the rules say today instead of accumulating the union of every version
-  // of them. The column belongs to this script — see its comment in 0033.
+  // of them.
+  //
+  // "Its logo", though, and no longer any logo. This script was written as the
+  // column's only writer — the note in 0033 says so — and
+  // `import-curated-logos.mjs` is now a second one, covering ~300 organisations
+  // this bucket has no image for. Clearing unconditionally would delete every
+  // one of those on the next run here, silently, because a row wearing a
+  // curated emblem is exactly a row this script does not match.
+  //
+  // So the clear is scoped to paths this script itself uploaded a moment ago.
+  // Convergence still holds for everything it owns; what it does not own it
+  // leaves alone, which is the correct behaviour for one of two writers.
+  const ownPaths = new Set(uploaded.values());
+
   for (const org of organizations) {
     // A tie is an answer too, and the answer is "no". Six IISER campuses score
     // identically on "Indian Institute of Science Education and Research" —
@@ -561,7 +574,9 @@ async function main() {
 
     if (bestScore < MIN_SCORE || contenders.size === 0) {
       unmatched.push(org.name);
-      if (org.logo_path !== null) cleared.push({ id: org.id, logo_path: null });
+      if (org.logo_path !== null && ownPaths.has(org.logo_path)) {
+        cleared.push({ id: org.id, logo_path: null });
+      }
       continue;
     }
 
@@ -572,7 +587,9 @@ async function main() {
     if (bodies.size > 1) {
       ambiguous++;
       unmatched.push(org.name);
-      if (org.logo_path !== null) cleared.push({ id: org.id, logo_path: null });
+      if (org.logo_path !== null && ownPaths.has(org.logo_path)) {
+        cleared.push({ id: org.id, logo_path: null });
+      }
       continue;
     }
 

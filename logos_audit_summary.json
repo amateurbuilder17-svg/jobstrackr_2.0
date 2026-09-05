@@ -1,0 +1,10 @@
+{
+  "total_organizations": 241,
+  "downloaded_count": 241,
+  "missing_count": 0,
+  "classifications": {
+    "VERIFIED_SPECIFIC": 189,
+    "INTENDED_GENERIC": 1,
+    "STATE_EMBLEM_FALLBACK": 51
+  }
+}
