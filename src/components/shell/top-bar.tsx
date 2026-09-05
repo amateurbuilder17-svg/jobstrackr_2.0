@@ -64,9 +64,26 @@ const SEARCHES_HERE = new Set(["/jobs", "/updates"]);
  * same search again at the top of it is a way back to where you came from,
  * which the back link under the bar already is. On mobile the icon also sat
  * one row above the page's own "← Job Details", saying nothing.
+ *
+ * The Syllabus Finder is the other case: it carries its own search box, so the
+ * bar's link sat directly above a field asking a different question, and the
+ * two read as one control that had changed its mind. It is not in
+ * `SEARCHES_HERE` because that field searches syllabi through a Server Action,
+ * not the jobs list through `?q=` — so the bar has nothing to offer here and
+ * says nothing. `/syllabus/<slug>` is a document, and hides it for the same
+ * reason a job detail page does.
+ *
+ * `/calendar` is a dated view of things you already follow, not a place you
+ * arrive at by searching — the bar's link there was a way out of the page
+ * dressed as a control on it, and the sidebar and bottom nav are already the
+ * way out.
  */
 function hidesSearch(pathname: string) {
-  return pathname.startsWith("/jobs/");
+  return (
+    pathname.startsWith("/jobs/") ||
+    pathname.startsWith("/syllabus") ||
+    pathname.startsWith("/calendar")
+  );
 }
 
 export function TopBar() {
