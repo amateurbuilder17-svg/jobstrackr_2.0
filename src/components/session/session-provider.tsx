@@ -22,6 +22,8 @@ import {
   resolvePending,
   writeGuestSaves,
 } from "@/lib/saved/storage";
+import { authCookieNames, readAuthCookieUser } from "@/lib/session/auth-cookie";
+import { clearSessionCache, readSessionCache, writeSessionCache } from "@/lib/session/cache";
 
 /**
  * One source of truth for "who is this, and what have they done with these
@@ -44,6 +46,13 @@ import {
  *     mirror kept optimistically ahead of it.
  *   - **signed in, offline**: the mirror is ahead and the difference is queued,
  *     to be replayed when the network returns.
+ *
+ * Across all three, the first paint no longer waits for the network. The last
+ * answer the server gave is kept in `@/lib/session/cache`, keyed to the account
+ * in the session cookie, and seeded here on mount — so the buttons and the
+ * avatar are live in a frame rather than in a round trip. It is a head start,
+ * not a source of truth: `/api/session` is still asked on every load, and every
+ * seeded value is reconciled against what it says.
  */
 
 /** Who the shell is drawing. Null for a guest, and null until `ready`. */
@@ -127,6 +136,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
    */
   const askedAboutRef = useRef<string | null>(null);
 
+  /**
+   * Whether this provider has already painted from the session cache.
+   *
+   * The seed happens once, on mount, and never on a `recheck`. A recheck fires
+   * because the cookies changed — a sign-in or a sign-out — and painting the
+   * previous session over the new one is the exact failure the cache is keyed
+   * by user id to avoid. It also keeps a later hydrate from stamping on
+   * optimistic toggles made since mount.
+   */
+  const seededRef = useRef(false);
+
+  /**
+   * The saved ids the seed painted, kept so the server's answer can take them
+   * back. Null when nothing was seeded. See the union below for why the two
+   * cannot be told apart by looking at the state itself.
+   */
+  const seedIdsRef = useRef<readonly string[] | null>(null);
+
   /* ── Send one queued intent, and clear it if the server agrees ────────── */
   const push = useCallback(async (jobId: string, saved: boolean) => {
     const result = await setJobSavedAction(jobId, saved);
@@ -186,7 +213,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // success, a failed hydrate would leave the old value in place and the
     // next navigation would ask again — which is the loop this is here to
     // prevent, rebuilt.
-    askedAboutRef.current = authCookies();
+    askedAboutRef.current = authCookieNames();
 
     // Read through a call, not directly. After one `if (signal.aborted) return`
     // the compiler narrows the property to `false` for the rest of the function
@@ -195,6 +222,55 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // boolean each time it is evaluated.
     const aborted = () => signal.aborted;
 
+    /* ── Paint the last known answer, then go and verify it ───────────────
+     *
+     * `ready` is false until the fetch below lands, and everything the shell
+     * draws from the session is inert until it does: every save and track
+     * button, and the avatar. That is a round trip of a page looking signed
+     * out to someone who is not — and when the network is gone, it is the full
+     * `timeoutMs` deadline. Seeding turns both into one frame.
+     *
+     * The cookie is what makes this safe to do. It carries the id of the
+     * account the browser is holding a session for, and `readSessionCache`
+     * returns nothing unless that id is the one that wrote the entry. A
+     * different account on the same browser misses; so does a guest, and so
+     * does a cookie in a format `readAuthCookieUser` cannot read.
+     */
+    const cookieUser = seededRef.current ? null : readAuthCookieUser();
+    seededRef.current = true;
+    // An expiry already past is not a session. Checked here rather than left to
+    // the server so that the one case the seed must never produce — a signed-in
+    // shell for someone whose session has ended — cannot happen at all.
+    const cached =
+      cookieUser && cookieUser.expiresAt * 1000 > Date.now()
+        ? readSessionCache(cookieUser.id)
+        : null;
+
+    if (cached) {
+      signedInRef.current = true;
+      setSignedIn(true);
+      setIdentity(cached.identity);
+      setTrackedIds(new Set(cached.trackedJobIds));
+
+      // Queued intents are applied over the seed for the same reason they are
+      // applied over the server's answer below: a save made offline must not
+      // look forgotten while the page waits for a network that is not coming
+      // back.
+      const queued = readQueue();
+      seedIdsRef.current = cached.ids;
+      setIds((prev) => {
+        const next = new Set([...prev, ...cached.ids]);
+        for (const item of queued) {
+          if (item.saved) next.add(item.jobId);
+          else next.delete(item.jobId);
+        }
+        return next;
+      });
+      if (queued.length > 0) setPending(new Set(queued.map((q) => q.jobId)));
+
+      setReady(true);
+    }
+
     void (async () => {
       const guestSaves = readGuestSaves();
 
@@ -202,6 +278,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       let tracked: string[] = [];
       let authed = false;
       let who: Identity | null = null;
+      /**
+       * Whether `/api/session` replied at all — which is not the same question
+       * as whether it said yes. A failure leaves `authed` false, and acting on
+       * that would be reading "we could not ask" as "you are signed out".
+       */
+      let answered = false;
 
       try {
         // Guarded, and this is the call that most needs it. `recheck` runs on
@@ -218,6 +300,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           retries: 1,
         });
         if (response.ok) {
+          answered = true;
           const data = (await response.json()) as {
             signedIn: boolean;
             ids: string[];
@@ -238,6 +321,25 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
       if (aborted()) return;
 
+      // Nothing came back — offline, hung, or an endpoint the breaker has given
+      // up on for now. Whatever we already believe is the best answer available,
+      // and keeping it matters beyond appearances: declaring a signed-in person
+      // a guest here would send their next save into the guest shortlist
+      // instead of into the replay queue, where it belongs.
+      //
+      // The test is `signedInRef`, not the `cached` from this run, and the
+      // difference is load-bearing. `hydrate` runs more than once — twice on
+      // mount under StrictMode, and again on every `recheck` — and only the
+      // first of those seeds, because `seededRef` deliberately allows one. A
+      // guard keyed on this run's seed therefore held on the pass that painted
+      // the session and let go on the very next one, which erased it. What the
+      // provider currently believes survives every pass, which is the actual
+      // question: has anything told us otherwise?
+      if (!answered && signedInRef.current) {
+        setReady(true);
+        return;
+      }
+
       signedInRef.current = authed;
       setSignedIn(authed);
       setIdentity(who);
@@ -255,7 +357,27 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         // Union, not replace. The button is live before this resolves, so a
         // press made in that window is already in state and must survive the
         // server's answer arriving.
-        if (!aborted()) setIds((prev) => new Set([...prev, ...serverIds]));
+        //
+        // But a union alone stopped being enough once the seed could put ids
+        // here. An id painted from the cache and absent from the server is a
+        // save undone somewhere else — on a phone, in another tab — and a union
+        // would keep showing it as saved for the rest of the session. So the
+        // seeded ids, and only those, are taken back when the server does not
+        // have them. A press made since mount is never one of them: it is in
+        // the replay queue, which is applied over this a few lines below.
+        const seededIds = seedIdsRef.current;
+        if (!aborted())
+          setIds((prev) => {
+            const next = new Set([...prev, ...serverIds]);
+            if (seededIds) {
+              const live = new Set(serverIds);
+              const unsent = new Set(readQueue().map((item) => item.jobId));
+              for (const id of seededIds) {
+                if (!live.has(id) && !unsent.has(id)) next.delete(id);
+              }
+            }
+            return next;
+          });
         // Replace rather than union: unlike saves, there is no offline queue
         // holding intents the server has not seen, so the server is simply
         // right.
@@ -276,7 +398,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           });
           void flush();
         }
+
+        // Recorded after the merge, so a guest shortlist folded in at sign-in is
+        // part of what the next load paints. The id is read again rather than
+        // reused from above: this request may have rotated the cookies, and an
+        // entry keyed to a cookie that no longer exists could never be read
+        // back. No id, no entry — the seed is an optimisation, and one that
+        // cannot prove whose data it holds is not worth having.
+        const uid = readAuthCookieUser()?.id;
+        if (uid && who) {
+          writeSessionCache({ uid, ids: serverIds, trackedJobIds: tracked, identity: who });
+        }
       } else {
+        // Only when the server actually answered. Signing out is the case this
+        // is here for: an entry left behind then is not stale, it is one
+        // person's name and shortlist waiting in the next person's browser. A
+        // *failed* request must never take this branch, or an offline load
+        // would throw away the entry that makes the next one instant.
+        if (answered) clearSessionCache();
         setIds((prev) => new Set([...prev, ...guestSaves]));
       }
 
@@ -331,7 +470,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // whatever the answer turns out to be, the same cookies are never asked
     // about twice. Signing in and signing out both change them, which is the
     // only thing this ever needed to notice.
-    const cookies = authCookies();
+    const cookies = authCookieNames();
     if (cookies !== askedAboutRef.current) hydrate();
   }, [hydrate]);
 
@@ -435,28 +574,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       {children}
     </SessionContext.Provider>
   );
-}
-
-/**
- * The names of the Supabase *session* cookies, as one comparable string.
- *
- * A hint, never the authority — `/api/session` decides who is signed in. This
- * only has to change when the session does.
- *
- * `sb-<ref>-auth-token`, plus the `.0`/`.1` chunks a session too large for one
- * cookie is split across. Deliberately not every `sb-` cookie: the PKCE
- * verifier `@supabase/ssr` writes when a Google sign-in starts is also named
- * `sb-…`, it outlives an abandoned sign-in, and counting it as a session is
- * what made this check disagree with the server forever.
- */
-function authCookies(): string {
-  if (typeof document === "undefined") return "";
-  return document.cookie
-    .split("; ")
-    .map((cookie) => cookie.split("=")[0] ?? "")
-    .filter((name) => /^sb-.+-auth-token(\.\d+)?$/.test(name))
-    .sort()
-    .join(",");
 }
 
 function useSessionContext(): SessionContextValue {
