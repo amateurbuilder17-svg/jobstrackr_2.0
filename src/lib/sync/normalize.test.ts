@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   EMBEDDING_DIMS,
+  toAge,
   toBool,
   toDate,
   toDateText,
+  toExperienceYears,
+  toFee,
   toInt,
   toSalary,
   toJson,
@@ -208,6 +211,67 @@ describe("toSalary", () => {
     // A level in one column must not poison a genuine figure in the other.
     expect(toSalary(7)).toBeNull();
     expect(toSalary(112400)).toBe(112400);
+  });
+});
+
+/**
+ * The ten values that actually killed a batch.
+ *
+ * Every one is a real `application_fee` cell from the live feed, welded
+ * together by the scraper before this module ever sees it — a fee table's
+ * figures run into one number. Reaching Postgres, each raised "out of range for
+ * type integer", which `ingestJobs` throws: 85 runs lost their entire batch to
+ * these ten cells between 2026-08-26 and 2026-09-03.
+ */
+const WELDED_FEES = [
+  "50100079546912",
+  "200015001000500",
+  "5090079546912",
+  "10173711536",
+  "1000001801180",
+  "4063000100041261",
+  "1180100018180",
+  "10001801180",
+  "416214000030",
+  "11801000180",
+];
+
+describe("numbers too big for their column", () => {
+  it.each(WELDED_FEES)("reads the welded fee %s as no fee at all", (cell) => {
+    expect(toFee(cell)).toBeNull();
+  });
+
+  it("keeps the fees that are real", () => {
+    expect(toFee("₹1,000")).toBe(1000);
+    expect(toFee(0)).toBe(0);
+    expect(toFee("500")).toBe(500);
+  });
+
+  it("never returns something a PostgreSQL integer cannot hold", () => {
+    // The floor under every numeric column, whatever its own bounds are.
+    expect(toInt("2147483647")).toBe(2_147_483_647);
+    expect(toInt("2147483648")).toBeNull();
+    expect(toInt("-2147483648")).toBeNull();
+    for (const cell of WELDED_FEES) expect(toInt(cell)).toBeNull();
+  });
+
+  it("holds age and experience inside smallint", () => {
+    // Both columns are `smallint`, so PG_INT_MAX is not the bound that matters.
+    expect(toAge(35)).toBe(35);
+    expect(toAge(40_000)).toBeNull();
+    expect(toAge(121)).toBeNull();
+    expect(toAge(-1)).toBeNull();
+    expect(toExperienceYears(5)).toBe(5);
+    expect(toExperienceYears(40_000)).toBeNull();
+    expect(toExperienceYears(61)).toBeNull();
+  });
+
+  it("rejects a yearly CTC in the monthly salary column", () => {
+    // `format/salary.ts` has rejected these on the read side since it was
+    // written; `toSalary` checked only the floor, so they were stored anyway.
+    expect(toSalary(5_000_000)).toBe(5_000_000);
+    expect(toSalary(5_000_001)).toBeNull();
+    expect(toSalary("50100079546912")).toBeNull();
   });
 });
 

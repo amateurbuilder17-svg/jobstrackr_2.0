@@ -13,7 +13,7 @@
  * a person can type anything into.
  */
 
-import { MIN_PLAUSIBLE_SALARY } from "@/lib/format/salary";
+import { MAX_PLAUSIBLE_SALARY, MIN_PLAUSIBLE_SALARY } from "@/lib/format/salary";
 import { decodeEntities } from "@/lib/format/text";
 
 /** Asia/Kolkata is UTC+5:30. */
@@ -117,11 +117,35 @@ export function toNum(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** An integer column. Fractions are a parse error, not something to round. */
+/**
+ * The widest value a PostgreSQL `integer` column can hold.
+ *
+ * Every numeric column ingestion writes is `integer` or narrower, and PostgREST
+ * does not clamp — it hands the value to Postgres, which raises "value … is out
+ * of range for type integer". That error is thrown, so it does not cost the one
+ * bad row: it costs the whole batch. 85 runs died on it between 2026-08-26 and
+ * 2026-09-03, every one of them on a fee.
+ *
+ * The values are not near-misses. `application_fee` arrives from the scraper as
+ * "50100079546912" — a fee table's every figure run together upstream, before
+ * this module sees it. Nothing that large is a number a person typed, so the
+ * only question is whether it becomes NULL here or an exception there.
+ */
+const PG_INT_MAX = 2_147_483_647;
+
+/**
+ * An integer column. Fractions are a parse error, not something to round.
+ *
+ * The range check is a floor, not a substitute for knowing the column: `age_min`
+ * and friends are `smallint`, and the callers below carry the bounds that
+ * actually fit them. This one only guarantees that no parse artefact, from any
+ * column, can reach the database as an exception.
+ */
 export function toInt(value: unknown): number | null {
   const n = toNum(value);
   if (n === null) return null;
-  return Number.isInteger(n) ? n : null;
+  if (!Number.isInteger(n) || Math.abs(n) > PG_INT_MAX) return null;
+  return n;
 }
 
 export function toBool(value: unknown, fallback = false): boolean {
@@ -193,8 +217,13 @@ export function toStringArray(value: unknown): string[] {
  * Defined in `format/salary.ts` and re-exported here, because the renderer
  * applies the same threshold to the rows already in the table and the two must
  * not drift — that drift is what the old two-parser pipeline kept producing.
+ *
+ * The upper bound came from exactly that drift: `format/salary.ts` has enforced
+ * `MAX_PLAUSIBLE_SALARY` on the read side since it was written, and `toSalary`
+ * checked only the floor. A yearly CTC in a monthly column was rejected on the
+ * page and stored in the table.
  */
-export { MIN_PLAUSIBLE_SALARY } from "@/lib/format/salary";
+export { MAX_PLAUSIBLE_SALARY, MIN_PLAUSIBLE_SALARY } from "@/lib/format/salary";
 
 /**
  * A salary column, or null.
@@ -205,7 +234,51 @@ export { MIN_PLAUSIBLE_SALARY } from "@/lib/format/salary";
  */
 export function toSalary(value: unknown): number | null {
   const n = toInt(value);
-  if (n === null || n < MIN_PLAUSIBLE_SALARY) return null;
+  if (n === null || n < MIN_PLAUSIBLE_SALARY || n > MAX_PLAUSIBLE_SALARY) return null;
+  return n;
+}
+
+/**
+ * The most an application fee can plausibly be, in rupees.
+ *
+ * General-category fees in these notifications run from nothing to about three
+ * thousand; a lakh is far above the highest real one and far below the smallest
+ * artefact this has ever seen (ten billion). The failure it catches is the fee
+ * *table* — "Gen ₹1000, OBC ₹500, SC/ST ₹0" — arriving as one welded number.
+ */
+export const MAX_PLAUSIBLE_FEE = 100_000;
+
+export function toFee(value: unknown): number | null {
+  const n = toInt(value);
+  if (n === null || n < 0 || n > MAX_PLAUSIBLE_FEE) return null;
+  return n;
+}
+
+/**
+ * The oldest a recruitment age limit can plausibly be.
+ *
+ * `age_min` and `age_max` are `smallint`, so the ceiling that matters is much
+ * lower than `PG_INT_MAX` — 32,768 in an age column is still an exception, and
+ * still takes the batch with it. No notification sets a limit above 120, and
+ * anything that reads as one is a row of a table read as a single figure.
+ */
+export const MAX_PLAUSIBLE_AGE = 120;
+
+export function toAge(value: unknown): number | null {
+  const n = toInt(value);
+  if (n === null || n < 0 || n > MAX_PLAUSIBLE_AGE) return null;
+  return n;
+}
+
+/**
+ * The most years of experience a posting can plausibly demand. Also `smallint`,
+ * and a working life is shorter than this.
+ */
+export const MAX_PLAUSIBLE_EXPERIENCE_YEARS = 60;
+
+export function toExperienceYears(value: unknown): number | null {
+  const n = toInt(value);
+  if (n === null || n < 0 || n > MAX_PLAUSIBLE_EXPERIENCE_YEARS) return null;
   return n;
 }
 

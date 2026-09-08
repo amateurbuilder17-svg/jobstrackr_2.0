@@ -16,7 +16,17 @@ import {
 } from "./details";
 import { resolveOrganizations } from "./organizations";
 import { uniqueSlugs } from "./slugs";
-import { toDate, toInt, toSalary, toSlug, toText, toVacancies, toVector } from "./normalize";
+import {
+  toAge,
+  toDate,
+  toExperienceYears,
+  toFee,
+  toSalary,
+  toSlug,
+  toText,
+  toVacancies,
+  toVector,
+} from "./normalize";
 
 /**
  * The diff.
@@ -147,8 +157,8 @@ export function toJobPayload(
   );
   const salaryMin = toSalary(row.salary_min);
   const salaryMax = dropIfWrongSideOf(toSalary(row.salary_max), salaryMin, false);
-  const ageMin = toInt(row.age_min);
-  const ageMax = dropIfWrongSideOf(toInt(row.age_max), ageMin, false);
+  const ageMin = toAge(row.age_min);
+  const ageMax = dropIfWrongSideOf(toAge(row.age_max), ageMin, false);
   const orgId = organizationId(organisation);
 
   return {
@@ -178,10 +188,10 @@ export function toJobPayload(
       salary_min: salaryMin,
       salary_max: salaryMax,
       salary_display: toText(row.salary_display),
-      application_fee: toInt(row.application_fee),
+      application_fee: toFee(row.application_fee),
       age_min: ageMin,
       age_max: ageMax,
-      experience_years_min: toInt(row.experience_years_min),
+      experience_years_min: toExperienceYears(row.experience_years_min),
       application_start_date: applicationStartDate,
       last_date: lastDate,
       // Kept as typed, because "TBD" is a real answer this column must carry
