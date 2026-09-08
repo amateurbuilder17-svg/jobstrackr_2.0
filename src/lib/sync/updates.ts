@@ -10,6 +10,7 @@ import { UPDATE_CATEGORIES, type UpdateCategory } from "@/lib/updates/categories
 import { toUpdateSections } from "@/lib/updates/detail-shape";
 import { toUrl } from "./links";
 import { toDate, toSlug, toText } from "./normalize";
+import { selectIn } from "@/lib/db/select-in";
 import { resolveOrganizations } from "./organizations";
 import { uniqueSlugs } from "./slugs";
 
@@ -280,13 +281,10 @@ export async function ingestExamUpdates(rows: FeedRow[]): Promise<UpdateIngestRe
 
   const db = adminDb();
 
-  const { data: existingRows, error: readError } = await db
-    .from("exam_updates")
-    .select("id, dedupe_key, content_hash")
-    .in(
-      "dedupe_key",
-      candidates.map((c) => c.dedupeKey),
-    );
+  const { data: existingRows, error: readError } = await selectIn(
+    candidates.map((c) => c.dedupeKey),
+    (chunk) => db.from("exam_updates").select("id, dedupe_key, content_hash").in("dedupe_key", chunk),
+  );
 
   if (readError) throw new Error(`ingestExamUpdates: ${readError.message}`);
 
@@ -352,10 +350,10 @@ async function writeUpdateDetails(
 
   const db = adminDb();
 
-  const { data: rows, error: lookupError } = await db
-    .from("exam_updates")
-    .select("id, dedupe_key")
-    .in("dedupe_key", [...new Set(entries.map((e) => e.dedupeKey))]);
+  const { data: rows, error: lookupError } = await selectIn(
+    [...new Set(entries.map((e) => e.dedupeKey))],
+    (chunk) => db.from("exam_updates").select("id, dedupe_key").in("dedupe_key", chunk),
+  );
 
   if (lookupError) {
     console.error(`[sync] writeUpdateDetails lookup: ${lookupError.message}`);

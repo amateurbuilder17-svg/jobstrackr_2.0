@@ -1,21 +1,7 @@
 import "server-only";
 
 import { adminDb } from "@/lib/db/clients";
-
-/** How many `slug LIKE 'base-%'` patterns to put in one PostgREST `or` filter. */
-const PREFIX_CHUNK = 40;
-
-/**
- * How many slugs to put in one `slug IN (…)` query.
- *
- * PostgREST takes its filters in the query string, and a slug is up to 80
- * characters, so this list is the URL. Somewhere between 200 and 400 entries
- * the request stops being a 200 and becomes a bare "Bad Request" with no
- * message — measured against the live project, not guessed. 150 leaves room
- * under that without making the read budget worse in any way that matters: a
- * normal batch is a handful of rows and still costs exactly one query.
- */
-const IN_CHUNK = 150;
+import { chunkForFilter, selectIn } from "@/lib/db/select-in";
 
 /**
  * Makes a batch of base slugs unique, against both the database and each other.
@@ -50,21 +36,17 @@ export async function uniqueSlugs(
 
   const stems = bases.map((base) => base || (table === "jobs" ? "job" : "update"));
 
-  const taken = new Set<string>();
+  // `selectIn` splits this by URL length rather than by count, which matters
+  // more here than anywhere else on the ingest path: a slug is up to 80
+  // characters, so a list of them reaches the limit four times sooner than the
+  // same number of dedupe keys.
+  const { data: existing, error } = await selectIn(stems, (chunk) =>
+    db.from(table).select("slug").in("slug", chunk).limit(chunk.length),
+  );
 
-  for (let i = 0; i < stems.length; i += IN_CHUNK) {
-    const chunk = stems.slice(i, i + IN_CHUNK);
+  if (error) throw new Error(`uniqueSlugs(${table}): ${error.message}`);
 
-    const { data, error } = await db
-      .from(table)
-      .select("slug")
-      .in("slug", chunk)
-      .limit(chunk.length);
-
-    if (error) throw new Error(`uniqueSlugs(${table}): ${error.message}`);
-
-    for (const row of data) taken.add(row.slug);
-  }
+  const taken = new Set(existing.map((row) => row.slug));
 
   // The stems whose suffixed siblings are worth reading: the ones the database
   // already holds, plus the ones this batch repeats.
@@ -81,16 +63,17 @@ export async function uniqueSlugs(
     (stem) => taken.has(stem) || (repeats.get(stem) ?? 0) > 1,
   );
 
-  for (let i = 0; i < contested.length; i += PREFIX_CHUNK) {
-    const chunk = contested.slice(i, i + PREFIX_CHUNK);
-    // `toSlug` emits `[a-z0-9-]` only, so no stem can carry a comma, a dot or a
-    // parenthesis — the characters that would otherwise need escaping here.
-    const filter = chunk.map((stem) => `slug.like.${stem}-*`).join(",");
-
+  // `or` is a query-string filter like `in` is, so it has the same URL ceiling
+  // and is split the same way — on the patterns rather than the stems, since
+  // the pattern is what actually goes into the request.
+  //
+  // `toSlug` emits `[a-z0-9-]` only, so no stem can carry a comma, a dot or a
+  // parenthesis — the characters that would otherwise need escaping here.
+  for (const chunk of chunkForFilter(contested.map((stem) => `slug.like.${stem}-*`))) {
     const { data: suffixed, error: prefixError } = await db
       .from(table)
       .select("slug")
-      .or(filter);
+      .or(chunk.join(","));
 
     if (prefixError) throw new Error(`uniqueSlugs(${table}): ${prefixError.message}`);
 

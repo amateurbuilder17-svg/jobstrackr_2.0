@@ -1,6 +1,7 @@
 import "server-only";
 
 import { adminDb } from "@/lib/db/clients";
+import { selectIn } from "@/lib/db/select-in";
 import { toSlug } from "./normalize";
 
 /**
@@ -30,10 +31,9 @@ export async function resolveOrganizations(
   const out = new Map<string, string>(); // name → id
   if (names.size === 0) return out;
 
-  const { data: existing, error } = await db
-    .from("organizations")
-    .select("id, slug")
-    .in("slug", [...names.keys()]);
+  const { data: existing, error } = await selectIn([...names.keys()], (chunk) =>
+    db.from("organizations").select("id, slug").in("slug", chunk),
+  );
 
   if (error) throw new Error(`resolveOrganizations: ${error.message}`);
 

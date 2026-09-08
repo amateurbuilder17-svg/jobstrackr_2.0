@@ -14,6 +14,7 @@ import {
   vacanciesFromTable,
   type JobDetailPayload,
 } from "./details";
+import { selectIn } from "@/lib/db/select-in";
 import { resolveOrganizations } from "./organizations";
 import { uniqueSlugs } from "./slugs";
 import {
@@ -337,13 +338,10 @@ export async function ingestJobs(rows: FeedRow[]): Promise<IngestResult> {
   // roughly 50 kB per run against a 5 GB monthly ceiling, and it is on the
   // ingest path, which runs hourly — not on the traffic path, which is the
   // distinction this whole architecture turns on.
-  const { data: existingRows, error: readError } = await db
-    .from("jobs")
-    .select(CHANGE_SELECT)
-    .in(
-      "dedupe_key",
-      candidates.map((c) => c.dedupeKey),
-    );
+  const { data: existingRows, error: readError } = await selectIn(
+    candidates.map((c) => c.dedupeKey),
+    (chunk) => db.from("jobs").select(CHANGE_SELECT).in("dedupe_key", chunk),
+  );
 
   if (readError) throw new Error(`ingestJobs: ${readError.message}`);
 
@@ -446,10 +444,10 @@ async function writeJobDetails(
 
   const db = adminDb();
 
-  const { data: rows, error: lookupError } = await db
-    .from("jobs")
-    .select("id, dedupe_key")
-    .in("dedupe_key", [...new Set(entries.map((e) => e.dedupeKey))]);
+  const { data: rows, error: lookupError } = await selectIn(
+    [...new Set(entries.map((e) => e.dedupeKey))],
+    (chunk) => db.from("jobs").select("id, dedupe_key").in("dedupe_key", chunk),
+  );
 
   if (lookupError) {
     console.error(`[sync] writeJobDetails lookup: ${lookupError.message}`);
@@ -502,10 +500,10 @@ export async function recordJobChanges(
   // The diff speaks in dedupe keys, because that is the identity ingestion
   // works in; the table speaks in job ids, because that is what a page joins
   // on. One query for the whole batch resolves between them.
-  const { data: rows, error: lookupError } = await db
-    .from("jobs")
-    .select("id, dedupe_key")
-    .in("dedupe_key", [...new Set(changes.map((c) => c.dedupeKey))]);
+  const { data: rows, error: lookupError } = await selectIn(
+    [...new Set(changes.map((c) => c.dedupeKey))],
+    (chunk) => db.from("jobs").select("id, dedupe_key").in("dedupe_key", chunk),
+  );
 
   if (lookupError) return { written: 0, error: lookupError.message };
 
