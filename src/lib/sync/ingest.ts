@@ -16,7 +16,8 @@ import {
 } from "./details";
 import { selectIn } from "@/lib/db/select-in";
 import { insertIsolatingFailures } from "./insert-batch";
-import { resolveOrganizations } from "./organizations";
+import { organizationKeysFromTitle } from "./organization-name";
+import { lookupOrganizationsByKeys, resolveOrganizations } from "./organizations";
 import { uniqueSlugs } from "./slugs";
 import {
   toAge,
@@ -127,10 +128,11 @@ export type JobPayload = Omit<JobInsert, "dedupe_key" | "content_hash" | "slug">
 export function toJobPayload(
   row: FeedRow,
   organizationId: (name: string) => string | undefined,
+  organizationFromTitle: (title: string) => string | undefined = () => undefined,
 ): {
   dedupeKey: string;
   payload: JobPayload;
-  organisation: string;
+  organisation: string | null;
 } {
   const title = toText(row.title);
   if (!title) throw new Error("title is required");
@@ -138,8 +140,16 @@ export function toJobPayload(
   const sourceUrl = toText(row.source_url);
   if (!sourceUrl) throw new Error("source_url is required");
 
+  // Not fatal when absent, and it used to be. 55 rows in the live feed carry
+  // the literal "Not Available" here, which `cellText` reads as nothing — and
+  // rejecting them lost the listing entirely when the employer was sitting in
+  // the title all along. The title is read only as a fallback, and only against
+  // bodies already on file: a guess may match, never create.
+  //
+  // If neither produces one the row still lands, because `status` below falls
+  // to `draft` without an organisation. A draft is visible in the admin table
+  // and fixable on the next run; a rejected row is gone.
   const organisation = toText(row.organization) ?? toText(row.department);
-  if (!organisation) throw new Error("organization is required");
 
   // Identity, not content: the same listing keeps this key when its salary is
   // corrected, which is what lets an edit update rather than duplicate.
@@ -161,7 +171,7 @@ export function toJobPayload(
   const salaryMax = dropIfWrongSideOf(toSalary(row.salary_max), salaryMin, false);
   const ageMin = toAge(row.age_min);
   const ageMax = dropIfWrongSideOf(toAge(row.age_max), ageMin, false);
-  const orgId = organizationId(organisation);
+  const orgId = organisation ? organizationId(organisation) : organizationFromTitle(title);
 
   return {
     dedupeKey,
@@ -274,9 +284,34 @@ export async function ingestJobs(rows: FeedRow[]): Promise<IngestResult> {
     rows.map((row) => toText(row.organization) ?? toText(row.department)),
   );
 
+  // Only for the rows that arrived without one — the usual batch adds no query
+  // here at all, and a batch that needs it asks for the handful of keys those
+  // titles actually suggest rather than reading the whole table.
+  const titleKeys = rows
+    .filter((row) => !toText(row.organization) && !toText(row.department))
+    .flatMap((row) => organizationKeysFromTitle(toText(row.title) ?? ""));
+
+  const byTitleKey =
+    titleKeys.length > 0
+      ? await lookupOrganizationsByKeys(titleKeys)
+      : new Map<string, string>();
+
+  /** Longest reading first, so `Bank of Baroda` beats `Bank`. */
+  const organizationFromTitle = (title: string): string | undefined => {
+    for (const key of organizationKeysFromTitle(title)) {
+      const id = byTitleKey.get(key);
+      if (id) return id;
+    }
+    return undefined;
+  };
+
   for (const row of rows) {
     try {
-      const { dedupeKey, payload } = toJobPayload(row, (name) => orgIds.get(name));
+      const { dedupeKey, payload } = toJobPayload(
+        row,
+        (name) => orgIds.get(name),
+        organizationFromTitle,
+      );
 
       const detailPayload = toJobDetailPayload(row);
       const detail = hasDetailContent(detailPayload) ? detailPayload : null;
