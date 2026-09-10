@@ -102,10 +102,34 @@ function parentOf(slug) {
   return null;
 }
 
+/**
+ * The body at the end of the chain, not the next one along.
+ *
+ * `hindustan-aeronautics-limited-hal-aircraft-division-nasik` extends
+ * `…-hal`, which itself extends `hindustan-aeronautics-limited`. Merging into
+ * the immediate parent means merging into a row this same run is about to
+ * delete, and the re-point then fails its foreign key — which is exactly how 76
+ * of the first 867 failed. Following the chain to a row that is nobody's
+ * duplicate is the whole fix.
+ */
+function rootOf(slug) {
+  const seen = new Set([slug]);
+  let current = slug;
+
+  for (;;) {
+    const parent = parentOf(current);
+    // A cycle cannot happen with strict prefixes, but a guard costs nothing and
+    // an infinite loop mid-merge would be an ugly way to find out otherwise.
+    if (!parent || seen.has(parent.slug)) return bySlug.get(current);
+    seen.add(parent.slug);
+    current = parent.slug;
+  }
+}
+
 const merges = [];
 for (const org of orgs) {
-  const parent = parentOf(org.slug);
-  if (parent && parent.id !== org.id) merges.push({ from: org, into: parent });
+  const root = rootOf(org.slug);
+  if (root && root.id !== org.id) merges.push({ from: org, into: root });
 }
 
 console.log(`organizations: ${orgs.length}`);
