@@ -15,6 +15,7 @@ import {
   type JobDetailPayload,
 } from "./details";
 import { selectIn } from "@/lib/db/select-in";
+import { insertIsolatingFailures } from "./insert-batch";
 import { resolveOrganizations } from "./organizations";
 import { uniqueSlugs } from "./slugs";
 import {
@@ -255,11 +256,15 @@ export async function ingestJobs(rows: FeedRow[]): Promise<IngestResult> {
   };
 
   // ── 1. Normalise, collecting failures ──────────────────────────────────
+  // The feed row rides along: a row the database refuses has to reach
+  // `sync_dead_letter` as the thing a later run can re-send, which is the
+  // scraped row rather than the column payload derived from it.
   const candidates: {
     dedupeKey: string;
     contentHash: string;
     payload: JobPayload;
     detail: JobDetailPayload | null;
+    row: FeedRow;
   }[] = [];
 
   // Organisations are resolved for the whole batch first: the same body appears
@@ -313,6 +318,7 @@ export async function ingestJobs(rows: FeedRow[]): Promise<IngestResult> {
         contentHash: hashContent({ ...payloadWithFallbacks, detail }),
         payload: payloadWithFallbacks,
         detail,
+        row,
       });
     } catch (error) {
       result.failed += 1;
@@ -383,6 +389,16 @@ export async function ingestJobs(rows: FeedRow[]): Promise<IngestResult> {
   const inserts = changed.filter((c) => !existing.has(c.dedupeKey));
   const updates = changed.filter((c) => existing.has(c.dedupeKey));
 
+  /**
+   * Rows the database refused.
+   *
+   * `result.inserted` and `result.updated` are counted above, before anything
+   * is written, so each entry here also walks one of them back — and the change
+   * log is filtered by it at the end, because "Last date set to 15 Sep" must not
+   * be recorded for a write that did not land.
+   */
+  const refused = new Set<string>();
+
   if (inserts.length > 0) {
     const slugs = await uniqueSlugs(
       "jobs",
@@ -392,20 +408,35 @@ export async function ingestJobs(rows: FeedRow[]): Promise<IngestResult> {
     // Zipped rather than indexed: `slugs[i]` is `string | undefined` under
     // noUncheckedIndexedAccess, and the alternatives are a cast or a `!`, both
     // of which this codebase bans for good reason.
-    const rows = inserts.map((c, i) => ({
+    const pending = inserts.map((c, i) => ({
       candidate: c,
-      slug: slugs[i] ?? toSlug(c.payload.title),
+      values: {
+        ...c.payload,
+        slug: slugs[i] ?? toSlug(c.payload.title),
+        dedupe_key: c.dedupeKey,
+        content_hash: c.contentHash,
+      },
     }));
 
-    const { error } = await db.from("jobs").insert(
-      rows.map(({ candidate, slug }) => ({
-        ...candidate.payload,
-        slug,
-        dedupe_key: candidate.dedupeKey,
-        content_hash: candidate.contentHash,
-      })),
+    // Not a bare `insert(...)`: a multi-row insert is one statement, so a
+    // single refused row used to abort the batch and throw, losing the other
+    // 149 with nothing in the dead letter to retry from. See `insert-batch.ts`
+    // for the three outages that came of it.
+    const outcome = await insertIsolatingFailures(pending, (chunk) =>
+      db.from("jobs").insert(chunk.map((p) => p.values)),
     );
-    if (error) throw new Error(`ingestJobs insert: ${error.message}`);
+
+    for (const failure of outcome.failures) {
+      const { candidate } = failure.row;
+      result.failed += 1;
+      result.inserted -= 1;
+      result.failures.push({
+        sourceKey: toText(candidate.row.source_url) ?? toText(candidate.row.title),
+        error: `insert: ${failure.error}`,
+        payload: candidate.row,
+      });
+      refused.add(candidate.dedupeKey);
+    }
   }
 
   for (const c of updates) {
@@ -413,12 +444,33 @@ export async function ingestJobs(rows: FeedRow[]): Promise<IngestResult> {
       .from("jobs")
       .update({ ...c.payload, content_hash: c.contentHash })
       .eq("dedupe_key", c.dedupeKey);
-    if (error) throw new Error(`ingestJobs update: ${error.message}`);
+
+    // Recorded and stepped over, for the same reason the insert isolates: one
+    // row the database will not take must not cost the rest of the batch.
+    if (error) {
+      result.failed += 1;
+      result.updated -= 1;
+      result.failures.push({
+        sourceKey: toText(c.row.source_url) ?? toText(c.row.title),
+        error: `update: ${error.message}`,
+        payload: c.row,
+      });
+      refused.add(c.dedupeKey);
+    }
+  }
+
+  // A change entry is a claim that a column moved. For a row whose write was
+  // refused it is a false one, and `job_changes.job_id` would have nothing to
+  // point at for a refused insert.
+  if (refused.size > 0) {
+    result.changes = result.changes.filter((change) => !refused.has(change.dedupeKey));
   }
 
   // ── 5. The cold half ───────────────────────────────────────────────────
   result.detailsWritten = await writeJobDetails(
-    changed.flatMap((c) => (c.detail ? [{ dedupeKey: c.dedupeKey, detail: c.detail }] : [])),
+    changed
+      .filter((c) => !refused.has(c.dedupeKey))
+      .flatMap((c) => (c.detail ? [{ dedupeKey: c.dedupeKey, detail: c.detail }] : [])),
   );
 
   return result;
