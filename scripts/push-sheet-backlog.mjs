@@ -74,7 +74,12 @@ const MAX_ATTEMPTS = 3;
 
 const args = new Set(process.argv.slice(2));
 const arg = (name) =>
-  process.argv.slice(2).find((a) => a.startsWith(`--${name}=`))?.split("=").slice(1).join("=");
+  process.argv
+    .slice(2)
+    .find((a) => a.startsWith(`--${name}=`))
+    ?.split("=")
+    .slice(1)
+    .join("=");
 
 const apply = args.has("--apply");
 const only = arg("kind");
@@ -112,7 +117,10 @@ const dedupeKey = (url, title) =>
 async function existingKeys(table) {
   const keys = new Set();
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await db.from(table).select("dedupe_key").range(from, from + 999);
+    const { data, error } = await db
+      .from(table)
+      .select("dedupe_key")
+      .range(from, from + 999);
     if (error) throw new Error(`${table}: ${error.message}`);
     for (const row of data) if (row.dedupe_key) keys.add(row.dedupe_key);
     if (data.length < 1000) return keys;
@@ -213,7 +221,15 @@ const plan = [
   },
 ].filter((p) => !only || p.kind === only);
 
-const totals = { sent: 0, inserted: 0, updated: 0, unchanged: 0, failed: 0, batches: 0, errors: 0 };
+const totals = {
+  sent: 0,
+  inserted: 0,
+  updated: 0,
+  unchanged: 0,
+  failed: 0,
+  batches: 0,
+  errors: 0,
+};
 
 for (const { kind, table, rows, url } of plan) {
   const known = await existingKeys(table);
