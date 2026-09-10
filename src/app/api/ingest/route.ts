@@ -56,20 +56,32 @@ import {
  * full reconcile, and a working manual escape hatch is worth keeping.
  */
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /**
  * The wall clock, spent deliberately.
  *
- * Upstream needs 15–40 seconds to build the sheet before a byte arrives, so the
- * feed timeout is the dominant term and everything else is sized around what is
- * left. The ingest deadline sits well inside `maxDuration` because being killed
- * mid-write loses the run row's honesty: a run that stops on its own deadline
- * records what it did and says it was incomplete, and a run that is killed says
- * nothing at all.
+ * Sized from measurement rather than guesswork, after a 30-second feed timeout
+ * turned out to sit *below* the upstream's ordinary response time. Three
+ * consecutive requests for the same 19 kB window took 26.3 s, failed with an
+ * HTML error page, and 28.5 s — so the cost is near-fixed per call whatever the
+ * window, and roughly one call in three needs a second try.
+ *
+ * `maxDuration` is 300 rather than the 60 this route started with. The codebase
+ * contradicts itself on what Hobby permits — `api/sync/route.ts` says 300 and
+ * `api/cron/exam-status/route.ts` says 60 — and a ceiling is not a reservation:
+ * unused seconds cost nothing, and the alternative is being killed mid-write.
+ * A run that stops on its own deadline records what it did and says it was
+ * incomplete; a run that is killed says nothing and strands its rows in
+ * 'running' until the reaper finds them.
+ *
+ * The feed gets a generous slice because it is the unreliable half, and the
+ * ingest deadline is what remains. Both are absolute, so a slow fetch shortens
+ * the ingest rather than overrunning the request.
  */
-const FEED_TIMEOUT_MS = 30_000;
-const INGEST_DEADLINE_MS = 48_000;
+const FEED_TIMEOUT_MS = 55_000;
+const FEED_BUDGET_MS = 170_000;
+const INGEST_DEADLINE_MS = 260_000;
 
 /** Matches what both ingest paths were tuned for, and what the backlog script sends. */
 const CHUNK = 150;
@@ -157,7 +169,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   let feed;
   try {
-    feed = await fetchFeed(since, FEED_TIMEOUT_MS);
+    feed = await fetchFeed(since, {
+      timeoutMs: FEED_TIMEOUT_MS,
+      deadline: startedAt + FEED_BUDGET_MS,
+    });
   } catch (error) {
     const message =
       error instanceof FeedUnavailable
