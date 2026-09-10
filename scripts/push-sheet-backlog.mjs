@@ -72,6 +72,9 @@ const MAX_BYTES = 1_500_000;
 /** How many times to re-send a batch whose request never reached the endpoint. */
 const MAX_ATTEMPTS = 3;
 
+/** How many times to ask for the feed itself. See the note in `feed()`. */
+const FEED_ATTEMPTS = 3;
+
 const args = new Set(process.argv.slice(2));
 const arg = (name) =>
   process.argv
@@ -134,15 +137,40 @@ async function feed() {
   // The whole sheet is tens of megabytes and the script needs well over a
   // minute to build it, so this is generous on purpose and saved on the way
   // past — a re-run should not have to ask for it again.
-  const response = await fetch(
-    `${E.APPS_SCRIPT_WEBAPP_URL}?secret=${encodeURIComponent(E.SHEETS_SYNC_SECRET)}`,
-    { signal: AbortSignal.timeout(300_000), redirect: "follow" },
-  );
-  const text = await response.text();
-  writeFileSync("/tmp/sheet-feed.json", text);
-  const json = JSON.parse(text);
-  if (json.ok === false) throw new Error(`feed: ${json.error}`);
-  return json;
+  // Retried, because the upstream is measurably unreliable: three consecutive
+  // requests for the same window took 26.3 s, failed, and 28.5 s — and the
+  // failure was an Apps Script HTML error page returned with a 200, which is
+  // what took the weekly reconcile down on 2026-09-10. `src/lib/sync/feed.ts`
+  // learned this first; the script that shares the upstream should not have to
+  // learn it separately.
+  let last;
+  for (let attempt = 1; attempt <= FEED_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(
+        `${E.APPS_SCRIPT_WEBAPP_URL}?secret=${encodeURIComponent(E.SHEETS_SYNC_SECRET)}`,
+        { signal: AbortSignal.timeout(300_000), redirect: "follow" },
+      );
+
+      if (!response.ok) throw new Error(`feed responded ${response.status}`);
+
+      const text = await response.text();
+      // Parsed before it is saved: a saved error page would be read back by a
+      // later `--feed` run as though it were data.
+      const json = JSON.parse(text);
+      if (json.ok === false) throw new Error(`feed: ${json.error}`);
+
+      writeFileSync("/tmp/sheet-feed.json", text);
+      return json;
+    } catch (error) {
+      last = error;
+      if (attempt < FEED_ATTEMPTS) {
+        console.error(`  feed attempt ${attempt} failed (${error.message}); retrying`);
+        await sleep(5_000);
+      }
+    }
+  }
+
+  throw new Error(`feed unavailable after ${FEED_ATTEMPTS} attempts: ${last?.message}`);
 }
 
 /** Rows split so that neither bound is crossed. */
