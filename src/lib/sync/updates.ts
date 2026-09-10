@@ -9,6 +9,7 @@ import { sectorTagsOf } from "@/lib/jobs/sectors";
 import { UPDATE_CATEGORIES, type UpdateCategory } from "@/lib/updates/categories";
 import { toUpdateSections } from "@/lib/updates/detail-shape";
 import { toUrl } from "./links";
+import { insertIsolatingFailures } from "./insert-batch";
 import { toDate, toSlug, toText } from "./normalize";
 import { selectIn } from "@/lib/db/select-in";
 import { resolveOrganizations } from "./organizations";
@@ -251,11 +252,15 @@ export async function ingestExamUpdates(rows: FeedRow[]): Promise<UpdateIngestRe
     rows.map((row) => toText(row.organization) ?? toText(row.conducting_body)),
   );
 
+  // The feed row rides along: a row the database refuses has to reach
+  // `sync_dead_letter` as the thing a later run can re-send, which is the
+  // scraped row rather than the column payload derived from it.
   const candidates: {
     dedupeKey: string;
     contentHash: string;
     payload: UpdatePayload;
     detail: DetailPayload | null;
+    row: FeedRow;
   }[] = [];
 
   for (const row of rows) {
@@ -266,6 +271,7 @@ export async function ingestExamUpdates(rows: FeedRow[]): Promise<UpdateIngestRe
         contentHash: hashContent({ ...payload, detail }),
         payload,
         detail,
+        row,
       });
     } catch (error) {
       result.failed += 1;
@@ -283,7 +289,8 @@ export async function ingestExamUpdates(rows: FeedRow[]): Promise<UpdateIngestRe
 
   const { data: existingRows, error: readError } = await selectIn(
     candidates.map((c) => c.dedupeKey),
-    (chunk) => db.from("exam_updates").select("id, dedupe_key, content_hash").in("dedupe_key", chunk),
+    (chunk) =>
+      db.from("exam_updates").select("id, dedupe_key, content_hash").in("dedupe_key", chunk),
   );
 
   if (readError) throw new Error(`ingestExamUpdates: ${readError.message}`);
@@ -305,6 +312,9 @@ export async function ingestExamUpdates(rows: FeedRow[]): Promise<UpdateIngestRe
   const inserts = changed.filter((c) => !existing.has(c.dedupeKey));
   const updates = changed.filter((c) => existing.has(c.dedupeKey));
 
+  /** Rows the database refused, so the cold half is not written for them. */
+  const refused = new Set<string>();
+
   if (inserts.length > 0) {
     // The slug is the public identifier and is written once, never
     // recomputed — the same rule the jobs worker follows, for the same reason:
@@ -314,16 +324,36 @@ export async function ingestExamUpdates(rows: FeedRow[]): Promise<UpdateIngestRe
       inserts.map((c) => toSlug(c.payload.title)),
     );
 
-    const rowsToInsert = inserts.map((c, i) => ({
-      ...c.payload,
-      slug: slugs[i] ?? toSlug(c.payload.title),
-      dedupe_key: c.dedupeKey,
-      content_hash: c.contentHash,
+    const pending = inserts.map((c, i) => ({
+      candidate: c,
+      values: {
+        ...c.payload,
+        slug: slugs[i] ?? toSlug(c.payload.title),
+        dedupe_key: c.dedupeKey,
+        content_hash: c.contentHash,
+      },
     }));
 
-    const { error } = await db.from("exam_updates").insert(rowsToInsert);
-    if (error) throw new Error(`ingestExamUpdates insert: ${error.message}`);
-    result.inserted = inserts.length;
+    // Not a bare `insert(...)`: a multi-row insert is one statement, so a
+    // single refused row used to abort the batch and throw, losing the other
+    // 149 with nothing in the dead letter to retry from. See `insert-batch.ts`
+    // for the three outages that came of it.
+    const outcome = await insertIsolatingFailures(pending, (chunk) =>
+      db.from("exam_updates").insert(chunk.map((p) => p.values)),
+    );
+
+    result.inserted = outcome.inserted;
+
+    for (const failure of outcome.failures) {
+      const { candidate } = failure.row;
+      result.failed += 1;
+      result.failures.push({
+        sourceKey: toText(candidate.row.source_url) ?? toText(candidate.row.title),
+        error: `insert: ${failure.error}`,
+        payload: candidate.row,
+      });
+      refused.add(candidate.dedupeKey);
+    }
   }
 
   for (const c of updates) {
@@ -331,12 +361,30 @@ export async function ingestExamUpdates(rows: FeedRow[]): Promise<UpdateIngestRe
       .from("exam_updates")
       .update({ ...c.payload, content_hash: c.contentHash })
       .eq("dedupe_key", c.dedupeKey);
-    if (error) throw new Error(`ingestExamUpdates update: ${error.message}`);
+
+    // Recorded and stepped over, for the same reason the insert isolates: one
+    // row the database will not take must not cost the rest of the batch.
+    if (error) {
+      result.failed += 1;
+      result.failures.push({
+        sourceKey: toText(c.row.source_url) ?? toText(c.row.title),
+        error: `update: ${error.message}`,
+        payload: c.row,
+      });
+      refused.add(c.dedupeKey);
+      continue;
+    }
+
     result.updated += 1;
   }
 
+  // Never for a row whose own write was refused: the cold half of a row that
+  // is not there, or that still holds its old values, is worse than no cold
+  // half at all.
   result.detailsWritten = await writeUpdateDetails(
-    changed.flatMap((c) => (c.detail ? [{ dedupeKey: c.dedupeKey, detail: c.detail }] : [])),
+    changed
+      .filter((c) => !refused.has(c.dedupeKey))
+      .flatMap((c) => (c.detail ? [{ dedupeKey: c.dedupeKey, detail: c.detail }] : [])),
   );
 
   return result;

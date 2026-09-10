@@ -3,12 +3,13 @@ import { after, type NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 
-import { adminDb } from "@/lib/db/clients";
 import { tags } from "@/lib/db/tags";
 import { getServerEnv } from "@/lib/env.server";
-import { ingestJobs, recordJobChanges } from "@/lib/sync/ingest";
+import { pushToSearchEngines } from "@/lib/seo/worker";
+import { drainDeadLetter } from "@/lib/sync/drain";
+import { ingestJobs } from "@/lib/sync/ingest";
+import { closeExpiredJobs, failRun, finishRun, ingestBatch, openRun } from "@/lib/sync/run";
 import { ingestExamUpdates } from "@/lib/sync/updates";
-import { runSeoWorker } from "@/lib/seo/worker";
 
 /**
  * The ingestion worker.
@@ -29,9 +30,16 @@ import { runSeoWorker } from "@/lib/seo/worker";
  *   **Resumable.** Rows are processed in a batch; a failure part-way leaves the
  *   rows already written committed, and the next run skips them as unchanged.
  *
- *   **Non-stalling.** One malformed row lands in `sync_dead_letter` and the
- *   batch continues. The old pipeline threw, the run died, and the remaining
- *   rows needed requeueing by hand.
+ *   **Non-stalling.** One bad row lands in `sync_dead_letter` and the batch
+ *   continues. This was long claimed here and only half true: it held for a row
+ *   rejected while being parsed, and not at all for one Postgres refused, which
+ *   aborted the whole multi-row insert and threw. `insert-batch.ts` closes that
+ *   gap by isolating the offender instead of predicting it.
+ *
+ *   **Self-repairing.** A dead letter is re-attempted on a later run rather
+ *   than written and forgotten — `drain.ts`, bounded per run and capped per
+ *   row. Without it every fix to a parse bug arrived too late for the rows that
+ *   bug had already cost.
  */
 
 /**
@@ -104,216 +112,65 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const { kind, rows } = parsed.data;
-  const db = adminDb();
   const startedAt = Date.now();
 
-  // A run row is opened before any work, so a worker that dies mid-batch leaves
-  // evidence rather than nothing. A run stuck in 'running' is itself the alert.
-  const { data: run, error: runError } = await db
-    .from("sync_runs")
-    .insert({ kind, status: "running" })
-    .select("id")
-    .single();
-
-  if (runError) {
+  // Opened before any work, so a worker that dies mid-batch leaves evidence
+  // rather than nothing. A run stuck in 'running' is itself the alert — and is
+  // reaped by `claimIngestSlot` on the pull path.
+  const runId = await openRun(kind);
+  if (!runId) {
     return NextResponse.json({ error: "could not open a sync run" }, { status: 500 });
   }
 
   try {
-    if (kind === "exam_updates") {
-      const result = await ingestExamUpdates(rows);
+    // Retire anything whose window shut, before the new rows land. This is what
+    // makes `status = 'published'` mean "still open", which the closing-soonest
+    // default sort on /jobs relies on.
+    const closed = kind === "jobs" ? await closeExpiredJobs() : 0;
 
-      if (result.failures.length > 0) {
-        await db.from("sync_dead_letter").insert(
-          result.failures.map((f) => ({
-            sync_run_id: run.id,
-            kind,
-            source_key: f.sourceKey,
-            payload: f.payload as never,
-            error: f.error,
-          })),
-        );
-      }
+    // Everything from here is shared with `GET /api/ingest`; see `run.ts`.
+    const outcome = await ingestBatch(kind, rows, runId);
+    await finishRun(runId, outcome, startedAt);
 
-      // Attach new updates to the job they are about. This is the link the old
-      // schema left unpopulated on 3,370 of 3,373 rows, which is why every job
-      // page paid for a title-similarity scan instead of a foreign key.
-      //
-      // Logged and stepped over on failure: an unlinked update is still a
-      // readable update, and the next run retries it — the function walks
-      // `job_link_state = 'unresolved'`.
-      let linked = 0;
-      if (result.inserted + result.updated > 0) {
-        const { data, error } = await db.rpc("resolve_update_job_links", { p_batch: 500 });
-        if (error) console.error("[sync] resolve_update_job_links:", error.message);
-        else linked = data[0]?.linked ?? 0;
-      }
+    // Opportunistic repair, riding on a run that is already here and paying for
+    // a connection. Bounded by its own limit and never fatal — see `drain.ts`.
+    const drained = await drainDeadLetter(
+      kind,
+      kind === "jobs" ? ingestJobs : ingestExamUpdates,
+    );
 
-      await db
-        .from("sync_runs")
-        .update({
-          status: result.failed > 0 ? "partial" : "succeeded",
-          rows_seen: result.seen,
-          rows_inserted: result.inserted,
-          rows_updated: result.updated,
-          rows_unchanged: result.unchanged,
-          rows_failed: result.failed,
-          finished_at: new Date().toISOString(),
-          duration_ms: Date.now() - startedAt,
-        })
-        .eq("id", run.id);
-
-      const wroteUpdates = result.inserted + result.updated;
-      if (wroteUpdates > 0) {
-        revalidateTag(tags.examUpdateList(), { expire: 0 });
-        revalidateTag(tags.sitemap(), { expire: 0 });
-        // An update that resolved onto a job changes that job's page too.
-        if (linked > 0) revalidateTag(tags.jobList(), { expire: 0 });
-
-        // Tell the search engines, after the response rather than before it.
-        // The Apps Script trigger is waiting on this request and does not care
-        // about the result; the worker owns its own failures and never throws.
-        after(pushToSearchEngines);
-      }
-
-      return NextResponse.json({
-        runId: run.id,
-        ...summarise(result),
-        detailsWritten: result.detailsWritten,
-        linked,
-        revalidated: wroteUpdates > 0,
-      });
-    }
-
-    // Retire anything whose window shut
-    //
-    // This rides on the Apps Script trigger rather than a Vercel cron: a Hobby
-    // cron can only fire once a day, and hourly is the cadence this needs — a
-    // job should leave the feed within an hour of closing, not within a day. It is what makes `status = 'published'`
-    // mean "still open", which is what the closing-soonest default sort on
-    // /jobs relies on to show the next deadline rather than the oldest expired
-    // one.
-    //
-    // A failure here is logged and stepped over rather than thrown: a stale
-    // listing in the feed is a much smaller problem than a batch of new jobs
-    // that never lands.
-    let closed = 0;
-    {
-      const { data, error } = await db.rpc("close_expired_jobs");
-      if (error) console.error("[sync] close_expired_jobs:", error.message);
-      else closed = data;
-    }
-
-    const result = await ingestJobs(rows);
-
-    // After the rows land, never before: `job_changes.job_id` references
-    // `jobs`, and a change entry is worthless without its subject.
-    const recorded = await recordJobChanges(result.changes, run.id);
-    if (recorded.error) console.error("[sync] recordJobChanges:", recorded.error);
-
-    if (result.failures.length > 0) {
-      await db.from("sync_dead_letter").insert(
-        result.failures.map((f) => ({
-          sync_run_id: run.id,
-          kind,
-          source_key: f.sourceKey,
-          payload: f.payload as never,
-          error: f.error,
-        })),
-      );
-    }
-
-    await db
-      .from("sync_runs")
-      .update({
-        status: result.failed > 0 ? "partial" : "succeeded",
-        rows_seen: result.seen,
-        rows_inserted: result.inserted,
-        rows_updated: result.updated,
-        rows_unchanged: result.unchanged,
-        rows_failed: result.failed,
-        finished_at: new Date().toISOString(),
-        duration_ms: Date.now() - startedAt,
-      })
-      .eq("id", run.id);
+    const wrote = outcome.inserted + outcome.updated + closed + drained.resolved;
 
     // Only when something actually changed. Revalidating on every run would
-    // throw away the whole cache daily for no reason — which is the cost this
-    // module's diff exists to avoid, undone at the last step.
-    const wrote = result.inserted + result.updated + closed;
+    // throw away the whole cache for no reason — which is the cost the
+    // content-hash diff exists to avoid, undone at the last step.
     if (wrote > 0) {
-      revalidateTag(tags.jobList(), { expire: 0 });
+      if (kind === "jobs") {
+        revalidateTag(tags.jobList(), { expire: 0 });
+      } else {
+        revalidateTag(tags.examUpdateList(), { expire: 0 });
+        // An update that resolved onto a job changes that job's page too.
+        if (outcome.linked > 0) revalidateTag(tags.jobList(), { expire: 0 });
+      }
+
       revalidateTag(tags.sitemap(), { expire: 0 });
+
+      // Tell the search engines, after the response rather than before it. The
+      // caller is waiting on this request and does not care about the result;
+      // the worker owns its own failures and never throws.
       after(pushToSearchEngines);
     }
 
     return NextResponse.json({
-      runId: run.id,
-      ...summarise(result),
-      detailsWritten: result.detailsWritten,
+      runId,
+      ...outcome,
       closed,
-      changesRecorded: recorded.written,
+      drained,
       revalidated: wrote > 0,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-
-    await db
-      .from("sync_runs")
-      .update({
-        status: "failed",
-        error: message,
-        finished_at: new Date().toISOString(),
-        duration_ms: Date.now() - startedAt,
-      })
-      .eq("id", run.id);
-
-    return NextResponse.json({ runId: run.id, error: message }, { status: 500 });
-  }
-}
-
-function summarise(result: {
-  seen: number;
-  inserted: number;
-  updated: number;
-  unchanged: number;
-  failed: number;
-}) {
-  return {
-    seen: result.seen,
-    inserted: result.inserted,
-    updated: result.updated,
-    unchanged: result.unchanged,
-    failed: result.failed,
-  };
-}
-
-/**
- * Announce the changed URLs to IndexNow and to Google's Indexing API.
- *
- * Deliberately after the revalidation, and deliberately inside `after`. A
- * crawler arriving on the strength of this ping must find the *new* page, and
- * `revalidateTag` above is what makes that true; pinging first would invite a
- * fetch of the copy we are in the middle of replacing.
- *
- * Ordering within `after` is not something to rely on for correctness — the
- * callback runs once the response is sent, by which point the invalidations
- * have long since been applied synchronously above.
- */
-async function pushToSearchEngines(): Promise<void> {
-  const run = await runSeoWorker();
-
-  // Failures only — the successful case is recorded in `seo_ping_log`, which
-  // is where a question about whether push indexing is working should be asked
-  // anyway. A log line per hourly run would be noise that says "still fine".
-  // Written out rather than `Object.entries`, which erases the value type and
-  // makes every field below an `any`.
-  for (const [target, result] of [
-    ["indexnow", run.indexnow],
-    ["google", run.google],
-  ] as const) {
-    if (result.failed > 0 || (result.configured && result.note)) {
-      console.error(`[seo] ${target}: ${result.note ?? `${String(result.failed)} failed`}`);
-    }
+    await failRun(runId, message, startedAt);
+    return NextResponse.json({ runId, error: message }, { status: 500 });
   }
 }

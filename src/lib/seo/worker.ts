@@ -335,3 +335,33 @@ async function log(
   const { error } = await db.from("seo_ping_log").insert(rows);
   if (error) console.error("[seo] could not write ping log:", error.message);
 }
+
+/**
+ * Announce the changed URLs to IndexNow and to Google's Indexing API.
+ *
+ * Deliberately after the revalidation, and deliberately inside `after`. A
+ * crawler arriving on the strength of this ping must find the *new* page, and
+ * `revalidateTag` above is what makes that true; pinging first would invite a
+ * fetch of the copy we are in the middle of replacing.
+ *
+ * Ordering within `after` is not something to rely on for correctness — the
+ * callback runs once the response is sent, by which point the invalidations
+ * have long since been applied synchronously above.
+ */
+export async function pushToSearchEngines(): Promise<void> {
+  const run = await runSeoWorker();
+
+  // Failures only — the successful case is recorded in `seo_ping_log`, which
+  // is where a question about whether push indexing is working should be asked
+  // anyway. A log line per hourly run would be noise that says "still fine".
+  // Written out rather than `Object.entries`, which erases the value type and
+  // makes every field below an `any`.
+  for (const [target, result] of [
+    ["indexnow", run.indexnow],
+    ["google", run.google],
+  ] as const) {
+    if (result.failed > 0 || (result.configured && result.note)) {
+      console.error(`[seo] ${target}: ${result.note ?? `${String(result.failed)} failed`}`);
+    }
+  }
+}
