@@ -1,0 +1,93 @@
+# Ingestion's primary schedule.
+#
+# Nothing in this repository used to make ingestion happen: a time-trigger in a
+# Google Apps Script project — outside the repo, outside git, and invisible when
+# it stopped — was the only caller. It died twice, for four days in August and
+# five in September, and both times the failure left no trace anywhere.
+#
+# This is the replacement, and the reason it can be this small is that
+# `GET /api/ingest` derives its own window and is idempotent. A scheduler has no
+# state to keep and nothing to get wrong: firing twice is harmless, and missing
+# a fire is repaired by the next one whenever it comes.
+#
+# It is deliberately not the only caller. `vercel.json` runs the same endpoint
+# once a day, so this workflow being disabled — which GitHub does automatically
+# after 60 days of repository inactivity — degrades ingestion to daily rather
+# than stopping it.
+
+name: Ingest
+
+on:
+  # Not `0,30`: GitHub's scheduler is heavily contended on the hour and the
+  # half hour, and its own documentation warns that runs queued then are
+  # delayed. Odd minutes are measurably more punctual, and nothing here needs
+  # to land on a round number.
+  schedule:
+    - cron: "7,37 * * * *"
+
+  # So a person can fire ingestion from the Actions tab without a terminal —
+  # the manual path that `push-sheet-backlog.mjs` used to be the only form of.
+  workflow_dispatch:
+
+# Overlapping runs are safe (the endpoint has its own guard, and the ingest is
+# idempotent), but they are pure waste: the feed costs ~30 s of upstream work
+# per call whatever the window. Queue rather than cancel, so a long run is not
+# killed part-way through writing.
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Pull the feed into the database
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -uo pipefail
+
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "::error::CRON_SECRET is not set on this repository."
+            exit 1
+          fi
+
+          # www, never the apex: the apex 308s to www and following that
+          # redirect drops the Authorization header, so the request arrives
+          # unauthenticated and answers 401.
+          #
+          # --max-time is above the route's own 300 s ceiling, so a slow run is
+          # reported by the route rather than severed by curl.
+          status=$(curl -sS \
+            --max-time 320 \
+            --retry 2 --retry-connrefused --retry-delay 10 \
+            -o response.json \
+            -w '%{http_code}' \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            https://www.jobstrackr.in/api/ingest) || status="000"
+
+          echo "HTTP ${status}"
+          head -c 2000 response.json || true
+          echo
+
+          case "${status}" in
+            2*)
+              # A run that stopped on its own deadline is a warning, not a
+              # failure: it wrote what it reached and the bookmark declines to
+              # advance, so the next fire finishes the window.
+              if grep -q '"incomplete":true' response.json; then
+                echo "::warning::A window was not fully consumed; the next run will resume it."
+              fi
+              ;;
+            409)
+              # Another scheduler is mid-flight. Expected, and the whole point
+              # of running more than one.
+              echo "::notice::Skipped — another run is already in flight."
+              ;;
+            *)
+              echo "::error::Ingestion failed with HTTP ${status}."
+              exit 1
+              ;;
+          esac
