@@ -1,0 +1,107 @@
+# The sweep that catches what a time window cannot.
+#
+# `/api/ingest` asks the feed for everything since a bookmark, which repairs any
+# gap in *time* — an outage of any length closes on the next fire. What it can
+# never repair is a row that was inside a window the pipeline did process and
+# still failed to land. Those leave no gap to notice: the window was consumed,
+# the bookmark advanced, and the row is simply absent.
+#
+# That is the larger of the two losses. On 2026-09-09 the database was missing
+# 1,104 rows the sheet had, of which only 114 were recorded as failures — the
+# rest were never even attempted, spread thin across August, from days the old
+# trigger was running normally. No failed run, no dead letter and no alert would
+# ever have surfaced them. Only a full comparison does.
+#
+# So this diffs the whole feed against the whole table, by the same identity
+# both ingest paths use, and re-sends only what is genuinely absent. Re-running
+# is safe: a row that already landed reads back as existing and is skipped, and
+# would be diffed to "unchanged" even if it were sent.
+#
+# It runs here rather than on Vercel because the unfiltered feed is 85 MB and
+# takes 41 seconds to build — a poor fit for a serverless budget and a fine one
+# for a runner with thirty minutes.
+
+name: Reconcile
+
+on:
+  # Weekly, off the hour and away from the ingest cadence. Monday morning IST,
+  # so a week of drift is cleared before anyone is looking at the site.
+  schedule:
+    - cron: "23 4 * * 1"
+
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Push the missing rows (leave off for a dry run)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: reconcile
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      SHEETS_SYNC_SECRET: ${{ secrets.SHEETS_SYNC_SECRET }}
+      APPS_SCRIPT_WEBAPP_URL: ${{ secrets.APPS_SCRIPT_WEBAPP_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      # Production dependencies only: the script needs `@supabase/supabase-js`
+      # and nothing else. The full dev install exists to build and test, and
+      # neither happens here.
+      - name: Install
+        run: pnpm install --prod --frozen-lockfile --ignore-scripts
+
+      # Always dry first, whatever the run is going to do. It writes the feed to
+      # /tmp/sheet-feed.json on the way past, so the decision below and the push
+      # that may follow both read the same copy — one 41-second fetch, and no
+      # chance of the two steps disagreeing about what was missing.
+      - name: Measure the drift
+        id: measure
+        run: |
+          set -uo pipefail
+          node scripts/push-sheet-backlog.mjs 2>&1 | tee dry.log
+
+          # Each kind prints "… <n> never landed → <n> batches"; sum them.
+          missing=$(grep -oE '[0-9]+ never landed' dry.log \
+            | grep -oE '^[0-9]+' \
+            | awk '{ total += $1 } END { print total + 0 }')
+          missing=${missing:-0}
+          echo "missing=${missing}" >> "$GITHUB_OUTPUT"
+          echo "::notice::${missing} row(s) in the sheet are absent from the database."
+
+      # A guard, not a limit. Normal drift is tens of rows; the whole feed is
+      # about 11,700. A number in between means the diff is comparing the wrong
+      # thing — a changed identity, a truncated read — and pushing on that
+      # assumption would insert duplicates of rows that are already there.
+      # Refusing and asking for a human is the cheap direction to be wrong in.
+      - name: Refuse an implausible diff
+        if: steps.measure.outputs.missing > 2000
+        run: |
+          echo "::error::${{ steps.measure.outputs.missing }} rows reported missing, which is too many to be ordinary drift. Not pushing. Inspect the dry run before re-running by hand."
+          exit 1
+
+      - name: Push what never landed
+        if: >-
+          steps.measure.outputs.missing > 0 &&
+          (github.event_name == 'schedule' || inputs.apply)
+        run: node scripts/push-sheet-backlog.mjs --apply --feed=/tmp/sheet-feed.json
+
+      - name: Say so when there is nothing to do
+        if: steps.measure.outputs.missing == 0
+        run: echo "::notice::Nothing missing. A reconcile that finds nothing is only reassuring if it says so."

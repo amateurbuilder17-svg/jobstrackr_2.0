@@ -323,7 +323,7 @@ decision, not a surprise later.
 | Supabase MAU | 50k | Fine at current scale. |
 | Vercel bandwidth | 100 GB/mo | Target < 250 KB JS per route; images served as AVIF/WebP; immutable asset caching. |
 | Vercel invocations | 1M/mo | Static pages invoke nothing. Only mutations and revalidation cost invocations. |
-| **Vercel cron** | **2 jobs, daily** | Ingestion is triggered by **Apps Script time-triggers** (free, every 15 min) posting to `/api/sync`. Vercel's 2 crons are reserved for the daily reconcile + prune. |
+| **Vercel cron** | **4 jobs, daily** | Ingestion pulls itself: `.github/workflows/ingest.yml` calls `/api/ingest` every 30 min, and a daily Vercel cron on the same endpoint is the backstop. The others are prune, exam-status and the ingest watchdog. Superseded the Apps Script time-trigger on 2026-09-10, after it failed silently twice. |
 | Function duration | 100 GB-hrs | Sync is incremental and batched; no long-running scrape on Vercel. |
 
 ---

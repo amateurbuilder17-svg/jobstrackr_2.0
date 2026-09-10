@@ -14,9 +14,11 @@ import { getServerEnv } from "@/lib/env.server";
  * blame.
  *
  * A Vercel cron suits this because daily granularity is all it needs — which
- * is the only cadence Hobby crons offer. Ingestion is not scheduled here: it runs from Apps Script
- * time-triggers, because a feed people rely on within the hour cannot be served
- * by a once-a-day cron (see REBUILD-PLAN §6).
+ * is the only cadence Hobby crons offer. Ingestion is not scheduled here: it
+ * runs half-hourly from `.github/workflows/ingest.yml` against `/api/ingest`,
+ * because a feed people rely on within the hour cannot be served by a
+ * once-a-day cron. The Vercel cron on that endpoint is the daily backstop, not
+ * the primary.
  *
  * `close_expired_jobs()` is deliberately *not* called here — it already runs on
  * every ingest, where it belongs. A job whose deadline passed at midnight

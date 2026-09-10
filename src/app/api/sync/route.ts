@@ -14,12 +14,19 @@ import { ingestExamUpdates } from "@/lib/sync/updates";
 /**
  * The ingestion worker.
  *
- * One endpoint, called by an Apps Script time-trigger rather than a Vercel
- * cron — Hobby cron jobs may only run once per day, which is not enough for a
- * feed that matters within the hour (see plan §6). (The old note here said
- * Hobby allowed two crons; Vercel raised that to 100 per project on every
- * plan. The count was never the binding constraint — the daily cadence is,
- * and it still rules this out.)
+ * The *push* half of ingestion, and no longer the way it ordinarily happens.
+ *
+ * This endpoint was once the only way rows arrived: an Apps Script time-trigger
+ * posted to it, because a Hobby cron fires once a day and the feed matters
+ * within the hour. That arrangement failed twice — four days in August, five in
+ * September — and both times silently, because nothing in this repository knew
+ * ingestion was supposed to happen.
+ *
+ * `GET /api/ingest` replaced it by inverting the direction: the app fetches its
+ * own window and schedules itself from callers that live in git. What remains
+ * here is the manual path — `scripts/push-sheet-backlog.mjs` posts its full
+ * reconcile through this endpoint, and a working escape hatch is worth keeping.
+ * Both share one orchestration, in `src/lib/sync/run.ts`.
  *
  * Three properties it has to have, all of which the old pipeline lacked:
  *
@@ -78,7 +85,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const header = request.headers.get("authorization") ?? "";
   const provided = header.startsWith("Bearer ") ? header.slice(7) : "";
-  // Either secret is a legitimate caller: the Apps Script time-trigger holds
+  // Either secret is a legitimate caller: the reconcile script holds
   // SHEETS_SYNC_SECRET, a Vercel cron holds CRON_SECRET. An earlier version
   // preferred one and fell back to the other, which meant that setting both —
   // the normal state — silently made one of the two callers unauthorised.
