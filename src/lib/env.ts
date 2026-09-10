@@ -73,6 +73,18 @@ const serverSchema = z.object({
   APPS_SCRIPT_WEBAPP_URL: url.optional().or(z.literal("")),
   SHEETS_SYNC_SECRET: z.string().optional(),
 
+  /* ── Operational alerting ────────────────────────────────────────────── */
+  // Where the ingest watchdog shouts. Both optional, and absent means "this
+  // channel is off" rather than an error — the same treatment as the push
+  // indexing keys below, and for the same reason: a preview or a fork must not
+  // message the owner's phone, and it must still boot.
+  //
+  // Switching this off does not switch off detection. `/api/health/ingest`
+  // still answers 503 when ingestion has stopped, and the GitHub workflow still
+  // fails on it; this is the channel that survives GitHub itself going quiet.
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
+  TELEGRAM_ALERT_CHAT_ID: z.string().optional(),
+
   /* ── Push indexing ───────────────────────────────────────────────────── */
   // All three are optional, and the worker treats an absent value as "this
   // target is switched off" rather than as an error. That is the same choice

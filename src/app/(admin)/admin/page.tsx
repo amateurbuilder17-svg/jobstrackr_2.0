@@ -9,6 +9,7 @@ import {
   type SyncRunRow,
 } from "@/lib/db/queries/admin";
 import { formatDateTime } from "@/lib/format/deadline";
+import { freshnessOf } from "@/lib/sync/freshness";
 
 export default function AdminOverviewPage() {
   return (
@@ -80,9 +81,31 @@ function Stat({
 async function IngestMonitor() {
   const runs = await listSyncRuns(20);
 
+  // Derived from the rows already fetched rather than a second query. The point
+  // of stating it in words is that an old list looks unremarkable — twice now
+  // ingestion stopped for days, and this table was the only place it showed,
+  // saying nothing louder than "no recent rows".
+  const freshness = freshnessOf(runs);
+
   return (
     <section>
       <h2 className="text-sm font-semibold text-ink">Recent ingest runs</h2>
+
+      <p
+        className={[
+          "mt-2 rounded-lg border px-3 py-2 text-sm",
+          freshness.status === "ok"
+            ? "border-line text-ink-2"
+            : "border-critical/40 bg-critical/5 font-medium text-critical",
+        ].join(" ")}
+      >
+        {freshness.status === "ok" ? "Ingestion is current" : "Ingestion has stopped"} —{" "}
+        {freshness.detail}
+        {freshness.consecutiveFailures > 0
+          ? `, and ${String(freshness.consecutiveFailures)} run(s) have failed since`
+          : ""}
+        .
+      </p>
 
       {runs.length === 0 ? (
         <p className="mt-3 rounded-lg border border-dashed border-line px-4 py-8 text-center text-sm text-ink-3">

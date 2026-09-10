@@ -91,3 +91,31 @@ jobs:
               exit 1
               ;;
           esac
+
+      # The fast half of the alarm. This catches a feed that has started
+      # failing within one cadence — but it lives in the same workflow as the
+      # scheduler, so it cannot catch GitHub disabling that workflow. The
+      # Vercel cron on /api/cron/ingest-watchdog is what covers that, and it is
+      # not redundant with this one.
+      #
+      # `if: always()` on purpose: a failed pull is exactly when the freshness
+      # question is worth asking, because it distinguishes "one bad run" from
+      # "nothing has landed in hours".
+      - name: Assert ingestion is not stale
+        if: always()
+        run: |
+          set -uo pipefail
+
+          status=$(curl -sS --max-time 30 \
+            -o health.json -w '%{http_code}' \
+            https://www.jobstrackr.in/api/health/ingest) || status="000"
+
+          cat health.json || true
+          echo
+
+          if [ "${status}" != "200" ]; then
+            echo "::error::Ingestion is stale (health check returned ${status})."
+            exit 1
+          fi
+
+          echo "::notice::Ingestion is current."
