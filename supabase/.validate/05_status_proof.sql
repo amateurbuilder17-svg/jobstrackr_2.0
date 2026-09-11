@@ -246,6 +246,13 @@ select pg_temp.check('prune covers the quota counters',
 select pg_temp.check('prune covers the report cache',
   (select count(*) from public.prune_operational_data()
     where table_name = 'exam_status_reports')::int, 1);
+-- Every migration that extends the prune replaces its whole body, and two of
+-- them dropped a table the previous one had added. The full set is pinned here
+-- so the next one that does it fails this line instead of leaking quietly.
+select pg_temp.check('prune covers every operational table',
+  (select string_agg(table_name, ',' order by table_name)
+     from public.prune_operational_data()),
+  'ai_usage,exam_status_reports,job_changes,seo_ping_log,sync_dead_letter,sync_runs'::text);
 
 
 -- ═══ 5. The key pool ════════════════════════════════════════════════════════

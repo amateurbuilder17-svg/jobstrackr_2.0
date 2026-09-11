@@ -126,6 +126,13 @@ create policy seo_ping_log_admin_read on public.seo_ping_log
 -- Folded into the existing daily prune rather than given a cron of its own:
 -- Vercel Hobby allows two crons and both are spoken for, and a log that is
 -- pruned a few hours late is not a problem.
+--
+-- `create or replace` swaps the whole body, so this carries every table an
+-- earlier migration taught it to prune, not only the new one. As first
+-- committed, this file copied the `ops` body and silently dropped the AI quota
+-- counters and report cache that `exam_status` had added; `exam_status` had
+-- already done the same to `job_changes`, which is restored here.
+-- `prove-schema.sh` checks each table by name.
 create or replace function public.prune_operational_data()
 returns table (table_name text, rows_deleted bigint)
 language plpgsql
@@ -144,6 +151,18 @@ begin
   get diagnostics n = row_count;
   table_name := 'sync_dead_letter'; rows_deleted := n; return next;
 
+  delete from public.job_changes where changed_at < now() - interval '180 days';
+  get diagnostics n = row_count;
+  table_name := 'job_changes'; rows_deleted := n; return next;
+
+  delete from public.ai_usage where day < (timezone('Asia/Kolkata', now()))::date - 30;
+  get diagnostics n = row_count;
+  table_name := 'ai_usage'; rows_deleted := n; return next;
+
+  delete from public.exam_status_reports where refreshed_at < now() - interval '180 days';
+  get diagnostics n = row_count;
+  table_name := 'exam_status_reports'; rows_deleted := n; return next;
+
   -- 14 days, shorter than the 30 the sync tables get. A ping either landed
   -- within the hour or it did not; a fortnight-old submission receipt informs
   -- no decision anyone will make.
@@ -155,5 +174,6 @@ $$;
 
 comment on function public.prune_operational_data is
   'Retention: 30 days of sync runs, 90 days of resolved dead-letter rows, '
-  '14 days of SEO ping receipts. Unresolved dead-letter rows are never '
-  'pruned — they are the backlog.';
+  '180 days of job changes, 30 days of AI quota counters, 180 days of '
+  'unrefreshed status reports, 14 days of SEO ping receipts. Unresolved '
+  'dead-letter rows are never pruned — they are the backlog.';
