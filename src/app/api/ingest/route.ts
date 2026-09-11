@@ -145,9 +145,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (!slot.ok) {
     return NextResponse.json(
       { skipped: "another run is in flight", busySince: slot.busySince, reaped: slot.reaped },
-      // 200, not 409. A skip is the arrangement working, not a failure, and
-      // QStash retries anything outside 2xx — so a 409 here would be retried
-      // straight back into the run it was skipping.
+      // 200, not 409. A skip is the arrangement working, not a failure — and a
+      // caller that retries anything outside 2xx would retry straight back into
+      // the run it was skipping.
       { status: 200 },
     );
   }

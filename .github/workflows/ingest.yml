@@ -1,11 +1,11 @@
 # A second caller for ingestion — and the one that watches from outside.
 #
-# QStash is the primary schedule; see `scripts/qstash-schedule.mjs`. This
-# workflow was primary until it was measured: on 2026-09-10 GitHub delivered
-# about 6 of 45 scheduled runs, at gaps of up to 4½ hours, because scheduled
-# events are best-effort and dropped under load. It stays because it costs
-# nothing, and because its health assertion runs on infrastructure that shares
-# nothing with Vercel, Supabase or QStash.
+# Supabase Cron is the primary schedule; see
+# `supabase/migrations/20260911000001_ingest_cron.sql`. This workflow was
+# primary until it was measured: on 2026-09-10 GitHub delivered about 6 of 45
+# scheduled runs, at gaps of up to 4½ hours, because scheduled events are
+# best-effort and dropped under load. It stays because it costs nothing, and
+# because its health assertion runs outside the database the primary lives in.
 #
 # Nothing in this repository used to make ingestion happen: a time-trigger in a
 # Google Apps Script project — outside the repo, outside git, and invisible when
