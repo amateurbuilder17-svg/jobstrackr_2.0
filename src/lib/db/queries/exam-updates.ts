@@ -15,6 +15,7 @@ import {
 } from "../cursor";
 import { unwrap, unwrapMaybe } from "../errors";
 import { fetchAllRows } from "../paginate";
+import { toSearchFilter } from "../search-term";
 import { SEARCH_CONFIG, tags } from "../tags";
 import type { Database } from "../database.types";
 import { linkLabel } from "@/lib/updates/detail-shape";
@@ -122,10 +123,9 @@ export async function listExamUpdates(
   const cursor = decodeCursor(options.cursor);
   const ascending = (options.sort ?? "newest") === "oldest";
 
-  // A single character is treated as no filter rather than as a search that
-  // matches nothing: it is almost always a keystroke on the way to a real
-  // term, and emptying the page mid-typing reads as breakage.
-  const term = options.query?.trim() ?? "";
+  // Every word is a prefix, so "ssc steno" finds "SSC Stenographer", and a
+  // single character is no filter at all — see `toSearchFilter`.
+  const search = toSearchFilter(options.query);
 
   // Only an unfiltered-by-category feed has two halves to order. With a chip
   // on there is nothing to reorder: the chip is `notification`, and the feed is
@@ -156,12 +156,10 @@ export async function listExamUpdates(
       );
     }
     if (options.examSlug) query = query.eq("exams.slug", options.examSlug);
-    if (term.length >= 2) {
-      query = query.textSearch("search_vector", term, {
-        config: SEARCH_CONFIG,
-        type: "websearch",
-      });
+    if (search?.tsquery) {
+      query = query.textSearch("search_vector", search.tsquery, { config: SEARCH_CONFIG });
     }
+    for (const filter of search?.orFilters ?? []) query = query.or(filter);
     return query;
   };
 
