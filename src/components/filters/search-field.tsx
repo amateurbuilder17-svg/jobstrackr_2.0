@@ -20,6 +20,20 @@ import { consumeSearchFocus } from "@/lib/search-handoff";
  * The destination is the current path. It used to be the literal `"/jobs"`,
  * which was invisible while `/jobs` was the only route with a search field and
  * would have silently redirected `/updates` the moment it got one.
+ *
+ * ## The box belongs to the reader
+ *
+ * What is typed is never overwritten by the search it started. The field used
+ * to copy every URL change back into itself, including its own navigations
+ * landing — and those carry an older, trimmed term. So "ssc " with a pause
+ * came back as "ssc", eating the space the reader had just typed, and a
+ * navigation that landed mid-word rewound the box to wherever the debounce had
+ * fired. That is what made typing feel throttled: the input was fine, and the
+ * URL kept reaching into it.
+ *
+ * Now the field remembers which terms it sent (`inFlight`) and lets those land
+ * without touching the input. Only a change it did not make — the back button,
+ * a "Clear all filters" link — is copied into the box.
  */
 export function SearchField({
   placeholder = "Search by post, department or qualification",
@@ -34,6 +48,8 @@ export function SearchField({
   const urlTerm = params.get("q") ?? "";
   const [value, setValue] = useState(urlTerm);
   const [syncedTerm, setSyncedTerm] = useState(urlTerm);
+  /** Terms this field has sent to the URL that have not landed yet, oldest first. */
+  const [inFlight, setInFlight] = useState<string[]>([]);
   const [, startTransition] = useTransition();
   const debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -57,9 +73,6 @@ export function SearchField({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The URL is the source of truth: if it changes elsewhere — the back button,
-  // a cleared filter — the field follows rather than holding a stale term.
-  //
   // Adjusted during render rather than in an effect. An effect would render
   // once with the stale value and again with the fresh one, and React's
   // cascading-render lint flags it for exactly that reason. This is the
@@ -67,7 +80,17 @@ export function SearchField({
   // component immediately, before anything is painted.
   if (urlTerm !== syncedTerm) {
     setSyncedTerm(urlTerm);
-    setValue(urlTerm);
+    const ours = inFlight.indexOf(urlTerm);
+    if (ours === -1) {
+      // Someone else moved the URL. The box follows rather than holding a
+      // term the results below no longer answer.
+      setValue(urlTerm);
+      setInFlight([]);
+    } else {
+      // Our own search arriving. The box already holds something at least as
+      // new, so it is left alone; anything sent before this one was superseded.
+      setInFlight(inFlight.slice(ours + 1));
+    }
   }
 
   /**
@@ -76,36 +99,44 @@ export function SearchField({
    * Derived, not stored, and deliberately not `useTransition`'s `isPending`.
    * That flag is what this component used to report, and it never once turned
    * true: `router.replace` resolves its navigation outside the transition's
-   * own render, so React had nothing to stay pending on. The `aria-live`
-   * region below has therefore been announcing nothing since it was written,
-   * and a spinner driven from the same flag would have been just as invisible.
+   * own render, so React had nothing to stay pending on.
    *
    * This comparison cannot drift, because it *is* the question the reader is
    * asking: the results below reflect `urlTerm`, so anything else in the box
-   * means they are looking at an answer to a older query. It covers the
-   * debounce window too, which `isPending` never could — feedback arrives on
-   * the first keystroke rather than 250ms after the last one.
+   * means they are looking at an answer to an older query. It covers the
+   * debounce window too — feedback arrives on the first keystroke rather than
+   * after the last one.
    */
   const isStale = value.trim() !== urlTerm;
 
   function push(term: string) {
+    const trimmed = term.trim();
+    // Already asked for, or already showing. A trailing space or a letter
+    // typed and deleted is not a new search, and costs no request.
+    if (trimmed === (inFlight.at(-1) ?? urlTerm)) return;
+
     const next = new URLSearchParams(params.toString());
-    if (term.trim()) next.set("q", term.trim());
+    if (trimmed) next.set("q", trimmed);
     else next.delete("q");
     // Any change to the query resets pagination; keeping the old cursor would
     // page through the previous result set.
     next.delete("after");
     const query = next.toString();
+
+    setInFlight((prev) => [...prev, trimmed]);
     startTransition(() => {
       router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
     });
   }
 
   function onChange(term: string) {
+    // The keystroke lands in the box immediately and unconditionally. Only the
+    // search behind it waits.
     setValue(term);
     clearTimeout(debounce.current);
-    // 250ms: long enough that a normal typing burst is one request, short
-    // enough that the pause before results does not read as a stall.
+    // 250ms of quiet before searching: a typing burst is one request against
+    // the free-tier budget rather than one per letter, and the box itself
+    // never waits for it.
     debounce.current = setTimeout(() => {
       push(term);
     }, 250);
@@ -121,12 +152,11 @@ export function SearchField({
       }}
       className="relative"
     >
-      {/* Nothing used to tell the reader a search was under way. Measured on
-          the deployed site, keystroke to repainted results is ~1.14s on a fast
-          desktop — 250ms of it the debounce below, ~220ms the round trip, the
-          rest the route transition — and for all of it the list sat unchanged,
-          which reads as a box that has stopped working. Most of that second is
-          not going away, so the field acknowledges it instead of hiding it.
+      {/* Measured on the deployed site, keystroke to repainted results is
+          ~1.14s on a fast desktop — 250ms of it the debounce, ~220ms the round
+          trip, the rest the route transition — and for all of it the list sits
+          unchanged, which reads as a box that has stopped working. So the field
+          acknowledges it instead of hiding it.
 
           The spinner replaces the search icon rather than joining it: same
           box, same position, so nothing reflows and the signal appears exactly
@@ -154,6 +184,7 @@ export function SearchField({
         }}
         placeholder={placeholder}
         aria-label={label}
+        autoComplete="off"
         className={
           "h-10 w-full rounded-md border border-line bg-surface pr-3 pl-9 text-sm text-ink " +
           "placeholder:text-ink-3 focus:border-accent-line " +
