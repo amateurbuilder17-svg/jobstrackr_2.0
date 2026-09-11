@@ -71,9 +71,7 @@ export function toSearchFilter(raw: string | undefined): SearchFilter | null {
 
   for (const token of tokens) {
     if (token.length >= SUBSTRING_MIN) {
-      orFilters.push(
-        `search_vector.fts(${SEARCH_CONFIG}).${token}:*,title.ilike.*${token}*`,
-      );
+      orFilters.push(`search_vector.fts(${SEARCH_CONFIG}).${token}:*,title.ilike.*${token}*`);
     } else {
       // One character stays exact: `d:*` in "group d" would match every word
       // beginning with d.
