@@ -206,6 +206,15 @@ describe("filters actually reach the query", () => {
     expect(search, "a one-character term should not filter").toBeUndefined();
   });
 
+  it("listExamUpdates matches a two-word search as prefixes", async () => {
+    // "ssc steno" has to reach "SSC Stenographer". As a whole-word websearch
+    // it went out as `'ssc' & 'steno'` and matched nothing in production.
+    await (await updates()).listExamUpdates({ query: "ssc steno" });
+
+    const search = requests.find((u) => u.searchParams.has("search_vector"));
+    expect(search?.searchParams.get("search_vector")).toBe("fts(jt_search).ssc:* & steno:*");
+  });
+
   it("listJobs sends the tag filter", async () => {
     await (await jobs()).listJobs({ tag: "banking" });
     const tagged = requests.find((u) => u.searchParams.has("tags"));
