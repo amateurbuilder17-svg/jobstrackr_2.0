@@ -1,4 +1,11 @@
-# Ingestion's primary schedule.
+# A second caller for ingestion — and the one that watches from outside.
+#
+# QStash is the primary schedule; see `scripts/qstash-schedule.mjs`. This
+# workflow was primary until it was measured: on 2026-09-10 GitHub delivered
+# about 6 of 45 scheduled runs, at gaps of up to 4½ hours, because scheduled
+# events are best-effort and dropped under load. It stays because it costs
+# nothing, and because its health assertion runs on infrastructure that shares
+# nothing with Vercel, Supabase or QStash.
 #
 # Nothing in this repository used to make ingestion happen: a time-trigger in a
 # Google Apps Script project — outside the repo, outside git, and invisible when
@@ -74,6 +81,9 @@ jobs:
 
           case "${status}" in
             2*)
+              if grep -q '"skipped"' response.json; then
+                echo "::notice::Skipped — another run is already in flight."
+              fi
               # A run that stopped on its own deadline is a warning, not a
               # failure: it wrote what it reached and the bookmark declines to
               # advance, so the next fire finishes the window.
