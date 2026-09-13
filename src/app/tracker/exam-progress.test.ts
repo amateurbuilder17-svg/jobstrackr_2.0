@@ -315,6 +315,21 @@ describe("computeStages", () => {
     expect(stages[3]?.state).toBe("completed"); // Mains
     expect(stages[4]?.state).toBe("current"); // Result
   });
+
+  it("keeps Admit current when both tier dates are out but no admit card is", () => {
+    const report = mockReport({
+      phases: [
+        mockPhase({ name: "Tier 1", status: "exam_scheduled", examDate: "2026-10-20" }),
+        mockPhase({ name: "Tier 2", status: "exam_scheduled", examDate: "2026-12-15" }),
+      ],
+    });
+    const stages = computeStages("applied", null, report);
+    expect(stages[0]?.state).toBe("completed"); // Apply
+    expect(stages[1]?.state).toBe("current"); // Admit — not out yet
+    expect(stages[2]?.state).toBe("upcoming"); // Tier 1
+    expect(stages[3]?.state).toBe("upcoming"); // Tier 2
+    expect(stages[4]?.state).toBe("upcoming"); // Result
+  });
 });
 
 describe("computeNextEvent", () => {
@@ -500,5 +515,41 @@ describe("computeNextEvent", () => {
     expect(next?.title).toBe("Mains Result Declaration");
     expect(next?.subtitle).toContain("Mains exam completed");
     expect(next?.date).toContain("15 Nov 2026");
+  });
+
+  it("stays on Tier 1 when only the tier dates are published, not the admit card", () => {
+    const report = mockReport({
+      phases: [
+        mockPhase({ name: "Tier 1", status: "exam_scheduled", examDate: "2026-10-20" }),
+        mockPhase({ name: "Tier 2", status: "exam_scheduled", examDate: "2026-12-15" }),
+      ],
+    });
+
+    const attempt = mockAttempt({ status: "applied" });
+    const next = computeNextEvent("applied", attempt, report, today);
+
+    expect(next?.title).toBe("Tier 1 Examination");
+    expect(next?.date).toContain("20 Oct 2026");
+    expect(next?.subtitle).not.toContain("Tier 2");
+  });
+
+  it("moves on to Tier 2 once the Tier 2 admit card is out", () => {
+    const report = mockReport({
+      phases: [
+        mockPhase({ name: "Tier 1", status: "exam_scheduled", examDate: "2026-08-10" }),
+        mockPhase({
+          name: "Tier 2",
+          status: "admit_card_available",
+          admitCardAvailable: true,
+          examDate: "2026-10-18",
+        }),
+      ],
+    });
+
+    const attempt = mockAttempt({ status: "applied" });
+    const next = computeNextEvent("applied", attempt, report, today);
+
+    expect(next?.title).toBe("Tier 2 Examination");
+    expect(next?.subtitle).toContain("Tier 2 Admit Card");
   });
 });

@@ -243,6 +243,11 @@ export function computeStages(
 
   // 2. Compute index from the report's phase statuses so the bar
   //    reflects reality even if the user hasn't updated their status.
+  //
+  //    `exam_scheduled` sits *before* `admit_card_available` in EXAM_STAGES: a
+  //    date is out, the admit card is not. So a scheduled Phase 1 leaves the
+  //    bar on Admit, and a scheduled Phase 2 moves it nowhere — commissions
+  //    publish every tier's date at once, long before the Tier 1 admit card.
   let reportIndex = 0;
   if (rep) {
     const p1Status = phase1?.status;
@@ -254,37 +259,33 @@ export function computeStages(
         reportIndex = 5; // past everything
       } else if (p2Status === "exam_completed") {
         reportIndex = 4; // waiting for final result
-      } else if (
-        p2Status === "admit_card_available" ||
-        p2Status === "exam_scheduled" ||
-        phase2?.admitCardAvailable
-      ) {
+      } else if (p2Status === "admit_card_available" || phase2?.admitCardAvailable) {
         reportIndex = 3; // at phase 2
       } else if (p1Status === "result_declared" || phase1?.resultAvailable) {
         reportIndex = 3; // prelims done, at phase 2
       } else if (p1Status === "exam_completed") {
         reportIndex = 2; // prelims done, waiting result
-      } else if (
-        p1Status === "admit_card_available" ||
-        p1Status === "exam_scheduled" ||
-        phase1?.admitCardAvailable
-      ) {
+      } else if (p1Status === "admit_card_available" || phase1?.admitCardAvailable) {
         reportIndex = 2; // at prelims
-      } else if (rep.stage === "registration_closed" || rep.stage === "exam_scheduled") {
-        reportIndex = 1;
+      } else if (
+        p1Status === "exam_scheduled" ||
+        rep.stage === "registration_closed" ||
+        rep.stage === "exam_scheduled"
+      ) {
+        reportIndex = 1; // dated, waiting for the admit card
       }
     } else {
       if (p1Status === "result_declared" || phase1?.resultAvailable) {
         reportIndex = templates.length; // all done
       } else if (p1Status === "exam_completed") {
         reportIndex = templates.length - 1; // waiting for result
-      } else if (
-        p1Status === "admit_card_available" ||
-        p1Status === "exam_scheduled" ||
-        phase1?.admitCardAvailable
-      ) {
+      } else if (p1Status === "admit_card_available" || phase1?.admitCardAvailable) {
         reportIndex = 2;
-      } else if (rep.stage === "registration_closed" || rep.stage === "exam_scheduled") {
+      } else if (
+        p1Status === "exam_scheduled" ||
+        rep.stage === "registration_closed" ||
+        rep.stage === "exam_scheduled"
+      ) {
         reportIndex = 1;
       }
     }
@@ -450,6 +451,12 @@ export function computeNextEvent(
   const p2ResultDays = today && p2ResultDate ? daysUntilFrom(today, p2ResultDate) : null;
 
   // Determine if Phase 1 is done / resolved
+  //
+  // Phase 2 is evidence only once its admit card is out or later. A Phase 2
+  // that is merely `exam_scheduled` is a published date, and SSC-style
+  // calendars publish every tier's date together — reading that as "Phase 1
+  // done" told candidates still waiting on a Tier 1 admit card to prepare for
+  // Tier 2.
   const p1ResultPast = p1ResultDays !== null && p1ResultDays < 0;
   const p1Done =
     userAtP2 ||
@@ -459,7 +466,6 @@ export function computeNextEvent(
     p1ResultPast ||
     (twoPhases &&
       (phase2?.status === "admit_card_available" ||
-        phase2?.status === "exam_scheduled" ||
         phase2?.status === "exam_completed" ||
         phase2?.status === "result_declared" ||
         phase2?.admitCardAvailable === true));
