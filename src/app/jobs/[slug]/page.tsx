@@ -92,13 +92,24 @@ export async function generateMetadata({
   );
   const closes = formatDate(job.last_date);
 
+  // A closed listing is still a page worth reading — the notification, the
+  // vacancy table, the eligibility are all still true, and the recruitment is
+  // a thing people look up long after it shut. What it must not do is read
+  // like an open one. The snippet is the only part of this page most people
+  // see before they decide to click, so it is where the state has to be
+  // stated, in the first three words.
+  const closed = job.status === "closed";
+
   // Written as a sentence rather than keyword soup, because this is what shows
   // under the result and it decides whether anyone clicks.
   const description = [
-    org ? `${org} invites applications for ${job.title}.` : `${job.title}.`,
+    closed ? "Applications closed." : null,
+    org
+      ? `${org} ${closed ? "invited" : "invites"} applications for ${job.title}.`
+      : `${job.title}.`,
     vacancies ? `${vacancies} vacancies.` : null,
     job.qualification_summary ? `Eligibility: ${job.qualification_summary}.` : null,
-    closes ? `Apply before ${closes}.` : null,
+    closes ? (closed ? `The last date was ${closes}.` : `Apply before ${closes}.`) : null,
   ]
     .filter(Boolean)
     .join(" ");
@@ -171,6 +182,9 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
       ? `${orgName} (${orgShort})`
       : (orgName ?? orgShort ?? null);
   const initials = toInitials(orgShort ?? orgName ?? "GOVT");
+
+  // Formatted here rather than inline so the notice above reads as prose.
+  const closedOn = formatDate(job.last_date);
 
   const documents: QuickLink[] = detail?.notification_pdf
     ? [{ label: "Official notification (PDF)", url: detail.notification_pdf }]
@@ -252,6 +266,41 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
           </div>
         </div>
       </header>
+
+      {/* ── Closed listings ────────────────────────────────────────────────
+          Rendered from `job.status`, not from today's date, and that is the
+          whole point of it. `JobActions` and `JobDeadlineChip` both decide
+          expiry on the client, because a page prerendered in June cannot know
+          it is now September — so the HTML a crawler reads, and the first
+          frame a visitor sees, always describes the listing as open. For a
+          job that closed eight months ago that is simply wrong, and it is
+          wrong in the one place it matters: the top of the page, above the
+          apply button.
+
+          `status` is a database column that ingest maintains hourly, so the
+          server does know. Stating it here costs nothing at runtime, cannot
+          drift out of sync with the deadline chip below it, and gives the
+          ~3,753 archived listings an honest first line. */}
+      {job.status === "closed" ? (
+        <div role="note" className="mt-5 rounded-xl border border-line bg-surface-2 px-4 py-3">
+          <p className="text-sm font-semibold text-ink">
+            Applications for this post have closed
+          </p>
+          <p className="mt-1 text-sm text-ink-2">
+            {closedOn
+              ? `The last date to apply was ${closedOn}. `
+              : "The application window has ended. "}
+            The notification below is kept for reference.{" "}
+            <Link
+              href="/jobs"
+              className="font-medium text-accent underline-offset-4 hover:underline"
+            >
+              See jobs open now
+            </Link>
+            .
+          </p>
+        </div>
+      ) : null}
 
       <JobActions
         jobId={job.id}

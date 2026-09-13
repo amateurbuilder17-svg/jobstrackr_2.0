@@ -52,6 +52,17 @@ export function jobPostingJsonLd(job: JobDetail, siteUrl: string): Record<string
     industry: "Government",
 
     // End of day IST — the deadline is a calendar date in India, not an instant.
+    //
+    // This field is also how a closed listing leaves Google Jobs. Since
+    // `getJobBySlug` resolves `status = 'closed'`, this markup is now emitted
+    // on ~3,753 pages whose window has shut, and Google's stated options for an
+    // expired posting are: remove the page, remove the markup, or leave
+    // `validThrough` in the past. The third is the one that happens here for
+    // free — the date was always the real deadline — so the posting drops out
+    // of the Jobs carousel on its own while the page keeps ranking in web
+    // search. Nothing needs to run for that to be true, which is why it is
+    // written down: a future change that starts synthesising a `validThrough`
+    // for undated rows would silently re-list every expired job.
     ...(job.last_date ? { validThrough: `${job.last_date}T23:59:59+05:30` } : {}),
 
     // Applying happens on the recruiting body's own portal, never here, and

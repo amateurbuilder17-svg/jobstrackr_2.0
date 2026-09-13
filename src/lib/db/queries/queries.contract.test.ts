@@ -341,3 +341,58 @@ describe("listUpdateLinksForJob", () => {
     expect(await (await updates()).listUpdateLinksForJob("job-id")).toEqual([]);
   });
 });
+
+/**
+ * A closed listing keeps its URL.
+ *
+ * `close_expired_jobs()` moves a job to `status = 'closed'` within an hour of
+ * its deadline. Migration 0016 widened the RLS policies to `('published',
+ * 'closed')` so the detail page would keep resolving, and wrote down why —
+ * "~5,200 of these slugs are indexed, and a 404 on every expired notice would
+ * throw away the crawl surface this rebuild exists to protect."
+ *
+ * `getJobBySlug` never widened with it. So the permission sat unused and every
+ * expired notice 404'd: measured against production on 9 Sep 2026, 3,753 closed
+ * rows against 3,046 published — more than half the corpus returning 404 to
+ * Google and to anyone holding a bookmark or a forwarded link.
+ *
+ * The failure is invisible from inside the app. Nothing errors, no test broke,
+ * and the pages 404 one at a time as their dates pass, so there is no moment
+ * where it looks like a regression. These two assertions are the alarm: one
+ * that the detail page still admits closed rows, one that the lists still
+ * refuse them, because the fix for the first is one careless edit away from
+ * breaking the second.
+ */
+describe("closed jobs resolve on their own page and nowhere else", () => {
+  /** The `status` predicate PostgREST received on the last matching request. */
+  function statusFilter(path: string): string | undefined {
+    return (
+      requests.find((u) => u.pathname.endsWith(path))?.searchParams.get("status") ?? undefined
+    );
+  }
+
+  it("getJobBySlug accepts a closed listing", async () => {
+    await (await jobs()).getJobBySlug("ssc-cgl-2026");
+
+    const status = statusFilter("/jobs");
+    expect(status, "no status filter was sent at all").toBeDefined();
+    expect(status, "a closed job's page must still resolve — see migration 0016").toContain(
+      "closed",
+    );
+  });
+
+  it("the sitemap lists closed listings too, so they get recrawled", async () => {
+    await (await jobs()).listJobSlugs();
+    expect(statusFilter("/jobs")).toContain("closed");
+  });
+
+  it("but the feed still refuses them — a list is what you can apply to", async () => {
+    await (await jobs()).listJobs({});
+    expect(statusFilter("/jobs")).toBe("eq.published");
+  });
+
+  it("and so does the prerender list, which prices the build", async () => {
+    await (await jobs()).listJobSlugsForBuild();
+    expect(statusFilter("/jobs")).toBe("eq.published");
+  });
+});

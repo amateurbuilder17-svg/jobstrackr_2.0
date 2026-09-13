@@ -225,6 +225,29 @@ export async function listJobs(options: JobListOptions = {}): Promise<Page<JobCa
  *
  * Tagged with both the job and the list: editing a job must refresh its own
  * page and every list it appears on.
+ *
+ * ── Why `closed` resolves here and nowhere else ────────────────────────────
+ * Every list query in this module filters to `published`, because a list is a
+ * set of things you can still apply to. The detail page is the exception, and
+ * has to be: `close_expired_jobs()` moves a listing to `closed` within an hour
+ * of its deadline, and this query filtered to `published` alone, so the page
+ * for every expired notice 404'd the moment the window shut.
+ *
+ * That is not a small leak. Measured against production on 9 Sep 2026: 3,753
+ * closed rows against 3,046 published ones — more than half the corpus was
+ * answering 404 to Google, to anyone following a months-old WhatsApp forward,
+ * and to anyone who had bookmarked the notice they applied through.
+ *
+ * Migration 0016 already decided this. It widened `jobs_public_read` and
+ * `job_details_public_read` to `status in ('published', 'closed')` for exactly
+ * this reason, and said so: "The detail page must still resolve for a closed
+ * job. ~5,200 of these slugs are indexed, and a 404 on every expired notice
+ * would throw away the crawl surface this rebuild exists to protect." The
+ * policy widened and the query never did, so the permission has been granted
+ * and unused since. This is the missing half.
+ *
+ * `archived` stays out. That status means withdrawn or superseded — a claim
+ * that the notice should not be read — where `closed` means it ran its course.
  */
 export async function getJobBySlug(slug: string): Promise<JobDetail | null> {
   "use cache";
@@ -244,7 +267,7 @@ export async function getJobBySlug(slug: string): Promise<JobDetail | null> {
 
   return unwrapMaybe(
     "getJobBySlug",
-    await detailQuery().eq("slug", slug).eq("status", "published").maybeSingle(),
+    await detailQuery().in("status", ["published", "closed"]).eq("slug", slug).maybeSingle(),
   );
 }
 
@@ -362,7 +385,23 @@ export async function listJobCardsByIds(ids: string[]): Promise<JobCard[]> {
 }
 
 /**
- * Every published slug, for the sitemap.
+ * Every publicly resolvable job slug, for the sitemap.
+ *
+ * Published *and* closed, matching `getJobBySlug`. A sitemap is the list of
+ * URLs that answer 200, not the list of jobs you can still apply to, and the
+ * two stopped being the same thing the moment `close_expired_jobs()` landed.
+ * Listing only the open ones has a second cost beyond the missing entries:
+ * dropping a URL out of a sitemap is how you ask a crawler to stop coming
+ * back, so the 3,753 pages this restores would sit at their stale 404 for
+ * months before Google rechecked them of its own accord. The `lastmod` each
+ * one carries is what gets them recrawled.
+ *
+ * `status` rides along so `sitemap.ts` can weight the two apart — see the
+ * priorities there — but it is narrowed to a `closed` boolean before it
+ * leaves. The generated row type is the whole `job_status` enum regardless of
+ * the `.in()` filter above, and handing the caller a `"draft" | "archived"`
+ * it can never receive would only invite a branch for a case that cannot
+ * happen. The flag costs about six bytes a row on the wire.
  *
  * The one intentionally large read in this module: it runs on sitemap
  * revalidation, not per request. Two columns keep it to roughly 60 bytes a row
@@ -380,7 +419,9 @@ export async function listJobCardsByIds(ids: string[]): Promise<JobCard[]> {
  * is not. The sitemap does not care about order — every entry carries its own
  * `lastmod`.
  */
-export async function listJobSlugs(): Promise<{ slug: string; updated_at: string }[]> {
+export async function listJobSlugs(): Promise<
+  { slug: string; updated_at: string; closed: boolean }[]
+> {
   "use cache";
   cacheLife("feed");
   cacheTag(tags.jobList(), tags.sitemap());
@@ -391,14 +432,20 @@ export async function listJobSlugs(): Promise<{ slug: string; updated_at: string
   // costs one cache window of a four-URL sitemap, which self-heals on the next
   // revalidation; the alternative costs the whole deploy.
   try {
-    return await fetchAllRows("listJobSlugs", (from, to) =>
+    const rows = await fetchAllRows("listJobSlugs", (from, to) =>
       publicDb()
         .from("jobs")
-        .select("slug, updated_at")
-        .eq("status", "published")
+        .select("slug, updated_at, status")
+        .in("status", ["published", "closed"])
         .order("slug", { ascending: true })
         .range(from, to),
     );
+
+    return rows.map(({ slug, updated_at, status }) => ({
+      slug,
+      updated_at,
+      closed: status === "closed",
+    }));
   } catch (error) {
     console.warn(
       "[listJobSlugs] Unreachable; sitemap omits job pages this cache window.",

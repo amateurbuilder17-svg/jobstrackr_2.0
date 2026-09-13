@@ -55,7 +55,14 @@ const TRAFFIC = {
   // gained a shareable /countdown/[slug] page. That is a 55% larger corpus for
   // a crawler to walk, and it is the reason this number is remeasured on every
   // module rather than set once.
-  crawlerPagesPerMonth: 694 * 8,
+  //
+  // Scaled by 13,475 / 9,722 for the closed-jobs fix. The prerendered count
+  // itself did not move — closed listings are not prerendered — but the
+  // sitemap grew by 39%, and this line is a proxy for crawler appetite across
+  // the whole advertised corpus rather than for the prerendered set alone.
+  // The pages that appetite lands on which actually cost something are
+  // counted separately, in `closedJobRendersPerMonth` below.
+  crawlerPagesPerMonth: Math.round(694 * 8 * (13475 / 9722)),
   // Signed-in sessions that hit the personalised routes.
   personalisedSessionsPerMonth: 30 * 30,
   adminSessionsPerMonth: 60,
@@ -66,6 +73,42 @@ const TRAFFIC = {
   // The nightly cron adds its own fixed batch.
   statusRefreshesPerMonth: 30 * 30,
   statusCronCallsPerMonth: 30 * 6,
+  // Closed job pages rendering on demand.
+  //
+  // New with the closed-jobs fix. `getJobBySlug` now resolves `status =
+  // 'closed'`, restoring ~3,753 URLs from a 404 to a real page — but
+  // `listJobSlugsForBuild` still prerenders published rows only, deliberately,
+  // because prerendering 3,753 frozen pages pays a build-time Supabase read
+  // for pages nobody may visit. So these are the one part of the public corpus
+  // that is NOT free to crawl: a request that misses the cache renders, and
+  // `cacheLife("content")` lets that happen at most daily per page.
+  //
+  // ── How this number is derived, and the trap in deriving it ──────────────
+  // The obvious figure is 3,753 × 8 — the whole set, at the same twice-weekly
+  // recrawl `crawlerPagesPerMonth` assumes. That is 30,024 renders, it pushes
+  // Active CPU to 55%, and it is wrong in a way worth writing down: it charges
+  // 3,753 closed pages with four times more crawler attention than this file
+  // gives the entire 9,722-URL sitemap. `crawlerPagesPerMonth` is not "the
+  // corpus, eight times" — it is the *prerendered* count, eight times, used as
+  // a proxy for total crawler appetite precisely because a crawler does not
+  // walk a whole sitemap twice a week.
+  //
+  // So it is derived the same way the rest of the file is. Crawler fetches
+  // scale with the corpus: the sitemap grows 9,722 → ~13,475, so total fetches
+  // grow by the same 39%, and closed pages take their share of that by count
+  // (3,753 / 13,475 ≈ 28%). Spread over 3,753 pages those fetches average less
+  // than one apiece a month, so essentially every one of them misses a
+  // one-day-old cache and renders — which is why the share is charged in full
+  // rather than discounted again.
+  //
+  // Still the pessimistic end: `sitemap.ts` marks these `yearly` at priority
+  // 0.3, and crawl rate falls off hard for pages described that way.
+  //
+  // This is the line to watch if the free tier gets tight. The fix if it does
+  // is not to re-hide the pages — a closed listing is frozen by definition, so
+  // it can hold a far longer cache profile than `content`, which would take
+  // this to roughly one render per page per month.
+  closedJobRendersPerMonth: Math.round(694 * 8 * (13475 / 9722) * (3753 / 13475)),
   // Sitemap rebuilds. Bounded by invalidation, not by crawler appetite: the
   // entry is only marked stale when an ingest actually writes something, so
   // however often a crawler asks, it can regenerate at most once an hour. That
@@ -154,15 +197,26 @@ const PAYLOAD = {
   // Google, not to Supabase, and at 500 URLs the IndexNow body is ~35 kB
   // against a 100 GB Vercel transfer allowance.
   seoWorkerKb: 45,
-  // One sitemap regeneration: a slug and an `updated_at` for every published
-  // job and update, at ~60 bytes a row across a ~5,200 + ~3,000 corpus, plus
-  // the per-request overhead of the nine paged round trips it now takes.
+  // One job detail page rendering: the `detailQuery` join — the job row, its
+  // `job_details` row and the organization — plus the change log and the
+  // related-jobs rail. `STORED.jobs` and `STORED.jobDetails` put the two hot
+  // rows at 5.5 + 4.4 kB; the rails add a handful of card rows on top.
+  jobDetailRenderKb: 12,
+  // One sitemap regeneration: a slug and an `updated_at` for every publicly
+  // resolvable job and update, at ~60 bytes a row across a ~5,200 + ~3,000
+  // corpus, plus the per-request overhead of the paged round trips it takes.
+  //
+  // 520 → 820 with the closed-jobs fix. The job query widened from
+  // `published` to `published, closed` — about 3,750 more rows at ~66 bytes,
+  // so ~250 kB — and now selects `status` alongside the slug, which is another
+  // ~10 bytes on every job row. Two more pages of 1,000 rows to fetch, as
+  // well.
   //
   // This line did not exist while the query was silently truncated to 1,000
   // rows a table by Supabase's `max_rows` — the read was a fifth of this size
   // and the sitemap was a fifth of the site. Paging past the cap is what makes
   // the sitemap complete, and this is what that costs.
-  sitemapRegenerationKb: 520,
+  sitemapRegenerationKb: 820,
 };
 
 /* ── Function time, per invocation ─────────────────────────────────────── */
@@ -193,6 +247,9 @@ const TIMING = {
   // and almost no local work — the single largest line in the wall-clock
   // column, and nearly absent from the CPU one.
   statusRefresh: { wall: 15, cpu: 0.3 },
+  // A job detail page rendering cold: one join, one change-log read, two rail
+  // reads, then React. Mostly waiting on Supabase, like every other read here.
+  closedJobRender: { wall: 0.5, cpu: 0.2 },
   serverAction: { wall: 0.3, cpu: 0.2 },
   // IndexNow's verifier fetching /<key>.txt. One env read and a string.
   indexNowKeyFetch: { wall: 0.05, cpu: 0.02 },
@@ -247,12 +304,15 @@ const supabaseKb =
   TRAFFIC.syncRunsPerMonth * PAYLOAD.syncRunKb +
   TRAFFIC.syncRunsPerMonth * PAYLOAD.seoWorkerKb +
   TRAFFIC.sitemapRegenerationsPerMonth * PAYLOAD.sitemapRegenerationKb +
+  TRAFFIC.closedJobRendersPerMonth * PAYLOAD.jobDetailRenderKb +
   TRAFFIC.personalisedSessionsPerMonth * PAYLOAD.trackerPageKb +
   (TRAFFIC.statusRefreshesPerMonth + TRAFFIC.statusCronCallsPerMonth) * PAYLOAD.statusRefreshKb;
 
-// Invocations: static pages do not invoke. Personalised routes, API routes and
-// sync runs do.
+// Invocations: prerendered pages do not invoke. Personalised routes, API
+// routes, sync runs and the closed job pages — which are the one part of the
+// public corpus that is not prerendered — do.
 const invocations =
+  TRAFFIC.closedJobRendersPerMonth +
   TRAFFIC.personalisedSessionsPerMonth * 6 +
   TRAFFIC.adminSessionsPerMonth * 8 +
   TRAFFIC.syncRunsPerMonth +
@@ -269,6 +329,7 @@ const invocations =
 // Active CPU. The SEO worker appears in both columns as an addition to the sync
 // invocation rather than as an invocation of its own.
 const functionSeconds = (pick) =>
+  TRAFFIC.closedJobRendersPerMonth * TIMING.closedJobRender[pick] +
   TRAFFIC.personalisedSessionsPerMonth * 6 * TIMING.personalisedRoute[pick] +
   TRAFFIC.adminSessionsPerMonth * 8 * TIMING.adminRoute[pick] +
   TRAFFIC.syncRunsPerMonth * (TIMING.syncRun[pick] + TIMING.seoWorker[pick]) +

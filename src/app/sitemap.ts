@@ -16,6 +16,12 @@ import { listSyllabusSlugs } from "@/lib/db/queries/syllabus";
  *
  * Priorities are relative and only meaningful against each other: job pages are
  * the reason the site exists, updates support them, static pages are furniture.
+ *
+ * Closed job listings are in here too, and deliberately. A sitemap is the set
+ * of URLs that answer 200, which since `close_expired_jobs()` is no longer the
+ * same set as "jobs you can still apply to"; and a URL dropped from a sitemap
+ * is a URL a crawler is being told to stop revisiting, which is the opposite
+ * of what a page recovering from a stale 404 needs.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const site = env.NEXT_PUBLIC_SITE_URL;
@@ -44,6 +50,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // crawler gets there is the sign-in card; submitting that URL would be
     // asking Google to rank a page nobody can read. The syllabi it links to are
     // public and listed below on their own.
+    // Two public tools that earn their own searches and were simply never
+    // listed. Both already declare a canonical; neither was reachable from
+    // this file, so neither was ever submitted.
+    { url: `${site}/quiz`, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${site}/countdown`, changeFrequency: "daily", priority: 0.5 },
     { url: `${site}/faq`, changeFrequency: "monthly", priority: 0.4 },
     { url: `${site}/user-manual`, changeFrequency: "monthly", priority: 0.3 },
     { url: `${site}/help`, changeFrequency: "monthly", priority: 0.3 },
@@ -54,11 +65,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   return [
     ...staticRoutes,
-    ...jobs.map(({ slug, updated_at }) => ({
+    // Open and closed listings both, because both answer 200 — see
+    // `listJobSlugs`. They are weighted apart rather than listed alike: an
+    // open notice is worth recrawling weekly because its dates still move,
+    // and a closed one is a finished record that will never change again.
+    // Claiming otherwise would spend a crawler's budget re-reading 3,753
+    // pages to find them byte-identical.
+    ...jobs.map(({ slug, updated_at, closed }) => ({
       url: `${site}/jobs/${slug}`,
       lastModified: new Date(updated_at),
-      changeFrequency: "weekly" as const,
-      priority: 0.8,
+      changeFrequency: closed ? ("yearly" as const) : ("weekly" as const),
+      // Below the static pages and every open listing, above nothing. The
+      // point of the entry is to get the URL recrawled at all — it has been
+      // answering 404 since the day its deadline passed — not to compete with
+      // the jobs someone can still apply to.
+      priority: closed ? 0.3 : 0.8,
     })),
     ...updates.map(({ slug, updated_at }) => ({
       url: `${site}/updates/${slug}`,
