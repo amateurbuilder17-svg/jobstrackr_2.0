@@ -33,12 +33,14 @@ export const BUILD_SENTINEL_SLUG = "unavailable-at-build-time";
  * prerendering is a cost decision and discovery is the sitemap's job, so the
  * sitemap queries page to the full corpus and these do not.
  *
- * 1,000 is also what Supabase's `max_rows` was silently enforcing here before
- * anyone noticed — so this changes no behaviour. It replaces a `.limit(20000)`
- * that looked like "all of them" and meant "one thousand" with a number that
- * means what it says.
+ * 100, down from 1,000 in Sep 2026. Three routes call this (`/jobs/[slug]`,
+ * `/countdown/[slug]`, `/updates/[slug]`), and every push built a Preview and a
+ * Production deployment, so each push prerendered ~6,000 pages: 9–10 minute
+ * builds, ISR writes counted per page, and deployment storage that reached 7×
+ * the Hobby allowance. A page outside this list still renders on its first
+ * request and caches from then on; it just stops costing a render per deploy.
  */
-export const BUILD_PRERENDER_LIMIT = 1000;
+export const BUILD_PRERENDER_LIMIT = 100;
 
 /**
  * Runs a slug query for `generateStaticParams`, degrading to the sentinel

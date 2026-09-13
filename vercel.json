@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "regions": ["bom1"],
+  "ignoreCommand": "if [ \"$VERCEL_ENV\" != \"production\" ]; then echo 'Skipping preview build (Hobby budget)'; exit 0; fi; git diff --quiet \"${VERCEL_GIT_PREVIOUS_SHA:-HEAD^}\" HEAD -- src public next.config.ts package.json pnpm-lock.yaml tsconfig.json postcss.config.mjs vercel.json",
   "crons": [
     {
       "path": "/api/cron/prune",

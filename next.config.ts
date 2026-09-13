@@ -123,9 +123,15 @@ const nextConfig: NextConfig = {
    */
   cacheLife: {
     // Job and update pages. Data changes a few times a day at most.
+    //
+    // Three days, not one. There are ~7,000 of these pages and crawlers reach
+    // most of them daily, so a one-day window meant a background re-render and
+    // an ISR write per page per day — on its own close to the Hobby plan's
+    // 200K monthly ISR writes. Expiry is still shown correctly in between: the
+    // deadline chip and action bar decide it on the client.
     content: {
       stale: 60 * 60, // 1 hour
-      revalidate: 60 * 60 * 24, // 1 day
+      revalidate: 60 * 60 * 24 * 3, // 3 days
       expire: 60 * 60 * 24 * 30, // 30 days
     },
     // Lists and feeds — new notifications should surface promptly even if a

@@ -1,6 +1,7 @@
-import { redirect, permanentRedirect } from "next/navigation";
+import type { NextResponse } from "next/server";
 
 import { publicDb } from "@/lib/db/clients";
+import { cachedRedirect } from "@/lib/seo/cached-redirect";
 
 /**
  * `/exam-update/:id` — the old app's second path to an update.
@@ -13,7 +14,10 @@ import { publicDb } from "@/lib/db/clients";
  * These URLs are in Google's index and in people's messages; a list page is a
  * worse answer than the right article and a much better one than nothing.
  */
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+): Promise<NextResponse> {
   const { id } = await params;
 
   const { data } = await publicDb()
@@ -25,8 +29,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     .limit(1)
     .maybeSingle();
 
-  if (data?.slug) permanentRedirect(`/updates/${data.slug}`);
-  redirect("/updates");
+  return data?.slug
+    ? cachedRedirect(request, `/updates/${data.slug}`, true)
+    : cachedRedirect(request, "/updates", false);
 }
 
 function isUuid(value: string): boolean {

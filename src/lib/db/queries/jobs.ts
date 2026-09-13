@@ -286,7 +286,13 @@ export async function getJobBySlug(slug: string): Promise<JobDetail | null> {
 export async function listJobChanges(jobId: string, limit = 6): Promise<JobChangeRow[]> {
   "use cache";
   cacheLife("content");
-  cacheTag(tags.jobList());
+  // Deliberately not `jobs:list`. Ingest purges that tag on every run that
+  // writes a row — up to four times an hour — and a list tag here made every
+  // job detail page stale with it: each crawler hit then re-rendered the page
+  // and wrote a fresh ISR entry. That was most of the Vercel ISR-write and CPU
+  // overage in Sep 2026. The changelog now refreshes on the `content` window,
+  // the same as the listing it sits under (`getJobBySlug`).
+  cacheTag(tags.job(`id-${jobId}`));
 
   // Degrades rather than breaks, and the error is handled here rather than by
   // the caller because a promise that rejects inside a `"use cache"` scope
@@ -337,7 +343,9 @@ export async function getJobById(id: string): Promise<{
 } | null> {
   "use cache";
   cacheLife("content");
-  cacheTag(tags.jobList());
+  // Not `jobs:list` — see `listJobChanges`. This runs on every update detail
+  // page, and the list tag made all of them stale on every ingest write.
+  cacheTag(tags.job(`id-${id}`));
 
   // Four columns beyond the link itself, because the update page's job card was
   // a bare title — and the two facts that decide whether someone clicks it are
@@ -570,7 +578,8 @@ export async function listRelatedJobs(
 ): Promise<JobCard[]> {
   "use cache";
   cacheLife("content");
-  cacheTag(tags.jobList(), tags.organization(organizationSlug));
+  // Organization only, not `jobs:list` — see `listJobChanges`.
+  cacheTag(tags.organization(organizationSlug));
 
   return unwrap(
     "listRelatedJobs",

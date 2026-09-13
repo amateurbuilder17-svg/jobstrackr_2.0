@@ -289,7 +289,9 @@ export async function listUpdatesForJob(
 ): Promise<ExamUpdateCard[]> {
   "use cache";
   cacheLife("content");
-  cacheTag(tags.examUpdateList());
+  // Not `updates:list`: ingest purges that on every write, and on a job detail
+  // page it made every one of them stale — see `listJobChanges` in jobs.ts.
+  cacheTag(tags.job(`id-${jobId}`));
 
   return unwrap(
     "listUpdatesForJob",
@@ -325,7 +327,8 @@ export async function listUpdateLinksForJob(
 ): Promise<UpdateLinks[]> {
   "use cache";
   cacheLife("content");
-  cacheTag(tags.examUpdateList());
+  // Not `updates:list` — see `listUpdatesForJob`.
+  cacheTag(tags.job(`id-${jobId}`));
 
   const rows = unwrap(
     "listUpdateLinksForJob",
@@ -411,7 +414,10 @@ export async function listRelatedUpdates(
 ): Promise<ExamUpdateCard[]> {
   "use cache";
   cacheLife("content");
-  cacheTag(tags.examUpdateList());
+  // Not `updates:list`. This runs on every update detail page, and the list
+  // tag made all of them stale on each ingest write. Siblings refresh on the
+  // `content` window instead.
+  cacheTag(tags.examUpdate(`related-${excludeSlug}`));
 
   return unwrap(
     "listRelatedUpdates",

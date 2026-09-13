@@ -1,6 +1,7 @@
-import { redirect, permanentRedirect } from "next/navigation";
+import type { NextResponse } from "next/server";
 
 import { publicDb } from "@/lib/db/clients";
+import { cachedRedirect } from "@/lib/seo/cached-redirect";
 
 /**
  * `/job/:id` — the old app's singular job route, keyed by database id.
@@ -9,20 +10,29 @@ import { publicDb } from "@/lib/db/clients";
  * cannot live in `redirects()`. Whether these resolve at all depends on the
  * migration preserving ids; where it does not, the visitor gets the job list
  * instead of a dead end.
+ *
+ * `closed` resolves too, matching `getJobBySlug`: the detail page answers 200
+ * for a closed listing, so sending an indexed legacy URL to the list instead
+ * would throw that page away. The response is CDN-cached — see
+ * `cachedRedirect` for why that matters on the Hobby plan.
  */
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+): Promise<NextResponse> {
   const { id } = await params;
 
   const { data } = await publicDb()
     .from("jobs")
     .select("slug")
     .or(isUuid(id) ? `id.eq.${id},slug.eq.${id}` : `slug.eq.${id}`)
-    .eq("status", "published")
+    .in("status", ["published", "closed"])
     .limit(1)
     .maybeSingle();
 
-  if (data?.slug) permanentRedirect(`/jobs/${data.slug}`);
-  redirect("/jobs");
+  return data?.slug
+    ? cachedRedirect(request, `/jobs/${data.slug}`, true)
+    : cachedRedirect(request, "/jobs", false);
 }
 
 function isUuid(value: string): boolean {
