@@ -9,7 +9,9 @@ describe("cachedRedirect", () => {
     const response = cachedRedirect(request, "/jobs/ssc-cgl-2026", true);
 
     expect(response.status).toBe(308);
-    expect(response.headers.get("location")).toBe("https://www.jobstrackr.in/jobs/ssc-cgl-2026");
+    expect(response.headers.get("location")).toBe(
+      "https://www.jobstrackr.in/jobs/ssc-cgl-2026",
+    );
     expect(response.headers.get("cache-control")).toContain("s-maxage=31536000");
   });
 
