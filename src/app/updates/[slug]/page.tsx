@@ -21,20 +21,25 @@ import {
   Section,
 } from "@/components/updates/detail-sections";
 import { FreshDot } from "@/components/updates/fresh-dot";
+import { JobRail, UpdateRail } from "@/components/updates/related-rails";
+import { ShareRow } from "@/components/updates/share-row";
+import { TrackExamsCta } from "@/components/updates/track-cta";
 import { UpdateActions } from "@/components/updates/update-actions";
 import { UpdateCard } from "@/components/updates/update-card";
 import {
   getExamUpdateBySlug,
   listExamUpdateSlugsForBuild,
+  listLatestInCategory,
   listRelatedUpdates,
 } from "@/lib/db/queries/exam-updates";
-import { getJobById } from "@/lib/db/queries/jobs";
+import { getJobById, listOpenJobsMatching } from "@/lib/db/queries/jobs";
 import { env } from "@/lib/env";
 import { breadcrumbJsonLd } from "@/lib/seo/site-jsonld";
-import { examUpdateJsonLd } from "@/lib/seo/update-jsonld";
+import { examUpdateJsonLd, updateRailsJsonLd } from "@/lib/seo/update-jsonld";
 import { formatDate, formatVacancies } from "@/lib/format/deadline";
 import { decodeEntities } from "@/lib/format/text";
 import { CATEGORY_CTA, CATEGORY_LABELS, CATEGORY_TONE } from "@/lib/updates/categories";
+import { pickRailRows, takenSlugs } from "@/lib/updates/rails";
 import {
   datesFromOverview,
   datesFromSections,
@@ -82,6 +87,10 @@ export async function generateMetadata({
       url: `${env.NEXT_PUBLIC_SITE_URL}/updates/${slug}`,
       type: "article",
       publishedTime: update.published_at ?? undefined,
+      // See the matching note on /jobs/[slug]. It matters more here than there:
+      // the share row below sends this URL to WhatsApp and Telegram, both of
+      // which render a link with no og:image as a bare line of text.
+      images: ["/opengraph-image"],
     },
   };
 }
@@ -125,6 +134,52 @@ export default async function UpdatePage({ params }: { params: Promise<{ slug: s
       ? `${orgName} (${orgShort})`
       : (orgName ?? orgShort ?? term);
 
+  /*
+   * What the job rail searches for, and what its heading says.
+   *
+   * The organisation's short name first, `relationTerm` second. That order is
+   * the opposite of the sibling rail's above, and deliberately so.
+   * `relationTerm` reads an acronym off the front of the title, which works
+   * when a source writes "BPSC Assistant Executive Engineer 2025 Exam Date" and
+   * does not when it writes "Exam Date Announced for BPSC …" — there the first
+   * two words are the event, and the term comes back as "Exam Date". As a
+   * sibling-matching heuristic that is merely weak; as the subject of a heading
+   * reading "Open Exam Date vacancies", over a list of unrelated jobs that
+   * happen to mention an exam date, it is wrong in a way a reader can see.
+   *
+   * `organizations.short_name` is a resolved foreign key rather than a guess at
+   * the title, so when it is there it is both the better search term and the
+   * only one fit to print. Ingest populates `organization_id` on updates (see
+   * `sync/updates.ts`), so this is the normal path and the term is the fallback.
+   */
+  const jobRailSubject = orgShort ?? term;
+
+  /*
+   * The three cross-page rails.
+   *
+   * All three are cached under keys that do NOT include this page's slug — the
+   * category for the two update rails, the organisation for the job rail — so
+   * the ~5,300 pages of this route share a handful of cache entries between
+   * them rather than holding one apiece. That is what makes them affordable;
+   * the reasoning is on `listLatestInCategory`, and the tags they carry are
+   * chosen so ingest never purges them.
+   *
+   * In parallel because they are independent, so a cold render pays one round
+   * trip rather than three.
+   */
+  const [latestResults, latestAdmitCards, openJobs] = await Promise.all([
+    listLatestInCategory("result"),
+    listLatestInCategory("admit_card"),
+    jobRailSubject ? listOpenJobsMatching(jobRailSubject) : Promise.resolve([]),
+  ]);
+
+  // Composed in order of specificity: the siblings are about this exam, so
+  // they keep any row the site-wide rails would also have shown.
+  const taken = takenSlugs(slug, siblings);
+  const resultRail = pickRailRows(latestResults, taken, 5);
+  const admitCardRail = pickRailRows(latestAdmitCards, taken, 5);
+  const jobRail = openJobs.slice(0, 4);
+
   const initials = toInitials(
     orgShort ?? orgName ?? update.exam?.short_name ?? update.exam?.name ?? "GOVT",
   );
@@ -137,13 +192,22 @@ export default async function UpdatePage({ params }: { params: Promise<{ slug: s
         type="application/ld+json"
         // Built from typed database columns, not user input.
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify([
-            examUpdateJsonLd(update, env.NEXT_PUBLIC_SITE_URL),
-            breadcrumbJsonLd(env.NEXT_PUBLIC_SITE_URL, [
-              { name: "Exam updates", path: "/updates" },
-              { name: title },
-            ]),
-          ]),
+          __html: JSON.stringify(
+            [
+              examUpdateJsonLd(update, env.NEXT_PUBLIC_SITE_URL),
+              breadcrumbJsonLd(env.NEXT_PUBLIC_SITE_URL, [
+                { name: "Exam updates", path: "/updates" },
+                { name: title },
+              ]),
+              // Describes the rails below. Null when they are all empty, and
+              // filtered out rather than serialised as `null` — a JSON-LD array
+              // with a null member is invalid and costs the whole block.
+              updateRailsJsonLd(
+                [...siblings, ...resultRail, ...admitCardRail],
+                env.NEXT_PUBLIC_SITE_URL,
+              ),
+            ].filter((entry) => entry !== null),
+          ),
         }}
       />
 
@@ -274,6 +338,12 @@ export default async function UpdatePage({ params }: { params: Promise<{ slug: s
       <LinkList title="Important links" links={links} />
       <LinkList title="Related articles" links={related} />
 
+      {/* The ask, placed after the reader has what they came for. Two anchors
+          and no JavaScript — see `ShareRow`. */}
+      <ShareRow slug={slug} title={title} />
+
+      <TrackExamsCta term={term} />
+
       {siblings.length > 0 ? (
         <Section title={`More ${term ?? ""} updates`.replace(/\s+/g, " ")}>
           <ul className="flex flex-col gap-3">
@@ -285,6 +355,29 @@ export default async function UpdatePage({ params }: { params: Promise<{ slug: s
           </ul>
         </Section>
       ) : null}
+
+      {/* Exit paths, in the order a reader of *this* page is most likely to
+          want them. Results and admit cards are what the audience refreshes
+          for; the job rail is the one route from a finished exam to one they
+          can still apply to. */}
+      <UpdateRail
+        title="Latest results"
+        href="/updates?category=result"
+        linkLabel="All results"
+        updates={resultRail}
+      />
+      <UpdateRail
+        title="Latest admit cards"
+        href="/updates?category=admit_card"
+        linkLabel="All admit cards"
+        updates={admitCardRail}
+      />
+      <JobRail
+        title={jobRailSubject ? `Open ${jobRailSubject} vacancies` : "Open vacancies"}
+        href="/jobs"
+        linkLabel="All jobs"
+        jobs={jobRail}
+      />
 
       {update.tags.length > 0 ? (
         <Section title="Tags">

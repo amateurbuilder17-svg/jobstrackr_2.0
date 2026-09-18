@@ -89,11 +89,17 @@ describe("every query is bounded", () => {
     ["getJobBySlug", true, async () => (await jobs()).getJobBySlug("ssc-cgl-2026")],
     ["listJobSlugs", false, async () => (await jobs()).listJobSlugs()],
     ["listRelatedJobs", false, async () => (await jobs()).listRelatedJobs("ssc", "x")],
+    ["listOpenJobsMatching", false, async () => (await jobs()).listOpenJobsMatching("SSC")],
     ["listExamUpdates", false, async () => (await updates()).listExamUpdates()],
     ["getExamUpdateBySlug", true, async () => (await updates()).getExamUpdateBySlug("s")],
     ["listExamUpdateSlugs", false, async () => (await updates()).listExamUpdateSlugs()],
     ["listUpdatesForJob", false, async () => (await updates()).listUpdatesForJob("id")],
     ["listRelatedUpdates", false, async () => (await updates()).listRelatedUpdates("SSC", "x")],
+    [
+      "listLatestInCategory",
+      false,
+      async () => (await updates()).listLatestInCategory("result"),
+    ],
     [
       "listExamUpdates (search)",
       false,
@@ -130,10 +136,12 @@ describe("every query names its columns", () => {
     ["listJobs", async () => (await jobs()).listJobs()],
     ["getJobBySlug", async () => (await jobs()).getJobBySlug("ssc-cgl-2026")],
     ["listRelatedJobs", async () => (await jobs()).listRelatedJobs("ssc", "x")],
+    ["listOpenJobsMatching", async () => (await jobs()).listOpenJobsMatching("SSC")],
     ["listExamUpdates", async () => (await updates()).listExamUpdates()],
     ["getExamUpdateBySlug", async () => (await updates()).getExamUpdateBySlug("s")],
     ["listUpdatesForJob", async () => (await updates()).listUpdatesForJob("id")],
     ["listRelatedUpdates", async () => (await updates()).listRelatedUpdates("SSC", "x")],
+    ["listLatestInCategory", async () => (await updates()).listLatestInCategory("result")],
     ["suggestSubjects", async () => (await attempts()).suggestSubjects("ssc cgl")],
   ])("%s does not select *", async (_name, run) => {
     await run();
@@ -204,6 +212,30 @@ describe("filters actually reach the query", () => {
 
     const search = requests.find((u) => u.searchParams.has("search_vector"));
     expect(search, "a one-character term should not filter").toBeUndefined();
+  });
+
+  it("listLatestInCategory filters to its category", async () => {
+    // The rail's whole claim is "these are results". A query that dropped the
+    // predicate would still be bounded, still name its columns, and still
+    // render — as the newest updates of any kind under a heading saying
+    // otherwise.
+    await (await updates()).listLatestInCategory("admit_card");
+
+    const req = requests[0];
+    expect(req?.searchParams.get("category")).toBe("eq.admit_card");
+    expect(req?.searchParams.get("is_published")).toBe("eq.true");
+  });
+
+  it("listOpenJobsMatching sends both the term and the open-listing bound", async () => {
+    // Two predicates, and the second is the one worth asserting: this rail is
+    // headed "open vacancies", so a missing `last_date` filter would put closed
+    // listings under a promise that they are not.
+    await (await jobs()).listOpenJobsMatching("SSC");
+
+    const req = requests[0];
+    expect(req?.searchParams.get("search_vector")).toContain("SSC");
+    expect(req?.searchParams.get("last_date")).toMatch(/^gte\.\d{4}-\d{2}-\d{2}$/);
+    expect(req?.searchParams.get("status")).toBe("eq.published");
   });
 
   it("listExamUpdates matches a two-word search as prefixes", async () => {

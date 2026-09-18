@@ -71,6 +71,19 @@ export default function Home() {
       />
 
       <div className="mx-auto w-full max-w-md space-y-6 px-4 pt-4 pb-28 sm:max-w-2xl sm:space-y-7 lg:max-w-4xl">
+        {/* The site's only level-one heading, and it was missing entirely: this
+            page rendered no `<h1>` at all, so the first heading a crawler or a
+            screen reader met on the site's most important URL was the app
+            menu's "Smart tools". `components/home/hero.tsx` has one and is
+            imported by nothing.
+
+            Visually hidden for the reason `/jobs` gives at length — the rows
+            below are the page, and 230px of headline above them pushes the
+            first card off a 375×812 screen. `sr-only` clips rather than
+            `display: none`, so it is read by assistive technology and counted
+            by crawlers; the same pattern, for the same reason, as /jobs. */}
+        <h1 className="sr-only">Government jobs and exam updates in India</h1>
+
         <HomeSearchProvider>
           <HomeSearchBar />
 

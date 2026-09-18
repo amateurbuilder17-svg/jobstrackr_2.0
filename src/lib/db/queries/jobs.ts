@@ -593,6 +593,50 @@ export async function listRelatedJobs(
 }
 
 /**
+ * Open recruitments whose title matches a search term.
+ *
+ * The cross-silo link. An update page and a job page are the two halves of the
+ * same story — "SSC CGL result declared" and "SSC CGL 2026, 17,727 posts" — and
+ * before this there was no path between them except the `job_id` foreign key,
+ * which ingest resolves for a small minority of updates. Everyone else read an
+ * admit-card notice and left.
+ *
+ * Keyed on the term rather than on the page, for the reason spelled out on
+ * `listLatestInCategory`: `relationTerm` yields an organisation acronym, so a
+ * few hundred distinct terms cover the whole update corpus and every SSC update
+ * in it shares one cache entry. Passing a slug to exclude would key it per page
+ * instead; there is nothing to exclude here anyway, since a job slug and an
+ * update slug are never the same row.
+ *
+ * `job:term-<term>` is deliberately not `jobs:list` — ingest purges that on
+ * every write and this runs on a detail page. Same reasoning as
+ * `listRelatedJobs`, and the same three-day window.
+ *
+ * Open listings only. A closed one is a dead end for someone who arrived
+ * looking for something to apply to, and `listJobs` draws the line in the same
+ * place.
+ */
+export async function listOpenJobsMatching(
+  term: string,
+  limit: number = PAGE_SIZE.rail,
+): Promise<JobCard[]> {
+  "use cache";
+  cacheLife("content");
+  cacheTag(tags.job(`term-${term.toLowerCase()}`));
+
+  return unwrap(
+    "listOpenJobsMatching",
+    await cardQuery()
+      .eq("status", "published")
+      .gte("last_date", todayInIndia())
+      .textSearch("search_vector", term, { config: SEARCH_CONFIG, type: "websearch" })
+      .order("published_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(limit),
+  );
+}
+
+/**
  * The biggest recruitment drives currently open.
  *
  * A vacancy count is the one number that makes a listing worth a stranger's

@@ -123,6 +123,14 @@ export async function generateMetadata({
       description,
       url: `/jobs/${job.slug}`,
       type: "article",
+      // Declaring `openGraph` here REPLACES the one the `opengraph-image.tsx`
+      // file convention contributes — it does not merge into it — so a route
+      // that sets an og:title and forgets this ships a preview card with no
+      // image at all. That is what /jobs/[slug] and /updates/[slug] were doing:
+      // the two most-shared routes on the site were the only two without the
+      // share card, while every list page that declares no `openGraph` had it.
+      // Verified by grepping og: tags out of the prerendered HTML.
+      images: ["/opengraph-image"],
     },
   };
 }

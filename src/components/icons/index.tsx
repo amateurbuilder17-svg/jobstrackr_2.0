@@ -452,3 +452,43 @@ export const CircleIcon = (p: IconProps) => (
     <circle cx="12" cy="12" r="9" />
   </Icon>
 );
+
+/* ── Brand glyphs ──────────────────────────────────────────────────────────
+ *
+ * The two above are stroke icons on the shared 24px grid; these two are not,
+ * and cannot be. A brand mark is recognised by its silhouette — a WhatsApp
+ * handset traced in 1.75px stroke reads as "a phone in a speech bubble", which
+ * is the one thing it must not read as on a share button. So they are solid
+ * paths in `currentColor`, and they are the only icons in this file that are.
+ *
+ * Kept here rather than pulled from a brand-icon package for the reason at the
+ * top of the file: two glyphs are ~0.6 kB inline against 40 kB of dependency.
+ */
+
+export const WhatsAppIcon = (p: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    width="1em"
+    height="1em"
+    aria-hidden="true"
+    focusable="false"
+    {...p}
+  >
+    <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.87 9.87 0 0 0 4.74 1.21h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm0 1.67c2.2 0 4.27.86 5.83 2.42a8.19 8.19 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.25 8.24a8.2 8.2 0 0 1-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.19 8.19 0 0 1-1.26-4.38c0-4.54 3.7-8.25 8.26-8.25Zm-2.5 4.13c-.17 0-.45.06-.68.31-.23.25-.9.88-.9 2.15s.92 2.49 1.05 2.66c.13.17 1.8 2.75 4.37 3.75.61.26 1.09.42 1.46.54.61.2 1.17.17 1.61.1.49-.07 1.51-.62 1.73-1.22.21-.6.21-1.11.15-1.22-.06-.1-.23-.17-.48-.29-.25-.13-1.51-.75-1.74-.83-.23-.09-.4-.13-.57.12-.17.25-.65.83-.8 1-.15.17-.29.19-.54.06-.25-.12-1.07-.39-2.04-1.26-.76-.67-1.27-1.5-1.42-1.75-.15-.25-.02-.39.11-.51.12-.11.25-.29.38-.44.12-.15.16-.25.25-.42.08-.17.04-.31-.02-.44-.06-.12-.56-1.4-.79-1.9-.19-.43-.38-.43-.55-.44h-.47Z" />
+  </svg>
+);
+
+export const TelegramIcon = (p: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    width="1em"
+    height="1em"
+    aria-hidden="true"
+    focusable="false"
+    {...p}
+  >
+    <path d="M21.73 3.16a1.2 1.2 0 0 0-1.22-.2L2.9 9.83c-.5.2-.81.67-.79 1.2.02.52.37.97.88 1.12l4.3 1.28 1.64 5.02c.14.43.5.74.94.8h.16c.38 0 .74-.18.97-.48l2.28-2.95 4.02 2.97c.24.18.53.27.83.27.15 0 .3-.02.44-.07.43-.15.75-.51.85-.95l3.06-13.6c.1-.44-.05-.9-.4-1.18ZM9.6 13.02l-.6 3.3-1.02-3.13 8.2-4.9-6.58 4.73Z" />
+  </svg>
+);
