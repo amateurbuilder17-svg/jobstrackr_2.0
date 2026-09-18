@@ -76,3 +76,43 @@ export function examUpdateJsonLd(
     ...(update.source_url ? { isBasedOn: update.source_url } : {}),
   };
 }
+
+/**
+ * schema.org `ItemList` for the related rails at the foot of an update page.
+ *
+ * ── What this is worth, stated honestly ───────────────────────────────────
+ * Not a rich result. Google renders `ItemList` as a carousel only for a short
+ * list of verticals — recipes, courses, films, restaurants — and an exam
+ * notice is none of them, so nothing about the page's appearance in search
+ * changes because this is here. The `<a>` elements in the rails are what carry
+ * the crawl path and the internal link equity, and they do that on their own.
+ *
+ * It earns its bytes somewhere else. `robots.ts` deliberately admits the
+ * assistant crawlers — GPTBot, PerplexityBot, ClaudeBot and the rest — and an
+ * enumerated list of titled URLs is markedly easier for one of those to read
+ * as "here are the sibling documents" than a scroll container of styled
+ * anchors. That is the claim being made, and it is a modest one.
+ *
+ * Capped at ten, and the cap is the point: this runs on ~5,300 statically
+ * generated pages, so each entry is ~90 bytes multiplied by the whole corpus
+ * on every crawl. An unbounded list here would be a Fast Origin Transfer bill,
+ * which this project has already had once.
+ */
+export function updateRailsJsonLd(
+  items: readonly { slug: string; title: string }[],
+  siteUrl: string,
+): Record<string, unknown> | null {
+  if (items.length === 0) return null;
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: "Related exam updates",
+    itemListElement: items.slice(0, 10).map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      url: `${siteUrl}/updates/${item.slug}`,
+      name: decodeEntities(item.title),
+    })),
+  };
+}

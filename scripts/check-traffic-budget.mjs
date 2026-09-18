@@ -35,6 +35,19 @@ const LIMITS = {
   // below come out an order of magnitude apart.
   vercelActiveCpuHours: 4,
   vercelProvisionedGbHours: 360,
+  // ── The two ceilings that actually broke ────────────────────────────────
+  // Everything above was modelled from the start and none of it was what went
+  // wrong. The Hobby project blew up on ISR Writes (744K against 200K) and Fast
+  // Origin Transfer (13.4 GB against 10), neither of which appeared in this
+  // file — so the check went on printing a comfortable pass through the month
+  // it was billed for. See 949face.
+  //
+  // They are here now because they are the ceilings this architecture can
+  // actually reach: both are driven by how often a page *re-renders*, and this
+  // is a project with ~13,000 statically generated pages whose whole design is
+  // that they should not.
+  vercelIsrWrites: 200_000,
+  vercelFastOriginTransferGb: 10,
 };
 
 // Hobby functions are 2 GB / 1 vCPU, fixed — not configurable on this plan.
@@ -116,14 +129,57 @@ const TRAFFIC = {
   // crawler happens to ask *after* an invalidation, which for a site this size
   // is nearer ten a day than twenty-four.
   sitemapRegenerationsPerMonth: 30 * 24,
+  // Update detail pages rendering on demand.
+  //
+  // The same class of cost as `closedJobRendersPerMonth`, and it was missing
+  // from this file rather than absent from the system: `listExamUpdateSlugsForBuild`
+  // prerenders `BUILD_PRERENDER_LIMIT` (100) slugs and the other ~5,200 render
+  // on first request, exactly as closed job pages do. Found while doing the
+  // arithmetic for the rails, and modelled here rather than left implicit.
+  //
+  // Derived the same way: updates are ~3,000 of the ~13,475 URLs the sitemap
+  // advertises, so they take ~22% of total crawler fetches.
+  updateRendersPerMonth: Math.round(694 * 8 * (13475 / 9722) * (3000 / 13475)),
+  // Rail cache entries repopulating.
+  //
+  // This is the line that decides whether the rails are affordable, so the
+  // reasoning matters more than the figure.
+  //
+  // The two category rails take no per-page argument, so `"use cache"` gives
+  // all ~5,300 update pages ONE shared entry each — see `listLatestInCategory`.
+  // The job rail is keyed on the organisation acronym from `relationTerm`, so
+  // it has one entry per distinct term rather than per page. 400 terms is the
+  // pessimistic end of that: the acronyms are a few hundred at most, and every
+  // SSC update in the corpus shares one.
+  //
+  // Each entry repopulates when it goes stale and something asks for it. The
+  // `content` profile revalidates every three days, so ten times a month; that
+  // is tripled to cover deployments, which start the cache empty.
+  //
+  // The number to hold on to is what this would have cost done the obvious
+  // way. Keying either rail on the current page's slug — which is what
+  // excluding "this update" from its own rail naively requires — turns 402
+  // cache entries into ~5,300 and this line into a Supabase egress figure
+  // roughly thirteen times larger. The exclusion happens after the cache
+  // instead, in `pickRailRows`, where it is free.
+  railRefreshesPerMonth: 30,
+  distinctJobRailTerms: 400,
 };
 
 /* ── Measured payloads, in kilobytes ───────────────────────────────────── */
 const PAYLOAD = {
-  // Heaviest route, gzipped: first-load JS from `pnpm budget` (159.9) plus the
-  // document below, because a cold visitor pays for both and this line is the
-  // only one they are counted on.
-  pageFirstLoadKb: 178,
+  // Heaviest route, gzipped: first-load JS from `pnpm budget` (174.7, /tracker)
+  // plus the document below, because a cold visitor pays for both and this line
+  // is the only one they are counted on.
+  //
+  // 178 → 201. Both halves were remeasured when the update rails landed, and
+  // both had drifted: first-load JS is 174.7 kB rather than the 159.9 this line
+  // was written against, and the document figure below moved further still.
+  // Neither drift was caused by the rails — /tracker is the heaviest route and
+  // nothing here touched it — but a model fed stale inputs cannot answer the
+  // question it exists to answer, so they are corrected in the same commit that
+  // noticed.
+  pageFirstLoadKb: 201,
   // Repeat views reuse the chunk cache; only the document is refetched.
   //
   // 14 → 18 for the app menu (M21). The drawer's contents are server-rendered
@@ -138,7 +194,23 @@ const PAYLOAD = {
   // than in a commit message. 18 is the heaviest document, not the mean;
   // crawler traffic is mostly detail pages, so the heavy one is the one to
   // model.
-  pageDocumentKb: 18,
+  //
+  // 18 → 26, remeasured by gzipping every prerendered `.html` in `.next/server/
+  // app` — which is document plus inlined RSC flight payload, i.e. what the CDN
+  // actually ships. Two separate movements are folded into that number and they
+  // should not be confused with each other:
+  //
+  //   • /jobs/[slug] measures 25.9 kB (max) / 25.1 (mean) and NOTHING in this
+  //     commit touched it. The 18 was simply years stale.
+  //   • /updates/[slug] measures 24.8 / 23.8 with the share row, the CTA, the
+  //     two update rails and the job rail; the same build with those four
+  //     blocks removed measures 20.4 / 19.6. So the rails cost +4.2 kB gzipped
+  //     on the mean, about +21%, and the page is still lighter than the job
+  //     page it sits beside.
+  //
+  // 26 is the heavier of the two, rounded up. It is the right figure to model
+  // because crawler traffic is overwhelmingly detail pages.
+  pageDocumentKb: 26,
   // Measured in M30: one `match_feed()` call against the 6,000-job proof corpus,
   // serialised as PostgREST would send it — 46 rows, 33.3 kB.
   //
@@ -217,6 +289,18 @@ const PAYLOAD = {
   // and the sitemap was a fifth of the site. Paging past the cap is what makes
   // the sitemap complete, and this is what that costs.
   sitemapRegenerationKb: 820,
+  // One update detail page rendering: the `UPDATE_DETAIL_SELECT` join — the
+  // update row plus its `exam_update_details` row, which carries the five JSONB
+  // columns that made the old table 39 MB — plus the sibling rail. `STORED`
+  // puts the pair at 4.8 + 6.6 kB; the rails are counted separately below
+  // because they are shared between pages and this is not.
+  updateDetailRenderKb: 13,
+  // One category rail repopulating: twelve update *card* rows, which is the
+  // narrow select — no JSONB, no detail join — at ~0.5 kB a row.
+  updateRailKb: 6,
+  // One job rail repopulating: twelve job card rows at the ~0.74 kB a row that
+  // `forYouRpcKb` measures (33.3 kB / 46 rows).
+  jobRailKb: 9,
 };
 
 /* ── Function time, per invocation ─────────────────────────────────────── */
@@ -250,6 +334,10 @@ const TIMING = {
   // A job detail page rendering cold: one join, one change-log read, two rail
   // reads, then React. Mostly waiting on Supabase, like every other read here.
   closedJobRender: { wall: 0.5, cpu: 0.2 },
+  // An update detail page rendering cold. Slightly more waiting than a job
+  // page — the detail join, the sibling rail, and three rail reads that are
+  // usually cache hits and are charged here as though they never are.
+  updateRender: { wall: 0.6, cpu: 0.2 },
   serverAction: { wall: 0.3, cpu: 0.2 },
   // IndexNow's verifier fetching /<key>.txt. One env read and a string.
   indexNowKeyFetch: { wall: 0.05, cpu: 0.02 },
@@ -305,6 +393,10 @@ const supabaseKb =
   TRAFFIC.syncRunsPerMonth * PAYLOAD.seoWorkerKb +
   TRAFFIC.sitemapRegenerationsPerMonth * PAYLOAD.sitemapRegenerationKb +
   TRAFFIC.closedJobRendersPerMonth * PAYLOAD.jobDetailRenderKb +
+  TRAFFIC.updateRendersPerMonth * PAYLOAD.updateDetailRenderKb +
+  // The rails. Two shared category entries, plus one per organisation acronym.
+  TRAFFIC.railRefreshesPerMonth * 2 * PAYLOAD.updateRailKb +
+  TRAFFIC.railRefreshesPerMonth * TRAFFIC.distinctJobRailTerms * PAYLOAD.jobRailKb +
   TRAFFIC.personalisedSessionsPerMonth * PAYLOAD.trackerPageKb +
   (TRAFFIC.statusRefreshesPerMonth + TRAFFIC.statusCronCallsPerMonth) * PAYLOAD.statusRefreshKb;
 
@@ -313,6 +405,7 @@ const supabaseKb =
 // public corpus that is not prerendered — do.
 const invocations =
   TRAFFIC.closedJobRendersPerMonth +
+  TRAFFIC.updateRendersPerMonth +
   TRAFFIC.personalisedSessionsPerMonth * 6 +
   TRAFFIC.adminSessionsPerMonth * 8 +
   TRAFFIC.syncRunsPerMonth +
@@ -330,6 +423,7 @@ const invocations =
 // invocation rather than as an invocation of its own.
 const functionSeconds = (pick) =>
   TRAFFIC.closedJobRendersPerMonth * TIMING.closedJobRender[pick] +
+  TRAFFIC.updateRendersPerMonth * TIMING.updateRender[pick] +
   TRAFFIC.personalisedSessionsPerMonth * 6 * TIMING.personalisedRoute[pick] +
   TRAFFIC.adminSessionsPerMonth * 8 * TIMING.adminRoute[pick] +
   TRAFFIC.syncRunsPerMonth * (TIMING.syncRun[pick] + TIMING.seoWorker[pick]) +
@@ -340,6 +434,53 @@ const functionSeconds = (pick) =>
 
 const activeCpuHours = functionSeconds("cpu") / 3600;
 const provisionedGbHours = (functionSeconds("wall") / 3600) * FUNCTION_MEMORY_GB;
+
+/* ── ISR writes, and the failure mode they encode ──────────────────────── */
+// A page writes an ISR entry when a request finds no fresh copy and re-renders
+// one. So the ceiling is reached in one of two ways, and they behave completely
+// differently:
+//
+//   Traffic-driven. A request arrives, the page's own `content` window has
+//   elapsed, it re-renders. Bounded by requests — you cannot write more entries
+//   than you are asked for — and that bound is the reassuring one: ~15K
+//   requests a month cannot produce 744K writes no matter how stale everything
+//   is.
+//
+//   Invalidation-driven. `revalidateTag` marks a whole *set* of pages stale at
+//   once, and the next request to each one rewrites it. This is unbounded by
+//   traffic in the way that matters: ingest purges `updates:list` up to four
+//   times an hour, so a detail page that reads a query carrying that tag is
+//   stale again within minutes of every render, and every single crawler visit
+//   becomes a write. ~7,000 detail pages behaving that way is exactly how this
+//   project reached 744K.
+//
+// The second term is zero here by construction, not by luck: no query a detail
+// page awaits carries a collection tag, and `detail-page-tags.test.ts` fails
+// the build if one ever does. It is written out rather than omitted so that the
+// number is visible, and so that anyone who reintroduces the bug can see what
+// it costs before the invoice does.
+const staleOnArrival =
+  // Crawler fetches spread over ~13,475 URLs average well under one per page
+  // per month, so essentially every one lands on a page whose three-day window
+  // has long since passed. Charged in full.
+  TRAFFIC.crawlerPagesPerMonth +
+  // Human traffic concentrates on the handful of pages that stay warm.
+  humanPageViews * 0.1;
+
+// What the pre-949face architecture would cost at this traffic: every detail
+// page stale again within minutes of each render, so every request to one is a
+// write. Kept as a live expression rather than a comment so it cannot drift.
+const DETAIL_PAGE_SHARE = 0.85; // of crawler traffic; the corpus is detail pages
+const isrWritesIfListTagged =
+  staleOnArrival + TRAFFIC.crawlerPagesPerMonth * DETAIL_PAGE_SHARE * 4;
+
+const isrWrites = staleOnArrival;
+
+/* ── Fast Origin Transfer ──────────────────────────────────────────────── */
+// Bytes leaving the origin — a function rendering a response — as opposed to
+// bytes served from the edge cache, which are ordinary bandwidth. Every ISR
+// write ships a document, and so does every on-demand render.
+const fastOriginKb = (isrWrites + TRAFFIC.updateRendersPerMonth) * PAYLOAD.pageDocumentKb;
 
 const storedMb =
   Object.values(STORED).reduce((sum, t) => sum + t.rows * t.bytesPerRow, 0) / (1024 * 1024);
@@ -380,6 +521,16 @@ const projection = {
     limit: LIMITS.vercelProvisionedGbHours,
     unit: "GB-hr",
   },
+  "Vercel ISR writes": {
+    value: isrWrites,
+    limit: LIMITS.vercelIsrWrites,
+    unit: "",
+  },
+  "Fast origin transfer": {
+    value: fastOriginKb / KB_PER_GB,
+    limit: LIMITS.vercelFastOriginTransferGb,
+    unit: "GB",
+  },
 };
 
 /* ── Report ────────────────────────────────────────────────────────────── */
@@ -407,7 +558,53 @@ for (const [name, { value, limit, unit }] of Object.entries(projection)) {
     `${over ? "✗" : " "} ${name.padEnd(26)} ${shown.padStart(13)} ${cap.padStart(11)}   ${(ratio * 100).toFixed(1)}%`,
   );
 }
-console.log("");
+console.log(
+  `  ISR writes if a detail page carried a list tag: ` +
+    `${Math.round(isrWritesIfListTagged).toLocaleString("en-IN")} ` +
+    `(${((isrWritesIfListTagged / LIMITS.vercelIsrWrites) * 100).toFixed(0)}% of the ceiling).\n` +
+    `  Held at zero by the tags in src/lib/db/tags.ts, enforced by\n` +
+    `  src/lib/db/queries/detail-page-tags.test.ts.\n`,
+);
+
+/* ── The assumption this file is least sure of ─────────────────────────── */
+// `crawlerPagesPerMonth` is a proxy — the prerendered page count times eight —
+// and production has already contradicted it. 949face records 744K ISR writes
+// billed in one month. Under the tagging of the time a detail page was stale
+// again within minutes of each render, so writes tracked crawler fetches almost
+// one for one: that figure is not a modelling artefact, it is a measurement of
+// crawler appetite, and it is ~95x what the line above assumes.
+//
+// This scenario re-runs the two re-render ceilings against that evidence. It
+// does NOT gate the build, because the number is inferred rather than read off
+// a dashboard and because the ceiling it moves is one nothing in this commit
+// touches — the rails do not change how often a page re-renders, only how many
+// bytes it ships when it does. It prints because the alternative is a check
+// that reports a comfortable pass using an input the billing history disproves,
+// which is the exact failure this file was written to prevent.
+const OBSERVED_CRAWLER_FETCHES = 744_000;
+const CACHE_WINDOWS_PER_MONTH = 30 / 3; // `content` revalidates every three days
+const SITEMAP_URLS = 13_475;
+
+// Post-949face a page rewrites at most once per window however often it is
+// crawled, so the realistic figure is bounded by the corpus, not by fetches.
+const isrWritesObserved = Math.min(
+  OBSERVED_CRAWLER_FETCHES,
+  SITEMAP_URLS * CACHE_WINDOWS_PER_MONTH,
+);
+const originGbObserved = (isrWritesObserved * PAYLOAD.pageDocumentKb) / KB_PER_GB;
+const isrRatio = isrWritesObserved / LIMITS.vercelIsrWrites;
+const originRatio = originGbObserved / LIMITS.vercelFastOriginTransferGb;
+
+console.log(
+  `  ── Scenario: crawler traffic at the volume 949face actually billed ──\n` +
+    `  ISR writes           ${Math.round(isrWritesObserved).toLocaleString("en-IN").padStart(9)}` +
+    ` / ${LIMITS.vercelIsrWrites.toLocaleString("en-IN")}   ${(isrRatio * 100).toFixed(0)}%\n` +
+    `  Fast origin transfer ${originGbObserved.toFixed(2).padStart(9)} GB / ` +
+    `${String(LIMITS.vercelFastOriginTransferGb)} GB   ${(originRatio * 100).toFixed(0)}%\n` +
+    `  Bounded by the corpus rather than by fetches: the three-day window caps\n` +
+    `  each page at ${String(CACHE_WINDOWS_PER_MONTH)} rewrites a month. Raising \`content\`'s revalidate is the\n` +
+    `  lever if this gets tight — it divides both lines directly.\n`,
+);
 
 if (breaches.length > 0) {
   console.error(

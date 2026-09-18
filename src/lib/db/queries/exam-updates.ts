@@ -430,6 +430,52 @@ export async function listRelatedUpdates(
   );
 }
 
+/**
+ * The newest updates in one category, for the cross-page rails.
+ *
+ * ── Why this takes no per-page argument ───────────────────────────────────
+ * This is the whole reason the rails are affordable. `"use cache"` keys on the
+ * function and its arguments, so `listLatestInCategory("result")` is ONE cache
+ * entry that every one of the ~5,300 update pages shares — one Supabase read
+ * per cache window for the entire corpus, not one per page. Threading the
+ * current slug in here to exclude it would key the entry per page and turn
+ * that single read into 5,300. The caller excludes itself from the returned
+ * rows instead, which costs nothing because it happens outside the cache.
+ *
+ * ── Why `content` and not `feed` ──────────────────────────────────────────
+ * A rail of the newest results wants `feed`'s six-hour window, and must not
+ * have it. Next takes the *most restrictive* lifetime among a cache entry and
+ * everything it depends on, so a `feed` rail embedded in a detail page would
+ * drag that page from a three-day revalidate to a six-hour one — across ~7,000
+ * pages, which is precisely the arithmetic that put this project over the
+ * Hobby plan's 200K ISR writes (see 949face). Three days it is; `/updates` is
+ * the surface that stays live, and the rail's heading links there.
+ *
+ * ── Why the tag is not `updates:list` ─────────────────────────────────────
+ * Ingest purges `updates:list` on every run that writes, up to four times an
+ * hour. A detail page inheriting it goes stale that often and re-renders on
+ * the next crawl. `update:rail-<category>` is never purged by ingest, so these
+ * refresh on the clock above and nothing else.
+ */
+export async function listLatestInCategory(
+  category: UpdateCategory,
+  limit: number = PAGE_SIZE.rail,
+): Promise<ExamUpdateCard[]> {
+  "use cache";
+  cacheLife("content");
+  cacheTag(tags.examUpdate(`rail-${category}`));
+
+  return unwrap(
+    "listLatestInCategory",
+    await cardQuery()
+      .eq("is_published", true)
+      .eq("category", category)
+      .order("published_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(limit),
+  );
+}
+
 /* ── Tracker signals ───────────────────────────────────────────────────── */
 
 /**
