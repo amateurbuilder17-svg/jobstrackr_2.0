@@ -13,7 +13,11 @@ import { NextResponse } from "next/server";
  * A resolved id maps to one slug forever, so its 308 is cached for a year. A
  * miss is cached for a day only: the row may simply not be ingested yet.
  */
-export function cachedRedirect(request: Request, path: string, permanent: boolean): NextResponse {
+export function cachedRedirect(
+  request: Request,
+  path: string,
+  permanent: boolean,
+): NextResponse {
   const response = NextResponse.redirect(new URL(path, request.url), permanent ? 308 : 307);
   response.headers.set(
     "Cache-Control",
