@@ -11,10 +11,12 @@ import { cn } from "@/lib/cn";
 import { FetchGuardError, guardedFetch } from "@/lib/net/guarded-fetch";
 import { daysUntilFrom, formatDate } from "@/lib/format/deadline";
 import {
+  admitCardDateOf,
   EVENT_LABELS,
   examDateOf,
   hasSecondPhase,
   isStale,
+  latestReport,
   phaseOf,
   resultDateOf,
   type ExamStatusReport,
@@ -52,7 +54,12 @@ function shortenPhaseName(name: string): string {
 
 export function StatusPanel({ attemptId, name, initial }: Props) {
   const router = useRouter();
-  const [report, setReport] = useState<ExamStatusReport | null>(initial);
+  // What this panel's own Refresh brought back. The server's copy (`initial`)
+  // arrives fresh on every render, and whichever is newer is shown: a second
+  // card for the same exam, or another tab, can move the server's on after
+  // this panel mounted, and `useState(initial)` alone would never see it.
+  const [fetched, setFetched] = useState<ExamStatusReport | null>(null);
+  const report = latestReport(fetched, initial);
   const [expanded, setExpanded] = useState(false);
   const [pending, setPending] = useState(false);
   const [notice, setNotice] = useState<{ text: string; bad: boolean } | null>(null);
@@ -101,11 +108,15 @@ export function StatusPanel({ attemptId, name, initial }: Props) {
 
       const data = (await response.json()) as RefreshResponse;
 
-      if (data.report) setReport(data.report);
+      if (data.report) setFetched(data.report);
 
       if (!data.ok) {
         setNotice({ text: data.message ?? "Could not refresh just now.", bad: true });
         startCooldown(Math.min(data.retryAfter ?? COOLDOWN_SECONDS, 300));
+        // A quota refusal still hands back the stored answer, which can be
+        // newer than the one this page rendered. The progress bar and the
+        // milestone above read the server's copy, so bring them level too.
+        if (data.report) router.refresh();
         return;
       }
 
@@ -225,8 +236,11 @@ function Summary({
   onToggle: () => void;
   name: string;
 }) {
-  const [phase, setPhase] = useState<1 | 2>(1);
+  const [picked, setPicked] = useState<1 | 2>(1);
   const twoPhases = hasSecondPhase(report.report);
+  // The tab survives a refresh, the second tier may not. Without the clamp a
+  // Tier 2 tab left open over a one-tier answer rendered no facts at all.
+  const phase = twoPhases ? picked : 1;
   const active = phaseOf(report.report, phase);
 
   return (
@@ -247,7 +261,7 @@ function Summary({
                 role="tab"
                 aria-selected={phase === n}
                 onClick={() => {
-                  setPhase(n);
+                  setPicked(n);
                 }}
                 className={cn(
                   "rounded-lg px-3 py-1 text-xs font-semibold transition-all",
@@ -438,13 +452,14 @@ function PhaseFacts({
 }) {
   const examDate = examDateOf(report.report, phase);
   const resultDate = resultDateOf(report.report, phase);
+  const admitDate = admitCardDateOf(report.report, phase);
 
   return (
     <dl className="flex flex-col divide-y divide-line/60 rounded-xl border border-line/70 bg-surface/90 shadow-2xs overflow-hidden dark:border-white/5 dark:bg-surface/60">
       <Fact
         term="Admit card"
-        value={data.admitCardAvailable ? "Out now" : "Not out yet"}
-        tone={data.admitCardAvailable ? "good" : "neutral"}
+        value={data.admitCardAvailable ? "Out now" : (formatDate(admitDate) ?? "Not out yet")}
+        tone={data.admitCardAvailable ? "good" : admitDate ? "accent" : "neutral"}
         href={data.admitCardLink}
         hrefLabel="Download"
       />

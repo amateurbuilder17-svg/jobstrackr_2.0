@@ -182,6 +182,27 @@ export function isStale(
   return age > (isConfident(confidence) ? FRESH_MS : FRESH_LOW_CONFIDENCE_MS);
 }
 
+/**
+ * Whichever of two copies of a subject's report was refreshed more recently.
+ *
+ * A panel holds the answer its own Refresh brought back, and the page hands it
+ * the server's copy on every render. Either can be the newer one — a second
+ * card for the same exam, or another tab, moves the server's on — so neither
+ * may simply win. An unreadable timestamp loses.
+ */
+export function latestReport(
+  a: ExamStatusReport | null,
+  b: ExamStatusReport | null,
+): ExamStatusReport | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  const timeA = Date.parse(a.refreshedAt);
+  const timeB = Date.parse(b.refreshedAt);
+  if (Number.isNaN(timeA)) return b;
+  if (Number.isNaN(timeB)) return a;
+  return timeA >= timeB ? a : b;
+}
+
 /* ── Accessors ─────────────────────────────────────────────────────────── */
 
 /** Phase by 1-based number, or null where the exam has no such phase. */
@@ -238,6 +259,62 @@ export function resultDateOf(report: StatusReport, phase: 1 | 2): string | null 
     (e) => e.type === "result" && (e.phase === phase || e.phase === null),
   );
   return event?.date ?? null;
+}
+
+/**
+ * When a phase's admit card is due, from the model's dated events.
+ *
+ * Unlike the exam and result, a phase has no field for this at all —
+ * `admitCardAvailable` is deliberately a strict "downloadable today" boolean —
+ * so an announced release date only ever arrives as an `admit_card` event.
+ * Every reader that looked at the phase alone showed "Not out yet" for a card
+ * due in five days, while the timeline beneath it had the date.
+ *
+ * An unphased event counts for phase one only. The exam and result accessors
+ * can afford to share one across phases, because the phase's own field usually
+ * answers first; here the event is the only source, and a Tier 2 tab showing
+ * the Tier 1 admit card date is worse than one showing none.
+ */
+export function admitCardDateOf(report: StatusReport, phase: 1 | 2): string | null {
+  const event = report.events.find(
+    (e) => e.type === "admit_card" && (e.phase === phase || (e.phase === null && phase === 1)),
+  );
+  return event?.date ?? null;
+}
+
+/**
+ * The last date to apply, as the tracker should treat it: the report's own
+ * closing date, else the notification's `last_date` — unless that falls after
+ * this cycle's first admit card or exam, still to come.
+ *
+ * Nobody applies after admit cards are issued, so a closing date that late is
+ * not this cycle's: another cycle's notification, or a date misread at
+ * ingestion. Taken at face value it put "Application Deadline · In 253 days" on
+ * an SSC CGL card whose Tier 1 admit card was five days out, above a report
+ * saying the window had shut in June.
+ *
+ * Only milestones still ahead count. A report that answered about the previous
+ * cycle has its dates in the past, and must not be able to hide a real, open
+ * deadline on the strength of them.
+ */
+export function applicationDeadlineOf(
+  report: StatusReport | null,
+  notificationLastDate: string | null,
+  today: string | null,
+): string | null {
+  const own = report ? nextEventOf(report, "application_close") : null;
+  if (own) return own.date;
+  if (report === null || notificationLastDate === null || today === null) {
+    return notificationLastDate;
+  }
+
+  const firstAhead = [admitCardDateOf(report, 1), examDateOf(report, 1)]
+    .filter((date): date is string => date !== null && date >= today)
+    .sort()[0];
+
+  return firstAhead !== undefined && notificationLastDate.slice(0, 10) > firstAhead
+    ? null
+    : notificationLastDate;
 }
 
 /* ── Automatic status ──────────────────────────────────────────────────── */

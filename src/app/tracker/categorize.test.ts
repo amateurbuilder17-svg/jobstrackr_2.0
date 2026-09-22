@@ -125,6 +125,26 @@ describe("categorize — Action Required", () => {
     expect(categorize(input({ applyDeadline: TODAY })).reason).toBe("Applications close today");
   });
 
+  it("ignores a job closing date that falls after the report's admit card", () => {
+    const result = categorize(
+      input({
+        applyDeadline: "2026-09-08",
+        report: report({
+          events: [
+            {
+              type: "admit_card",
+              phase: 1,
+              date: "2026-09-05",
+              certainty: "high",
+              notes: null,
+            },
+          ],
+        }),
+      }),
+    );
+    expect(result.reason).not.toBe("Applications closing");
+  });
+
   it("prefers the report's closing date over the job's", () => {
     const result = categorize(
       input({

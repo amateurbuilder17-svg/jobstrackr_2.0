@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  admitCardDateOf,
+  applicationDeadlineOf,
   CONFIDENCE_FLOOR,
   deriveAttemptDates,
   deriveAttemptStatus,
   examDateOf,
   hasSecondPhase,
   isStale,
+  latestReport,
   phaseOf,
   progressOf,
+  type ExamStatusReport,
   type StatusPhase,
   type StatusReport,
 } from "./report";
@@ -95,6 +99,101 @@ describe("examDateOf", () => {
       ],
     });
     expect(examDateOf(r, 1)).toBe("2026-04-01");
+  });
+});
+
+describe("admitCardDateOf", () => {
+  it("reads the release date from the dated events, where the phase has none", () => {
+    const r = report({
+      events: [
+        { type: "admit_card", phase: 1, date: "2026-09-27", certainty: "high", notes: null },
+      ],
+    });
+    expect(admitCardDateOf(r, 1)).toBe("2026-09-27");
+  });
+
+  it("gives an unphased admit card to the first phase only", () => {
+    const r = report({
+      phases: [phase(), phase({ name: "Tier 2" })],
+      events: [
+        { type: "admit_card", phase: null, date: "2026-09-27", certainty: "high", notes: null },
+      ],
+    });
+    expect(admitCardDateOf(r, 1)).toBe("2026-09-27");
+    expect(admitCardDateOf(r, 2)).toBeNull();
+  });
+});
+
+describe("applicationDeadlineOf", () => {
+  const today = "2026-09-22";
+  const cgl = report({
+    events: [
+      { type: "admit_card", phase: 1, date: "2026-09-27", certainty: "high", notes: null },
+      { type: "exam_date", phase: 1, date: "2026-09-30", certainty: "high", notes: null },
+    ],
+  });
+
+  it("drops a notification date that falls after this cycle's admit card", () => {
+    expect(applicationDeadlineOf(cgl, "2027-06-02", today)).toBeNull();
+  });
+
+  it("keeps a notification date that closes before the admit card", () => {
+    expect(applicationDeadlineOf(cgl, "2026-09-25", today)).toBe("2026-09-25");
+  });
+
+  it("does not let last cycle's dates hide an open deadline", () => {
+    const stale = report({
+      events: [
+        { type: "exam_date", phase: 1, date: "2025-09-30", certainty: "high", notes: null },
+      ],
+    });
+    expect(applicationDeadlineOf(stale, "2026-10-15", today)).toBe("2026-10-15");
+  });
+
+  it("prefers the report's own closing date", () => {
+    const r = report({
+      events: [
+        {
+          type: "application_close",
+          phase: null,
+          date: "2026-06-25",
+          certainty: "high",
+          notes: null,
+        },
+      ],
+    });
+    expect(applicationDeadlineOf(r, "2027-06-02", today)).toBe("2026-06-25");
+  });
+});
+
+describe("latestReport", () => {
+  const stored = (refreshedAt: string): ExamStatusReport => ({
+    subjectKey: "job:1",
+    subjectLabel: "SSC CGL",
+    report: report(),
+    confidence: 90,
+    model: "test-model",
+    grounded: true,
+    sources: [],
+    refreshedAt,
+  });
+
+  it("keeps the panel's own answer while it is the newer one", () => {
+    const own = stored("2026-09-22T09:00:05.000Z");
+    expect(latestReport(own, stored("2026-09-22T09:00:04.000Z"))).toBe(own);
+  });
+
+  it("takes the server's copy once it has moved on", () => {
+    const server = stored("2026-09-22T10:30:00.000Z");
+    expect(latestReport(stored("2026-09-22T09:00:05.000Z"), server)).toBe(server);
+  });
+
+  it("uses whichever exists, and never an unreadable timestamp", () => {
+    const good = stored("2026-09-22T09:00:00.000Z");
+    expect(latestReport(null, good)).toBe(good);
+    expect(latestReport(good, null)).toBe(good);
+    expect(latestReport(stored("not a date"), good)).toBe(good);
+    expect(latestReport(null, null)).toBeNull();
   });
 });
 
