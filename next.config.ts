@@ -141,6 +141,25 @@ const nextConfig: NextConfig = {
       revalidate: 60 * 60 * 6, // 6 hours
       expire: 60 * 60 * 24 * 7, // 7 days
     },
+    // Hub pages' first pages (`lib/hubs/catalog.ts`): the list of jobs in a
+    // state, of results, of one employer's notices. A time-based refresh, not
+    // a tag one — ingest never purges a hub — and two days rather than the
+    // feed's six hours, because every refresh that finds the list changed is
+    // an ISR write billed in 8 KB units, and there are a few hundred hubs.
+    // A new listing reaches its hub within two days; it reaches /jobs, the
+    // detail page and the sitemap within the hour, as before.
+    hub: {
+      stale: 60 * 60, // 1 hour
+      revalidate: 60 * 60 * 24 * 2, // 2 days
+      expire: 60 * 60 * 24 * 30, // 30 days
+    },
+    // Hub pages 2 and beyond, and the two archives past page 1. Deep pages are
+    // where crawlers walk and people rarely do, so they refresh weekly.
+    hubArchive: {
+      stale: 60 * 60, // 1 hour
+      revalidate: 60 * 60 * 24 * 7, // 7 days
+      expire: 60 * 60 * 24 * 30, // 30 days
+    },
     // Project configuration that changes when someone edits a dashboard
     // setting — which external auth providers are enabled, and little else.
     // Short, despite the answer being stable for months, because of what it

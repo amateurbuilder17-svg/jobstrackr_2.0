@@ -73,6 +73,9 @@ async function updates() {
 async function attempts() {
   return import("./attempts");
 }
+async function hubs() {
+  return import("./hubs");
+}
 
 describe("every query is bounded", () => {
   /**
@@ -106,6 +109,33 @@ describe("every query is bounded", () => {
       async () => (await updates()).listExamUpdates({ query: "result" }),
     ],
     ["suggestSubjects", false, async () => (await attempts()).suggestSubjects("ssc cgl")],
+    [
+      "listHubPage (state)",
+      false,
+      async () => (await hubs()).listHubPage("state-goa", { kind: "state", state: "Goa" }, 1),
+    ],
+    [
+      "listHubPage (update category)",
+      false,
+      async () =>
+        (await hubs()).listHubPage(
+          "update-results",
+          { kind: "updateCategory", category: "result" },
+          2,
+        ),
+    ],
+    [
+      "listHubPage (organisation)",
+      false,
+      async () =>
+        (await hubs()).listHubPage(
+          "org-ssc",
+          { kind: "organisation", organizationId: "o1" },
+          3,
+        ),
+    ],
+    ["getHubOrganisation", true, async () => (await hubs()).getHubOrganisation("ssc")],
+    ["getHubCensus", false, async () => (await hubs()).getHubCensus()],
   ];
 
   it.each(cases)("%s sends a LIMIT", async (_name, single, run) => {
@@ -143,6 +173,17 @@ describe("every query names its columns", () => {
     ["listRelatedUpdates", async () => (await updates()).listRelatedUpdates("SSC", "x")],
     ["listLatestInCategory", async () => (await updates()).listLatestInCategory("result")],
     ["suggestSubjects", async () => (await attempts()).suggestSubjects("ssc cgl")],
+    [
+      "listHubPage (organisation)",
+      async () =>
+        (await hubs()).listHubPage(
+          "org-ssc",
+          { kind: "organisation", organizationId: "o1" },
+          1,
+        ),
+    ],
+    ["getHubOrganisation", async () => (await hubs()).getHubOrganisation("ssc")],
+    ["getHubCensus", async () => (await hubs()).getHubCensus()],
   ])("%s does not select *", async (_name, run) => {
     await run();
 
@@ -464,5 +505,69 @@ describe("listExamUpdateSlugs", () => {
       ?.searchParams.get("category");
 
     expect(category).toBe("neq.notification");
+  });
+});
+
+/**
+ * A hub lists what the sitemap submits, and nothing else.
+ *
+ * Hubs exist to be a crawl path (`lib/hubs/catalog.ts`). A hub that linked to
+ * closed listings past the index window, or to recruitment notices, would
+ * spend that path on pages answering `noindex` — so the same two filters the
+ * sitemap sends must reach every hub query.
+ */
+describe("hub lists match the sitemap's rules", () => {
+  async function indexWindow() {
+    const { closedJobIndexCutoff } = await import("@/lib/seo/indexing");
+    const { todayInIndia } = await import("@/lib/format/deadline");
+    return `(status.eq.published,last_date.gte.${closedJobIndexCutoff(todayInIndia())})`;
+  }
+  const on = (table: string) => requests.filter((u) => u.pathname.endsWith(`/${table}`));
+
+  it("a job hub reads only indexable jobs, filtered to the hub", async () => {
+    await (await hubs()).listHubPage("state-goa", { kind: "state", state: "Goa" }, 1);
+    const [req] = on("jobs");
+
+    expect(req?.searchParams.get("or")).toBe(await indexWindow());
+    expect(req?.searchParams.get("location_state")).toBe("eq.Goa");
+    expect(req?.searchParams.get("offset")).toBe("0");
+    expect(req?.searchParams.get("limit")).toBe("50");
+  });
+
+  it("pages by offset, fifty at a time", async () => {
+    await (
+      await hubs()
+    ).listHubPage("sector-railway", { kind: "sector", sector: "railway" }, 3);
+    const [req] = on("jobs");
+
+    expect(req?.searchParams.get("tags")).toBe("cs.{railway}");
+    expect(req?.searchParams.get("offset")).toBe("100");
+  });
+
+  it("an update hub never lists a recruitment notice", async () => {
+    await (await hubs()).listHubPage("all-updates", { kind: "allUpdates" }, 1);
+    expect(on("exam_updates")[0]?.searchParams.get("category")).toBe("neq.notification");
+  });
+
+  it("an organisation hub reads both tables for that organisation, deep enough to merge", async () => {
+    await (
+      await hubs()
+    ).listHubPage("org-ssc", { kind: "organisation", organizationId: "o1" }, 2);
+    const [job] = on("jobs");
+    const [update] = on("exam_updates");
+
+    expect(job?.searchParams.get("organization_id")).toBe("eq.o1");
+    expect(job?.searchParams.get("or")).toBe(await indexWindow());
+    expect(update?.searchParams.get("organization_id")).toBe("eq.o1");
+    expect(update?.searchParams.get("category")).toBe("neq.notification");
+    // Page 2 of a merged list needs the first hundred of each part.
+    expect(job?.searchParams.get("limit")).toBe("100");
+    expect(update?.searchParams.get("offset")).toBe("0");
+  });
+
+  it("the census counts the same rows", async () => {
+    await (await hubs()).getHubCensus();
+    expect(on("jobs")[0]?.searchParams.get("or")).toBe(await indexWindow());
+    expect(on("exam_updates")[0]?.searchParams.get("category")).toBe("neq.notification");
   });
 });

@@ -41,6 +41,7 @@ import { formatDate, formatVacancies } from "@/lib/format/deadline";
 import { decodeEntities } from "@/lib/format/text";
 import { CATEGORY_CTA, CATEGORY_LABELS, CATEGORY_TONE } from "@/lib/updates/categories";
 import { pickRailRows, takenSlugs } from "@/lib/updates/rails";
+import { updateCategoryHubPath } from "@/lib/hubs/catalog";
 import {
   datesFromOverview,
   datesFromSections,
@@ -107,6 +108,7 @@ export default async function UpdatePage({ params }: { params: Promise<{ slug: s
   if (!update) notFound();
 
   const category = update.category;
+  const categoryHub = updateCategoryHubPath(category);
   const title = decodeEntities(update.title);
   const date = formatDate(update.published_date ?? update.published_at);
   const checked = formatDate(update.scraped_at);
@@ -249,7 +251,20 @@ export default async function UpdatePage({ params }: { params: Promise<{ slug: s
           {orgTitle ? (
             <div className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-brand">
               <BuildingIcon className="size-4 shrink-0" aria-hidden="true" />
-              <span className="line-clamp-1">{orgTitle}</span>
+              {/* A link only when the name is the organisation's: `orgTitle`
+                  falls back to a term guessed from the title, which has no
+                  hub to go to. */}
+              {update.organization ? (
+                <Link
+                  href={`/organisations/${update.organization.slug}`}
+                  prefetch={false}
+                  className="line-clamp-1 underline-offset-4 hover:underline"
+                >
+                  {orgTitle}
+                </Link>
+              ) : (
+                <span className="line-clamp-1">{orgTitle}</span>
+              )}
             </div>
           ) : null}
 
@@ -258,12 +273,25 @@ export default async function UpdatePage({ params }: { params: Promise<{ slug: s
           </h1>
 
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
-            <Badge
-              tone={CATEGORY_TONE[category]}
-              className="text-xs font-semibold px-2.5 py-0.5"
-            >
-              {CATEGORY_LABELS[category]}
-            </Badge>
+            {/* To every other update of this kind. Recruitment notices have no
+                hub (`lib/hubs/catalog.ts`), so theirs stays a plain badge. */}
+            {categoryHub ? (
+              <Link href={categoryHub} prefetch={false} className="hover:opacity-80">
+                <Badge
+                  tone={CATEGORY_TONE[category]}
+                  className="text-xs font-semibold px-2.5 py-0.5"
+                >
+                  {CATEGORY_LABELS[category]}
+                </Badge>
+              </Link>
+            ) : (
+              <Badge
+                tone={CATEGORY_TONE[category]}
+                className="text-xs font-semibold px-2.5 py-0.5"
+              >
+                {CATEGORY_LABELS[category]}
+              </Badge>
+            )}
 
             {update.exam ? (
               <span className="inline-flex items-center rounded-full border border-line bg-surface-2 px-2.5 py-0.5 text-xs font-medium text-ink-2 leading-normal">

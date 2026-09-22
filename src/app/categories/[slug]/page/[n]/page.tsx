@@ -1,0 +1,26 @@
+import type { Metadata } from "next";
+
+import { hubRouteMetadata, renderHubRoute } from "@/components/hubs/hub-route";
+import { BUILD_SENTINEL_SLUG } from "@/lib/db/build-params";
+
+/**
+ * Page 2 and beyond of a category hub.
+ *
+ * The sentinel is there for the 404s, not to prerender anything; see
+ * `components/hubs/hub-route.tsx`.
+ */
+type Params = Promise<{ slug: string; n: string }>;
+
+export function generateStaticParams() {
+  return [{ slug: BUILD_SENTINEL_SLUG, n: "2" }];
+}
+
+export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+  const { slug, n } = await params;
+  return hubRouteMetadata("category", slug, n);
+}
+
+export default async function CategoryHubPageN({ params }: { params: Params }) {
+  const { slug, n } = await params;
+  return renderHubRoute("category", slug, n);
+}

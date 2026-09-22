@@ -3,6 +3,16 @@ import type { MetadataRoute } from "next";
 import { env } from "@/lib/env";
 import { listJobSlugs } from "@/lib/db/queries/jobs";
 import { listExamUpdateSlugs } from "@/lib/db/queries/exam-updates";
+import { censusCount, getHubCensus } from "@/lib/db/queries/hubs";
+import {
+  ALL_JOBS_HUB,
+  ALL_UPDATES_HUB,
+  CATEGORY_HUBS,
+  MIN_INDEXED_HUB_ITEMS,
+  STATE_HUBS,
+  hubPagePath,
+  organisationHub,
+} from "@/lib/hubs/catalog";
 import { listSyllabusSlugs } from "@/lib/db/queries/syllabus";
 
 /**
@@ -37,16 +47,51 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // rejecting inside a cache scope fails the build before any caller's handler
   // runs. Each query now returns an empty array on failure, so there is
   // nothing left to settle.
-  const [jobs, updates, syllabi] = await Promise.all([
+  const [jobs, updates, syllabi, census] = await Promise.all([
     listJobSlugs(),
     listExamUpdateSlugs(),
     listSyllabusSlugs(),
+    getHubCensus(),
   ]);
+
+  // Hubs are the crawl path into everything below them, so they sit above
+  // the detail pages in priority. Only page 1 of each: the later pages are
+  // found by following the pager, which is what they exist to be walked by.
+  // Hubs under `MIN_INDEXED_HUB_ITEMS` answer `noindex` and are left out, so
+  // no URL here contradicts its own robots meta. No `lastmod`: the census
+  // knows how many items a hub holds, not when its list last changed, and a
+  // made-up date is worse than none.
+  const hubRoutes: MetadataRoute.Sitemap = [
+    ...[...STATE_HUBS, ...CATEGORY_HUBS]
+      .filter((hub) => censusCount(census, hub.filter) >= MIN_INDEXED_HUB_ITEMS)
+      .map((hub) => ({
+        url: `${site}${hub.path}`,
+        changeFrequency: "daily" as const,
+        priority: 0.7,
+      })),
+    // Already filtered to `MIN_INDEXED_HUB_ITEMS` by the census.
+    ...census.organisations.map((org) => ({
+      url: `${site}${organisationHub(org).path}`,
+      changeFrequency: "daily" as const,
+      priority: 0.7,
+    })),
+  ];
 
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: site, changeFrequency: "daily", priority: 1 },
     { url: `${site}/jobs`, changeFrequency: "hourly", priority: 0.9 },
     { url: `${site}/updates`, changeFrequency: "hourly", priority: 0.8 },
+    // The hub indexes and the first page of each archive: the footer links
+    // to all five from every page on the site.
+    { url: `${site}/organisations`, changeFrequency: "weekly", priority: 0.7 },
+    { url: `${site}/states`, changeFrequency: "weekly", priority: 0.7 },
+    { url: `${site}/categories`, changeFrequency: "weekly", priority: 0.7 },
+    { url: `${site}${hubPagePath(ALL_JOBS_HUB, 1)}`, changeFrequency: "daily", priority: 0.6 },
+    {
+      url: `${site}${hubPagePath(ALL_UPDATES_HUB, 1)}`,
+      changeFrequency: "daily",
+      priority: 0.6,
+    },
     // `/syllabus` is deliberately absent. The finder needs an account, so what a
     // crawler gets there is the sign-in card; submitting that URL would be
     // asking Google to rank a page nobody can read. The syllabi it links to are
@@ -66,6 +111,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   return [
     ...staticRoutes,
+    ...hubRoutes,
     // Open listings, and closed ones inside the index window — see
     // `listJobSlugs`. They are weighted apart rather than listed alike: an
     // open notice is worth recrawling weekly because its dates still move,
