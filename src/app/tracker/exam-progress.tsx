@@ -3,6 +3,8 @@ import { cn } from "@/lib/cn";
 import type { ExamAttempt } from "@/lib/db/queries/attempts";
 import { daysUntilFrom, formatDate } from "@/lib/format/deadline";
 import {
+  admitCardDateOf,
+  applicationDeadlineOf,
   examDateOf,
   hasSecondPhase,
   phaseOf,
@@ -600,15 +602,15 @@ export function computeNextEvent(
     };
   }
 
+  // When the Phase 1 admit card is due. Read once for both branches below:
+  // an applicant and a watcher whose applications have closed are waiting on
+  // the same thing, and it lands before the exam does.
+  const admitDate = rep ? admitCardDateOf(rep, 1) : null;
+  const daysAdmit = today && admitDate ? daysUntilFrom(today, admitDate) : null;
+  const admitIsPast = daysAdmit !== null && daysAdmit < 0;
+
   // 4. Status is applied -> check admit card or exam
   if (status === "applied") {
-    const admitEvent = rep?.events.find(
-      (e) => e.type === "admit_card" && (e.phase === 1 || e.phase === null),
-    );
-    const admitDate = admitEvent?.date ?? null;
-    const daysAdmit = today && admitDate ? daysUntilFrom(today, admitDate) : null;
-    const admitIsPast = daysAdmit !== null && daysAdmit < 0;
-
     if (admitIsPast && p1ExamDate) {
       const countdown = formatCountdown(p1ExamDays);
       return {
@@ -653,37 +655,54 @@ export function computeNextEvent(
   // attempt came from. Without that fallback a row the tracker has just filed
   // under "Applications closing" — which it can do from `job.last_date` alone
   // — showed "Official Notification & Dates · To be announced" in the box
-  // underneath, contradicting the section it was sitting in.
-  const appCloseEvent = rep?.events.find((e) => e.type === "application_close");
-  const appCloseDate = appCloseEvent?.date ?? attempt.job?.last_date ?? null;
-  if (appCloseDate) {
-    const days = today ? daysUntilFrom(today, appCloseDate) : null;
-    const appClosed = days !== null && days < 0;
+  // underneath, contradicting the section it was sitting in. The same helper
+  // decides both, so they cannot disagree.
+  const appCloseDate = applicationDeadlineOf(
+    rep ?? null,
+    attempt.job?.last_date ?? null,
+    today,
+  );
+  const appCloseDays = today && appCloseDate ? daysUntilFrom(today, appCloseDate) : null;
+  const appClosed = appCloseDays !== null && appCloseDays < 0;
 
-    if (appClosed && p1ExamDate) {
-      const countdown = formatCountdown(p1ExamDays);
-      return {
-        title: phase1?.admitCardAvailable
-          ? "Download Admit Card"
-          : phase1?.name
-            ? `${p1Name} Examination`
-            : "Target Exam Date",
-        date: [formatDate(p1ExamDate), countdown].filter(Boolean).join(" · "),
-        subtitle: "Applications closed · Exam upcoming",
-        tone: "warn",
-      };
-    }
+  if (appCloseDate && !appClosed) {
+    const countdown =
+      appCloseDays !== null
+        ? appCloseDays === 0
+          ? "Last day today!"
+          : `In ${String(appCloseDays)} days`
+        : null;
+    return {
+      title: "Application Deadline",
+      date: [formatDate(appCloseDate), countdown].filter(Boolean).join(" · "),
+      subtitle: "Complete your online application before the portal closes",
+      tone: appCloseDays !== null && appCloseDays <= 3 && appCloseDays >= 0 ? "warn" : "accent",
+    };
+  }
 
-    if (!appClosed) {
-      const countdown =
-        days !== null ? (days === 0 ? "Last day today!" : `In ${String(days)} days`) : null;
-      return {
-        title: "Application Deadline",
-        date: [formatDate(appCloseDate), countdown].filter(Boolean).join(" · "),
-        subtitle: "Complete your online application before the portal closes",
-        tone: days !== null && days <= 3 && days >= 0 ? "warn" : "accent",
-      };
-    }
+  // Applications are closed, or no open window is known. A dated admit card
+  // still to come is the next thing to happen, ahead of the exam it is for.
+  if (admitDate && !admitIsPast) {
+    return {
+      title: "Admit Card Release",
+      date: [formatDate(admitDate), formatCountdown(daysAdmit)].filter(Boolean).join(" · "),
+      subtitle: "Applications closed · Waiting for admit card",
+      tone: "accent",
+    };
+  }
+
+  if (appClosed && p1ExamDate) {
+    const countdown = formatCountdown(p1ExamDays);
+    return {
+      title: phase1?.admitCardAvailable
+        ? "Download Admit Card"
+        : phase1?.name
+          ? `${p1Name} Examination`
+          : "Target Exam Date",
+      date: [formatDate(p1ExamDate), countdown].filter(Boolean).join(" · "),
+      subtitle: "Applications closed · Exam upcoming",
+      tone: "warn",
+    };
   }
 
   if (p1ExamDate) {

@@ -44,6 +44,7 @@
 import type { ExamAttempt } from "@/lib/db/queries/attempts";
 import type { ExamUpdateSignal } from "@/lib/db/queries/exam-updates";
 import {
+  applicationDeadlineOf,
   examDateOf,
   hasSecondPhase,
   phaseOf,
@@ -259,9 +260,9 @@ export function categorize(input: CategoryInput): CategoryResult {
   //    status past `tracking`, means the form is in and the deadline is no
   //    longer their problem.
   const notApplied = status === "tracking" && input.appliedAt === null;
-  const deadline =
-    report?.events.find((event) => event.type === "application_close")?.date ??
-    input.applyDeadline;
+  // Through the same helper as the card's "Next milestone" box, which drops a
+  // notification date that falls after this cycle's admit card or exam.
+  const deadline = applicationDeadlineOf(report, input.applyDeadline, today);
   const untilDeadline = days(deadline);
 
   if (

@@ -358,6 +358,73 @@ describe("computeNextEvent", () => {
     expect(next?.tone).toBe("warn");
   });
 
+  describe("a watched exam whose applications have closed", () => {
+    const today = "2026-09-22";
+    const cglReport = mockReport({
+      stage: "exam_scheduled",
+      phases: [
+        mockPhase({ name: "Tier 1/Prelims Exam", status: "exam_scheduled" }),
+        mockPhase({ name: "Tier 2/Mains Exam", status: "exam_scheduled" }),
+      ],
+      events: [
+        { type: "admit_card", phase: 1, date: "2026-09-27", certainty: "high", notes: null },
+        { type: "exam_date", phase: 1, date: "2026-09-30", certainty: "high", notes: null },
+      ],
+    });
+    const jobWithLastDate = (last_date: string) =>
+      mockAttempt({
+        status: "tracking",
+        exam_id: null,
+        exam: null,
+        job_id: "job-1",
+        job: {
+          slug: "ssc-cgl-2026",
+          title: "SSC CGL 2026",
+          last_date,
+          application_start_date: "2026-05-21",
+          status: "published",
+          organization: null,
+        },
+      });
+
+    it("shows the admit card release, not a notification date after it", () => {
+      const next = computeNextEvent(
+        "tracking",
+        jobWithLastDate("2027-06-02"),
+        cglReport,
+        today,
+      );
+
+      expect(next?.title).toBe("Admit Card Release");
+      expect(next?.date).toContain("27 Sep");
+      expect(next?.date).toContain("In 5 days");
+    });
+
+    it("still shows a deadline that closes before the admit card", () => {
+      const next = computeNextEvent(
+        "tracking",
+        jobWithLastDate("2026-09-24"),
+        cglReport,
+        today,
+      );
+
+      expect(next?.title).toBe("Application Deadline");
+      expect(next?.date).toContain("In 2 days");
+    });
+
+    it("moves on to the exam once the admit card date has passed", () => {
+      const next = computeNextEvent(
+        "tracking",
+        jobWithLastDate("2026-06-25"),
+        cglReport,
+        "2026-09-28",
+      );
+
+      expect(next?.title).toBe("Prelims Examination");
+      expect(next?.date).toContain("30 Sep");
+    });
+  });
+
   it("returns Result as next milestone when exam date is in the past", () => {
     const pastExamReport = mockReport({
       phases: [

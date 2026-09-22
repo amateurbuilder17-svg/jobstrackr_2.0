@@ -169,6 +169,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     const stillFresh = !isStale(cached.refreshedAt, cached.confidence);
 
     if (tooRecent || (!parsed.data.force && stillFresh)) {
+      // The answer is shared; moving a row on is not. Only the caller whose
+      // refresh paid for the model call used to have theirs advanced, so
+      // everyone else tracking the exam — who all land here for the next
+      // quarter of an hour — kept "Tracking" under an admit card that was out.
+      await advanceAttempt(attempt, cached.report, cached.confidence);
       return NextResponse.json(
         { ok: true, cached: true, report: toPayload(cached) },
         { headers: { "Cache-Control": "private, no-store" } },
@@ -202,7 +207,9 @@ export async function POST(request: Request): Promise<NextResponse> {
         : `That is all ${String(DAILY_LIMIT)} refreshes for today. They reset at midnight.`;
 
     // A stale answer beats no answer when the only thing stopping a refresh is
-    // quota, so the cached report goes back with the refusal.
+    // quota, so the cached report goes back with the refusal — and the row
+    // moves on from it, as it would from any other copy of the same answer.
+    if (cached) await advanceAttempt(attempt, cached.report, cached.confidence);
     return NextResponse.json(
       {
         ok: false,
