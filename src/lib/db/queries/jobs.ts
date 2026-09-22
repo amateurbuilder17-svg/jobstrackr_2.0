@@ -12,6 +12,7 @@ import { toSearchFilter } from "../search-term";
 import { SEARCH_CONFIG, tags } from "../tags";
 import type { Database } from "../database.types";
 import { todayInIndia } from "@/lib/format/deadline";
+import { closedJobIndexCutoff } from "@/lib/seo/indexing";
 
 /**
  * Job reads.
@@ -393,16 +394,19 @@ export async function listJobCardsByIds(ids: string[]): Promise<JobCard[]> {
 }
 
 /**
- * Every publicly resolvable job slug, for the sitemap.
+ * Every job slug that asks to be indexed, for the sitemap.
  *
- * Published *and* closed, matching `getJobBySlug`. A sitemap is the list of
- * URLs that answer 200, not the list of jobs you can still apply to, and the
- * two stopped being the same thing the moment `close_expired_jobs()` landed.
- * Listing only the open ones has a second cost beyond the missing entries:
- * dropping a URL out of a sitemap is how you ask a crawler to stop coming
- * back, so the 3,753 pages this restores would sit at their stale 404 for
- * months before Google rechecked them of its own accord. The `lastmod` each
- * one carries is what gets them recrawled.
+ * Open listings, and closed ones until `CLOSED_JOB_INDEX_DAYS` after their
+ * last date: the same rule the page applies to its own robots meta, through
+ * `closedJobIndexCutoff`, so no URL here answers `noindex`. The filter runs in
+ * Postgres rather than after the fetch, because what it drops is most of the
+ * corpus: on 22 Sep 2026 the sitemap carried 4,667 closed listings against
+ * 2,620 open ones, and Google had indexed almost none of them. The reasoning
+ * is in `lib/seo/indexing.ts`.
+ *
+ * An older closed listing still answers 200; `getJobBySlug` still resolves it.
+ * It is absent from here because a sitemap is the list of pages you want in
+ * the index, which is no longer the same list as the pages that resolve.
  *
  * `status` rides along so `sitemap.ts` can weight the two apart — see the
  * priorities there — but it is narrowed to a `closed` boolean before it
@@ -445,6 +449,9 @@ export async function listJobSlugs(): Promise<
         .from("jobs")
         .select("slug, updated_at, status")
         .in("status", ["published", "closed"])
+        // `gte` is false for a NULL date, which is `isJobIndexable`'s answer
+        // for a closed row with no date too.
+        .or(`status.eq.published,last_date.gte.${closedJobIndexCutoff(todayInIndia())}`)
         .order("slug", { ascending: true })
         .range(from, to),
     );

@@ -26,6 +26,7 @@ On top of that:
 | `Article` + `BreadcrumbList` on every exam update | `src/lib/seo/update-jsonld.ts` |
 | `WebSite` + `Organization` + sitelinks search | `src/lib/seo/site-jsonld.ts` |
 | Sitemap, regenerated on content change | `src/app/sitemap.ts` |
+| Which pages ask to be indexed (closed jobs after 30 days and recruitment notices do not) | `src/lib/seo/indexing.ts` |
 | Crawler rules, including the assistant crawlers | `src/app/robots.ts` |
 | Orientation file for assistants | `src/app/llms.txt/route.ts` |
 | 301s from every old URL shape | `next.config.ts` → `redirects()` |

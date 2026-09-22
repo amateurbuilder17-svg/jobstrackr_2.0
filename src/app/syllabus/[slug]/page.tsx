@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
 
 import { ExternalLinkIcon, SearchIcon, ShieldCheckIcon } from "@/components/icons";
 import { toInitials } from "@/components/home/monogram";
-import { getSyllabusBySlug } from "@/lib/db/queries/syllabus";
+import { getSyllabusBySlug, type CachedSyllabus } from "@/lib/db/queries/syllabus";
 import { SyllabusActions } from "./syllabus-actions";
 import { SyllabusView } from "./syllabus-view";
 
@@ -47,22 +46,30 @@ export async function generateMetadata({
   };
 }
 
-export default function SyllabusDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function SyllabusDetailPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const cached = await getSyllabusBySlug(slug);
+
+  // Looked up here, above any Suspense boundary, rather than in the body. This
+  // used to happen inside a `<Suspense>`, where `notFound()` runs after the
+  // shell has streamed and the 200 status line has already gone out. A missing
+  // slug answered 200 "Syllabus not found", which Search Console files as a
+  // soft 404. `instant = false` already lets this route block, and the lookup
+  // is a cached read, so the skeleton it replaces was on screen for no time.
+  if (!cached) notFound();
+
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 lg:py-10">
-      <Suspense fallback={<SyllabusSkeleton />}>
-        <SyllabusBody params={params} />
-      </Suspense>
+      <SyllabusBody slug={slug} cached={cached} />
     </div>
   );
 }
 
-async function SyllabusBody({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const cached = await getSyllabusBySlug(slug);
-
-  if (!cached) notFound();
-
+function SyllabusBody({ slug, cached }: { slug: string; cached: CachedSyllabus }) {
   const { syllabus, grounded, fetchedAt } = cached;
   const multiStage = syllabus.stages.length > 1;
   const initials = toInitials(syllabus.examName);
@@ -191,27 +198,6 @@ async function SyllabusBody({ params }: { params: Promise<{ slug: string }> }) {
         </Link>
       </div>
     </>
-  );
-}
-
-function SyllabusSkeleton() {
-  return (
-    <div aria-hidden="true" className="flex flex-col gap-4">
-      <div className="h-4 w-36 rounded-md skeleton" />
-      <div className="flex items-start gap-4">
-        <div className="size-16 rounded-2xl skeleton shrink-0" />
-        <div className="flex-1 space-y-2">
-          <div className="h-7 w-3/4 rounded-md skeleton" />
-          <div className="h-4 w-1/3 rounded-md skeleton" />
-        </div>
-      </div>
-      <div className="h-16 rounded-2xl border border-line bg-surface skeleton" />
-      <div className="mt-4 flex flex-col gap-4">
-        {[0, 1].map((i) => (
-          <div key={i} className="h-36 rounded-2xl border border-line bg-surface skeleton" />
-        ))}
-      </div>
-    </div>
   );
 }
 
