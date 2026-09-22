@@ -34,6 +34,7 @@ import {
 } from "@/lib/db/queries/exam-updates";
 import { getJobById, listOpenJobsMatching } from "@/lib/db/queries/jobs";
 import { env } from "@/lib/env";
+import { NOINDEX_FOLLOW, isUpdateIndexable } from "@/lib/seo/indexing";
 import { breadcrumbJsonLd } from "@/lib/seo/site-jsonld";
 import { examUpdateJsonLd, updateRailsJsonLd } from "@/lib/seo/update-jsonld";
 import { formatDate, formatVacancies } from "@/lib/format/deadline";
@@ -81,6 +82,10 @@ export async function generateMetadata({
     title,
     description,
     alternates: { canonical: `/updates/${slug}` },
+    // A recruitment notice restates a job that has its own page here, so it
+    // steps aside for that page. It is also left out of the sitemap; see
+    // `lib/seo/indexing.ts`.
+    ...(isUpdateIndexable(update) ? {} : { robots: NOINDEX_FOLLOW }),
     openGraph: {
       title,
       description,

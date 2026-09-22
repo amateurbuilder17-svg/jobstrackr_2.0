@@ -6,6 +6,7 @@ import { env, getServerEnv } from "@/lib/env";
 import { highestUpdatedAt, mergeByUpdatedAt, trimToCompleteBatch } from "./candidates";
 import { submitToGoogle } from "./google-indexing";
 import { submitToIndexNow } from "./indexnow";
+import { UNINDEXED_UPDATE_CATEGORY } from "./indexing";
 import { CAPS, RUN_BUDGET_MS, eligibleFor, type SeoTarget, type SeoUrl } from "./targets";
 
 /**
@@ -280,6 +281,9 @@ async function candidates(
       .from("exam_updates")
       .select("slug, updated_at")
       .eq("is_published", true)
+      // The sitemap's rule: a recruitment notice answers `noindex`, so
+      // announcing one spends a submission on a page the engine will refuse.
+      .neq("category", UNINDEXED_UPDATE_CATEGORY)
       .gt("updated_at", since)
       .order("updated_at", { ascending: true })
       .limit(fetchLimit);

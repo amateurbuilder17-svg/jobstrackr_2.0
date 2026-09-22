@@ -17,11 +17,12 @@ import { listSyllabusSlugs } from "@/lib/db/queries/syllabus";
  * Priorities are relative and only meaningful against each other: job pages are
  * the reason the site exists, updates support them, static pages are furniture.
  *
- * Closed job listings are in here too, and deliberately. A sitemap is the set
- * of URLs that answer 200, which since `close_expired_jobs()` is no longer the
- * same set as "jobs you can still apply to"; and a URL dropped from a sitemap
- * is a URL a crawler is being told to stop revisiting, which is the opposite
- * of what a page recovering from a stale 404 needs.
+ * A sitemap here is the set of pages that ask to be indexed, which is smaller
+ * than the set that answers 200. Closed listings stay for
+ * `CLOSED_JOB_INDEX_DAYS` after their last date, and recruitment notices in the
+ * updates feed are left out because they restate a job page. Both still
+ * resolve, and both say `noindex` on the page itself, so the two signals agree.
+ * `lib/seo/indexing.ts` has the rule and the measurements behind it.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const site = env.NEXT_PUBLIC_SITE_URL;
@@ -65,20 +66,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   return [
     ...staticRoutes,
-    // Open and closed listings both, because both answer 200 — see
+    // Open listings, and closed ones inside the index window — see
     // `listJobSlugs`. They are weighted apart rather than listed alike: an
     // open notice is worth recrawling weekly because its dates still move,
     // and a closed one is a finished record that will never change again.
-    // Claiming otherwise would spend a crawler's budget re-reading 3,753
-    // pages to find them byte-identical.
     ...jobs.map(({ slug, updated_at, closed }) => ({
       url: `${site}/jobs/${slug}`,
       lastModified: new Date(updated_at),
       changeFrequency: closed ? ("yearly" as const) : ("weekly" as const),
-      // Below the static pages and every open listing, above nothing. The
-      // point of the entry is to get the URL recrawled at all — it has been
-      // answering 404 since the day its deadline passed — not to compete with
-      // the jobs someone can still apply to.
+      // Below the static pages and every open listing, above nothing: a
+      // recently closed notice is still looked up, but it should not compete
+      // with the jobs someone can still apply to.
       priority: closed ? 0.3 : 0.8,
     })),
     ...updates.map(({ slug, updated_at }) => ({

@@ -1,7 +1,7 @@
 import type { NextResponse } from "next/server";
 
 import { publicDb } from "@/lib/db/clients";
-import { cachedRedirect } from "@/lib/seo/cached-redirect";
+import { cachedGone, cachedRedirect } from "@/lib/seo/cached-redirect";
 
 /**
  * `/exam-update/:id` — the old app's second path to an update.
@@ -10,9 +10,10 @@ import { cachedRedirect } from "@/lib/seo/cached-redirect";
  * and the new one carries a slug, so the mapping needs a lookup. A route
  * handler is the cheapest thing that can do one.
  *
- * Anything that fails to resolve lands on the updates list rather than a 404.
- * These URLs are in Google's index and in people's messages; a list page is a
- * worse answer than the right article and a much better one than nothing.
+ * Anything that fails to resolve answers 410 Gone, with a link to the updates
+ * list for the person holding the old URL. It used to redirect to the list
+ * itself, and Google files a crowd of URLs redirecting to one list page as
+ * soft 404s. See `cachedGone`.
  */
 export async function GET(
   request: Request,
@@ -29,9 +30,7 @@ export async function GET(
     .limit(1)
     .maybeSingle();
 
-  return data?.slug
-    ? cachedRedirect(request, `/updates/${data.slug}`, true)
-    : cachedRedirect(request, "/updates", false);
+  return data?.slug ? cachedRedirect(request, `/updates/${data.slug}`) : cachedGone("update");
 }
 
 function isUuid(value: string): boolean {

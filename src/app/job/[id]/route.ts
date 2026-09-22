@@ -1,15 +1,16 @@
 import type { NextResponse } from "next/server";
 
 import { publicDb } from "@/lib/db/clients";
-import { cachedRedirect } from "@/lib/seo/cached-redirect";
+import { cachedGone, cachedRedirect } from "@/lib/seo/cached-redirect";
 
 /**
  * `/job/:id` — the old app's singular job route, keyed by database id.
  *
  * Same reasoning as `/exam-update/:id`: the mapping needs a lookup, so it
  * cannot live in `redirects()`. Whether these resolve at all depends on the
- * migration preserving ids; where it does not, the visitor gets the job list
- * instead of a dead end.
+ * migration preserving ids; where it does not, the answer is 410 Gone with a
+ * link to the job list. It used to be a redirect to the list itself, which
+ * Google files as a soft 404; see `cachedGone`.
  *
  * `closed` resolves too, matching `getJobBySlug`: the detail page answers 200
  * for a closed listing, so sending an indexed legacy URL to the list instead
@@ -30,9 +31,7 @@ export async function GET(
     .limit(1)
     .maybeSingle();
 
-  return data?.slug
-    ? cachedRedirect(request, `/jobs/${data.slug}`, true)
-    : cachedRedirect(request, "/jobs", false);
+  return data?.slug ? cachedRedirect(request, `/jobs/${data.slug}`) : cachedGone("job");
 }
 
 function isUuid(value: string): boolean {

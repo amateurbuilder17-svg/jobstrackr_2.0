@@ -413,9 +413,28 @@ describe("closed jobs resolve on their own page and nowhere else", () => {
     );
   });
 
-  it("the sitemap lists closed listings too, so they get recrawled", async () => {
+  it("the sitemap lists recently closed listings too", async () => {
     await (await jobs()).listJobSlugs();
     expect(statusFilter("/jobs")).toContain("closed");
+  });
+
+  /**
+   * The other half of that, added on 22 Sep 2026. A closed listing stays in the
+   * sitemap only until `CLOSED_JOB_INDEX_DAYS` after its last date, which is
+   * when its page starts answering `noindex`. A sitemap that kept listing it
+   * would be submitting a page that refuses the index — the contradiction
+   * Search Console reports — and 4,667 of them were what Google was declining.
+   */
+  it("but only inside the index window, which ends when the page says noindex", async () => {
+    const { closedJobIndexCutoff } = await import("@/lib/seo/indexing");
+    const { todayInIndia } = await import("@/lib/format/deadline");
+
+    await (await jobs()).listJobSlugs();
+    const or = requests.find((u) => u.pathname.endsWith("/jobs"))?.searchParams.get("or");
+
+    expect(or, "no index-window filter was sent").toBe(
+      `(status.eq.published,last_date.gte.${closedJobIndexCutoff(todayInIndia())})`,
+    );
   });
 
   it("but the feed still refuses them — a list is what you can apply to", async () => {
@@ -426,5 +445,24 @@ describe("closed jobs resolve on their own page and nowhere else", () => {
   it("and so does the prerender list, which prices the build", async () => {
     await (await jobs()).listJobSlugsForBuild();
     expect(statusFilter("/jobs")).toBe("eq.published");
+  });
+});
+
+/**
+ * Recruitment notices stay out of the sitemap.
+ *
+ * The `notification` category restates a job that has its own page, and its
+ * page answers `noindex` for that reason (`lib/seo/indexing.ts`). Dropping this
+ * filter would put about 3,300 pages that refuse the index back into the
+ * sitemap, which is the contradiction Search Console reports as an error.
+ */
+describe("listExamUpdateSlugs", () => {
+  it("leaves recruitment notices out of the sitemap", async () => {
+    await (await updates()).listExamUpdateSlugs();
+    const category = requests
+      .find((u) => u.pathname.endsWith("/exam_updates"))
+      ?.searchParams.get("category");
+
+    expect(category).toBe("neq.notification");
   });
 });

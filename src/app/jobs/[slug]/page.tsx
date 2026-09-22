@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cacheLife } from "next/cache";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -29,6 +30,7 @@ import {
   formatDate,
   formatDeadlineText,
   formatVacancies,
+  todayInIndia,
 } from "@/lib/format/deadline";
 import { resolveSalary } from "@/lib/format/salary";
 import {
@@ -47,6 +49,7 @@ import {
 } from "@/lib/db/queries/jobs";
 import { listUpdateLinksForJob, listUpdatesForJob } from "@/lib/db/queries/exam-updates";
 import { CATEGORY_LABELS } from "@/lib/updates/categories";
+import { NOINDEX_FOLLOW, isJobIndexable } from "@/lib/seo/indexing";
 import { jobPostingJsonLd } from "@/lib/seo/job-jsonld";
 import { breadcrumbJsonLd } from "@/lib/seo/site-jsonld";
 
@@ -114,10 +117,15 @@ export async function generateMetadata({
     .filter(Boolean)
     .join(" ");
 
+  // A listing closed for longer than `CLOSED_JOB_INDEX_DAYS` stops asking to be
+  // indexed, and leaves the sitemap on the same day. See `lib/seo/indexing.ts`.
+  const indexable = await jobIsIndexable(job.status, job.last_date);
+
   return {
     title: job.title,
     description,
     alternates: { canonical: `/jobs/${job.slug}` },
+    ...(indexable ? {} : { robots: NOINDEX_FOLLOW }),
     openGraph: {
       title: job.title,
       description,
@@ -133,6 +141,25 @@ export async function generateMetadata({
       images: ["/opengraph-image"],
     },
   };
+}
+
+/**
+ * `isJobIndexable` against today's date, in a cache scope.
+ *
+ * Cache Components refuses a bare `new Date()` during a render, and asks for
+ * the date to be captured in a `"use cache"` scope instead. `content` is the
+ * lifetime the rest of this page already has, so capturing the date here
+ * cannot make the page re-render any sooner. A shorter one would drag the whole
+ * route down with it; `detail-page-tags.test.ts` explains what that costs.
+ *
+ * Async because `"use cache"` only applies to async functions, not because
+ * anything in here waits.
+ */
+// eslint-disable-next-line @typescript-eslint/require-await
+async function jobIsIndexable(status: string, lastDate: string | null): Promise<boolean> {
+  "use cache";
+  cacheLife("content");
+  return isJobIndexable({ status, last_date: lastDate }, todayInIndia());
 }
 
 export default async function JobDetailPage({ params }: { params: Promise<{ slug: string }> }) {

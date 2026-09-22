@@ -18,6 +18,7 @@ import { fetchAllRows } from "../paginate";
 import { toSearchFilter } from "../search-term";
 import { SEARCH_CONFIG, tags } from "../tags";
 import type { Database } from "../database.types";
+import { UNINDEXED_UPDATE_CATEGORY } from "@/lib/seo/indexing";
 import { linkLabel } from "@/lib/updates/detail-shape";
 import { toUrl } from "@/lib/sync/links";
 
@@ -246,6 +247,12 @@ export async function listExamUpdateSlugsForBuild(): Promise<{ slug: string }[]>
   });
 }
 
+/**
+ * Every update slug that asks to be indexed, for the sitemap.
+ *
+ * All published updates but recruitment notices, which restate a job page and
+ * answer `noindex` for it; see `lib/seo/indexing.ts`.
+ */
 export async function listExamUpdateSlugs(): Promise<{ slug: string; updated_at: string }[]> {
   "use cache";
   cacheLife("feed");
@@ -263,6 +270,7 @@ export async function listExamUpdateSlugs(): Promise<{ slug: string; updated_at:
         .from("exam_updates")
         .select("slug, updated_at")
         .eq("is_published", true)
+        .neq("category", UNINDEXED_UPDATE_CATEGORY)
         .order("slug", { ascending: true })
         .range(from, to),
     );
