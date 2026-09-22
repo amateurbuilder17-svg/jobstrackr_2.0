@@ -565,6 +565,31 @@ describe("hub lists match the sitemap's rules", () => {
     expect(update?.searchParams.get("offset")).toBe("0");
   });
 
+  /**
+   * Found on the live site the day hubs shipped: /jobs/page/81, one past the
+   * end, answered 500. PostgREST refuses an offset past the last row with 416
+   * when an exact count is asked for; a fake that returns an empty page hides it.
+   */
+  it("a page past the end reads as empty, not as a database error", async () => {
+    vi.stubGlobal("fetch", () =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            code: "PGRST103",
+            details: "An offset of 4000 was requested, but there are only 3970 rows.",
+            hint: null,
+            message: "Requested range not satisfiable",
+          }),
+          { status: 416, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+
+    await expect(
+      (await hubs()).listHubPage("all-jobs", { kind: "allJobs" }, 81),
+    ).resolves.toEqual({ items: [], total: 0 });
+  });
+
   it("the census counts the same rows", async () => {
     await (await hubs()).getHubCensus();
     expect(on("jobs")[0]?.searchParams.get("or")).toBe(await indexWindow());
