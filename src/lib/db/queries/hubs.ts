@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cacheLife, cacheTag } from "next/cache";
+import type { PostgrestError } from "@supabase/supabase-js";
 
 import { BUILD_SENTINEL_SLUG } from "../build-params";
 import { publicDb } from "../clients";
@@ -168,6 +169,20 @@ function byNewest(a: HubItem, b: HubItem): number {
 }
 
 /**
+ * Whether PostgREST refused a range for starting past the last row.
+ *
+ * Asked for an exact count, it answers an offset beyond the end with 416 and
+ * `PGRST103` rather than an empty page, and `unwrap` turns that into a 500.
+ * The only way to ask for such a page is a URL past a hub's last page, which
+ * nothing links to — but a guessed or stale one must be a 404, not a server
+ * error in Search Console. Reported as empty with a total of nought, which
+ * `loadHubPage` turns into exactly that 404.
+ */
+function pastTheEnd(result: { error: PostgrestError | null }): boolean {
+  return result.error?.code === "PGRST103";
+}
+
+/**
  * One page of a hub's list, and how long the whole list is.
  *
  * `key` is the hub's catalogue key, used for the tag only; `filter` decides
@@ -190,11 +205,13 @@ export async function listHubPage(
 
   if (filter.kind === "updateCategory" || filter.kind === "allUpdates") {
     const result = await updatesQuery(filter).range(from, to);
+    if (pastTheEnd(result)) return { items: [], total: 0 };
     const rows = unwrap("listHubPage:updates", result);
     return { items: rows.map(toUpdateItem), total: result.count ?? rows.length };
   }
 
   const result = await jobsQuery(filter).range(from, to);
+  if (pastTheEnd(result)) return { items: [], total: 0 };
   const rows = unwrap("listHubPage:jobs", result);
   return { items: rows.map(toJobItem), total: result.count ?? rows.length };
 }

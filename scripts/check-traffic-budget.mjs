@@ -174,14 +174,15 @@ const TRAFFIC = {
   // the list changed every time — the ceiling. An unchanged re-render writes
   // nothing, which is most small hubs most weeks.
   //
-  // First pages: 37 state and 26 category hubs from the catalogue, 250
-  // organisations with three or more items (an estimate; the census has not
-  // yet run in production), and the two archives. Deeper pages: ~7,900
-  // indexable items (the 22 Sep 2026 sitemap) sitting in ~3 hubs each — a
-  // state, a sector or level, an employer — plus the archives, fifty a page,
-  // less the first pages already counted.
-  hubFirstPages: 37 + 26 + 250 + 2,
-  hubDeepPages: Math.round((7900 * 4) / 50) - (37 + 26 + 250 + 2),
+  // First pages: 37 state and 26 category hubs from the catalogue, 339
+  // organisations with three or more items (measured on /organisations the
+  // day hubs shipped, 22 Sep 2026; estimated at 250 before), and the two
+  // archives. Deeper pages: ~7,900 indexable items (the 22 Sep 2026 sitemap)
+  // sitting in ~3 hubs each — a state, a sector or level, an employer — plus
+  // the archives, fifty a page, less the first pages already counted. The
+  // archives alone measured 80 pages each.
+  hubFirstPages: 37 + 26 + 339 + 2,
+  hubDeepPages: Math.round((7900 * 4) / 50) - (37 + 26 + 339 + 2),
   hubCensusRefreshesPerMonth: 15,
 };
 
