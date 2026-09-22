@@ -164,7 +164,31 @@ const TRAFFIC = {
   // instead, in `pickRailRows`, where it is free.
   railRefreshesPerMonth: 30,
   distinctJobRailTerms: 400,
+  // Hub pages re-rendering (`src/lib/hubs/catalog.ts`): states, categories,
+  // organisations, and the /jobs/page/n and /updates/page/n archives.
+  //
+  // Time-based and never tag-purged, so this is bounded by the calendar, not
+  // by crawler appetite or by ingest: page 1 of a hub is on the `hub` profile
+  // (two days, 15 windows a month), every later page on `hubArchive` (seven
+  // days, ~4.3). Charged as though a crawler arrives after every window and
+  // the list changed every time — the ceiling. An unchanged re-render writes
+  // nothing, which is most small hubs most weeks.
+  //
+  // First pages: 37 state and 26 category hubs from the catalogue, 250
+  // organisations with three or more items (an estimate; the census has not
+  // yet run in production), and the two archives. Deeper pages: ~7,900
+  // indexable items (the 22 Sep 2026 sitemap) sitting in ~3 hubs each — a
+  // state, a sector or level, an employer — plus the archives, fifty a page,
+  // less the first pages already counted.
+  hubFirstPages: 37 + 26 + 250 + 2,
+  hubDeepPages: Math.round((7900 * 4) / 50) - (37 + 26 + 250 + 2),
+  hubCensusRefreshesPerMonth: 15,
 };
+
+/** Hub renders a month, at the ceiling described above. */
+const hubRendersPerMonth = Math.round(
+  TRAFFIC.hubFirstPages * (30 / 2) + TRAFFIC.hubDeepPages * (30 / 7),
+);
 
 /* ── Measured payloads, in kilobytes ───────────────────────────────────── */
 const PAYLOAD = {
@@ -301,6 +325,14 @@ const PAYLOAD = {
   // One job rail repopulating: twelve job card rows at the ~0.74 kB a row that
   // `forYouRpcKb` measures (33.3 kB / 46 rows).
   jobRailKb: 9,
+  // One hub page rendering: fifty rows of slug, title, two dates, status and
+  // the employer's name — no JSONB, no detail join. ~0.3 kB a row, rounded up
+  // for organisation hubs, whose page n reads n × 50 rows from two tables to
+  // merge them.
+  hubRenderKb: 20,
+  // The census behind the hub indexes and the sitemap's hub entries: four
+  // narrow columns over every indexable job and update, ~8,000 rows.
+  hubCensusKb: 1000,
 };
 
 /* ── Function time, per invocation ─────────────────────────────────────── */
@@ -338,6 +370,8 @@ const TIMING = {
   // page — the detail join, the sibling rail, and three rail reads that are
   // usually cache hits and are charged here as though they never are.
   updateRender: { wall: 0.6, cpu: 0.2 },
+  // One or two narrow list queries, then fifty rows of markup.
+  hubRender: { wall: 0.5, cpu: 0.2 },
   serverAction: { wall: 0.3, cpu: 0.2 },
   // IndexNow's verifier fetching /<key>.txt. One env read and a string.
   indexNowKeyFetch: { wall: 0.05, cpu: 0.02 },
@@ -397,6 +431,8 @@ const supabaseKb =
   // The rails. Two shared category entries, plus one per organisation acronym.
   TRAFFIC.railRefreshesPerMonth * 2 * PAYLOAD.updateRailKb +
   TRAFFIC.railRefreshesPerMonth * TRAFFIC.distinctJobRailTerms * PAYLOAD.jobRailKb +
+  hubRendersPerMonth * PAYLOAD.hubRenderKb +
+  TRAFFIC.hubCensusRefreshesPerMonth * PAYLOAD.hubCensusKb +
   TRAFFIC.personalisedSessionsPerMonth * PAYLOAD.trackerPageKb +
   (TRAFFIC.statusRefreshesPerMonth + TRAFFIC.statusCronCallsPerMonth) * PAYLOAD.statusRefreshKb;
 
@@ -406,6 +442,7 @@ const supabaseKb =
 const invocations =
   TRAFFIC.closedJobRendersPerMonth +
   TRAFFIC.updateRendersPerMonth +
+  hubRendersPerMonth +
   TRAFFIC.personalisedSessionsPerMonth * 6 +
   TRAFFIC.adminSessionsPerMonth * 8 +
   TRAFFIC.syncRunsPerMonth +
@@ -424,6 +461,7 @@ const invocations =
 const functionSeconds = (pick) =>
   TRAFFIC.closedJobRendersPerMonth * TIMING.closedJobRender[pick] +
   TRAFFIC.updateRendersPerMonth * TIMING.updateRender[pick] +
+  hubRendersPerMonth * TIMING.hubRender[pick] +
   TRAFFIC.personalisedSessionsPerMonth * 6 * TIMING.personalisedRoute[pick] +
   TRAFFIC.adminSessionsPerMonth * 8 * TIMING.adminRoute[pick] +
   TRAFFIC.syncRunsPerMonth * (TIMING.syncRun[pick] + TIMING.seoWorker[pick]) +
@@ -465,7 +503,9 @@ const staleOnArrival =
   // has long since passed. Charged in full.
   TRAFFIC.crawlerPagesPerMonth +
   // Human traffic concentrates on the handful of pages that stay warm.
-  humanPageViews * 0.1;
+  humanPageViews * 0.1 +
+  // Every hub re-render is charged as a write; see `hubRendersPerMonth`.
+  hubRendersPerMonth;
 
 // What the pre-949face architecture would cost at this traffic: every detail
 // page stale again within minutes of each render, so every request to one is a

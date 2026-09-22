@@ -39,6 +39,15 @@ export const tags = {
 
   /** The sitemap, which changes whenever any indexable entity does. */
   sitemap: () => "sitemap" as const,
+
+  /**
+   * One hub page's list (`lib/hubs/catalog.ts`), or `hub:census` for the
+   * counts behind the hub index pages. Never purged by ingest: hubs refresh on
+   * the `hub` and `hubArchive` timers, because hundreds of list pages marked
+   * stale on every ingest run is the 744K-ISR-write failure of 949face again.
+   * The prefix is known to /api/revalidate so a hub can still be purged by hand.
+   */
+  hub: (key: string) => `hub:${key}` as const,
 } as const;
 
 export type CacheTag = ReturnType<(typeof tags)[keyof typeof tags]>;
@@ -59,6 +68,7 @@ export const TAG_PREFIXES = [
   "exams",
   "syllabus",
   "sitemap",
+  "hub",
 ] as const;
 
 export function isKnownTag(tag: string): boolean {

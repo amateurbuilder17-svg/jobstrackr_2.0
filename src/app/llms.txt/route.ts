@@ -48,6 +48,10 @@ listing whose window has closed is retired from the feeds the same hour.
 - [Syllabus finder](${site}/syllabus): the subject-wise syllabus and exam
   pattern for a named exam. The finder itself needs an account; the syllabi it
   produces are public at the URL shape below.
+- [By organisation](${site}/organisations), [by state](${site}/states) and
+  [by category](${site}/categories): plain paginated lists of every current
+  notification and update for one recruiting body, one state, one sector or
+  qualification level, or one kind of update (results, admit cards…).
 
 ## URL shapes
 
@@ -56,6 +60,10 @@ listing whose window has closed is retired from the feeds the same hour.
   date, eligibility and pay are machine-readable without parsing the prose.
 - \`${site}/updates/{slug}\` — one exam update, with its download links.
 - \`${site}/syllabus/{slug}\` — the syllabus for one exam.
+- \`${site}/organisations/{slug}\`, \`${site}/states/{slug}\`,
+  \`${site}/categories/{slug}\` — one hub, fifty links a page; later pages at
+  \`…/page/{n}\`. \`${site}/jobs/page/{n}\` and \`${site}/updates/page/{n}\`
+  list everything, newest first.
 - \`${site}/countdown/{slug}\` — a live countdown to one deadline. Excluded
   from robots.txt: it restates a date the job page already gives.
 

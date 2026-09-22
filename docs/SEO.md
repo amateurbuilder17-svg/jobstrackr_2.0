@@ -27,6 +27,7 @@ On top of that:
 | `WebSite` + `Organization` + sitelinks search | `src/lib/seo/site-jsonld.ts` |
 | Sitemap, regenerated on content change | `src/app/sitemap.ts` |
 | Which pages ask to be indexed (closed jobs after 30 days and recruitment notices do not) | `src/lib/seo/indexing.ts` |
+| Hub pages — by organisation, state and category, plus `/jobs/page/n` and `/updates/page/n` — the crawl path into every detail page | `src/lib/hubs/catalog.ts` |
 | Crawler rules, including the assistant crawlers | `src/app/robots.ts` |
 | Orientation file for assistants | `src/app/llms.txt/route.ts` |
 | 301s from every old URL shape | `next.config.ts` → `redirects()` |

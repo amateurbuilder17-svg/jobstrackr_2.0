@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { BrandMark } from "@/components/brand/artwork";
+import { BROWSE_LINKS } from "@/lib/hubs/catalog";
 
 /**
  * Site footer.
@@ -10,10 +11,16 @@ import { BrandMark } from "@/components/brand/artwork";
  * just isn't linked" satisfies nobody who is looking for one — the account
  * provider included.
  *
- * Deliberately only the legal links. The first draft also repeated Jobs,
- * Updates and Calendar, which the sidebar and the bottom nav already carry;
- * that redundancy cost ~1.9 kB on every route and put `/profile` over budget.
- * Duplicating primary navigation in a footer is a habit, not a requirement.
+ * The first draft also repeated Jobs, Updates and Calendar, which the sidebar
+ * and the bottom nav already carry; that redundancy cost ~1.9 kB on every
+ * route and put `/profile` over budget, and it came out. Duplicating primary
+ * navigation in a footer is a habit, not a requirement.
+ *
+ * The browse row is not that. It links the hub indexes and the two archives
+ * (`lib/hubs/catalog.ts`), which nothing else links to, and it is the reason
+ * every detail page on the site is a few clicks from every other page — on
+ * 22 Sep 2026, before it, about 110 of ~7,900 were linked from anywhere. Five
+ * plain anchors in a Server Component: markup, and no JavaScript.
  *
  * Server Component: no state, no icons, nothing added to any client bundle.
  * `mt-auto` pins it below short pages without fixed-position tricks that would
@@ -36,6 +43,22 @@ export function SiteFooter() {
           <BrandMark className="w-6" />
           <span className="text-sm font-bold tracking-tight text-ink">JobsTrackr</span>
         </Link>
+
+        <nav aria-label="Browse" className="mb-4">
+          <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+            {BROWSE_LINKS.map(({ href, label }) => (
+              <li key={href}>
+                <Link
+                  href={href}
+                  prefetch={false}
+                  className="font-medium text-ink underline-offset-4 transition-colors hover:text-brand hover:underline"
+                >
+                  {label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
 
         <nav aria-label="Footer">
           <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm">

@@ -41,6 +41,7 @@ import {
   totalVacancies,
 } from "@/lib/jobs/detail-shape";
 import { sectorLabel } from "@/lib/jobs/sectors";
+import { sectorHubPath } from "@/lib/hubs/catalog";
 import {
   getJobBySlug,
   listJobChanges,
@@ -280,7 +281,19 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
           {orgTitle ? (
             <div className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-brand">
               <BuildingIcon className="size-4 shrink-0" aria-hidden="true" />
-              <span className="line-clamp-1">{orgTitle}</span>
+              {/* To the employer's hub: every other notice from the same body,
+                  and one of the paths a crawler reaches this page by. */}
+              {job.organization ? (
+                <Link
+                  href={`/organisations/${job.organization.slug}`}
+                  prefetch={false}
+                  className="line-clamp-1 underline-offset-4 hover:underline"
+                >
+                  {orgTitle}
+                </Link>
+              ) : (
+                <span className="line-clamp-1">{orgTitle}</span>
+              )}
             </div>
           ) : null}
 
@@ -290,14 +303,25 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
 
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
             <JobDeadlineChip date={job.last_date} />
-            {job.tags.map((tag) => (
-              <span
-                key={tag}
-                className="inline-flex items-center rounded-full border border-line bg-surface-2 px-2.5 py-0.5 text-xs font-medium text-ink-2 leading-normal"
-              >
-                {sectorLabel(tag)}
-              </span>
-            ))}
+            {job.tags.map((tag) => {
+              const hub = sectorHubPath(tag);
+              const chip =
+                "inline-flex items-center rounded-full border border-line bg-surface-2 px-2.5 py-0.5 text-xs font-medium text-ink-2 leading-normal";
+              return hub ? (
+                <Link
+                  key={tag}
+                  href={hub}
+                  prefetch={false}
+                  className={`${chip} hover:border-line-strong hover:text-ink`}
+                >
+                  {sectorLabel(tag)}
+                </Link>
+              ) : (
+                <span key={tag} className={chip}>
+                  {sectorLabel(tag)}
+                </span>
+              );
+            })}
           </div>
         </div>
       </header>
