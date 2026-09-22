@@ -2,6 +2,7 @@ import "server-only";
 
 import { cacheLife, cacheTag } from "next/cache";
 
+import { BUILD_PRERENDER_LIMIT, slugsForBuild } from "@/lib/db/build-params";
 import { adminDb, publicDb } from "@/lib/db/clients";
 import type { Json } from "@/lib/db/database.types";
 import { tags } from "@/lib/db/tags";
@@ -164,6 +165,30 @@ export async function listSyllabusSlugs(): Promise<SyllabusDirectoryEntry[]> {
     year: row.year,
     fetchedAt: row.fetched_at,
   }));
+}
+
+/**
+ * Slugs for `generateStaticParams`, uncached and failure-tolerant — the same
+ * shape as `listExamUpdateSlugsForBuild`, for the reasons in `build-params.ts`.
+ *
+ * The route needs this for its 404s more than for its prerenders. Under Cache
+ * Components a dynamic route with no `generateStaticParams` answers an unknown
+ * slug by streaming its App Shell with a 200 status, so `notFound()` arrives
+ * too late to change it: every mistyped or deleted syllabus URL answered 200
+ * "Syllabus not found", which is a soft 404. With a param list, an unlisted
+ * slug is rendered before the response starts, as `/jobs/[slug]` is.
+ */
+export async function listSyllabusSlugsForBuild(): Promise<{ slug: string }[]> {
+  return slugsForBuild("listSyllabusSlugsForBuild", async () => {
+    const { data, error } = await publicDb()
+      .from("syllabus_cache")
+      .select("slug")
+      .order("fetched_at", { ascending: false })
+      .limit(BUILD_PRERENDER_LIMIT);
+
+    if (error) throw error;
+    return data;
+  });
 }
 
 interface Row {

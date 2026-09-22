@@ -4,7 +4,12 @@ import { notFound } from "next/navigation";
 
 import { ExternalLinkIcon, SearchIcon, ShieldCheckIcon } from "@/components/icons";
 import { toInitials } from "@/components/home/monogram";
-import { getSyllabusBySlug, type CachedSyllabus } from "@/lib/db/queries/syllabus";
+import {
+  getSyllabusBySlug,
+  listSyllabusSlugsForBuild,
+  type CachedSyllabus,
+} from "@/lib/db/queries/syllabus";
+import { formatDate } from "@/lib/format/deadline";
 import { SyllabusActions } from "./syllabus-actions";
 import { SyllabusView } from "./syllabus-view";
 
@@ -20,6 +25,15 @@ import { SyllabusView } from "./syllabus-view";
  * - Rounded-2xl source document list.
  */
 export const instant = false;
+
+/**
+ * Here for the 404s: without a param list, an unknown slug is answered from the
+ * App Shell with a 200 before `notFound()` can run. See
+ * `listSyllabusSlugsForBuild`.
+ */
+export async function generateStaticParams() {
+  return listSyllabusSlugsForBuild();
+}
 
 export async function generateMetadata({
   params,
@@ -54,12 +68,10 @@ export default async function SyllabusDetailPage({
   const { slug } = await params;
   const cached = await getSyllabusBySlug(slug);
 
-  // Looked up here, above any Suspense boundary, rather than in the body. This
-  // used to happen inside a `<Suspense>`, where `notFound()` runs after the
-  // shell has streamed and the 200 status line has already gone out. A missing
-  // slug answered 200 "Syllabus not found", which Search Console files as a
-  // soft 404. `instant = false` already lets this route block, and the lookup
-  // is a cached read, so the skeleton it replaces was on screen for no time.
+  // Looked up here, above any Suspense boundary, rather than in the body. Inside
+  // a `<Suspense>`, `notFound()` runs after the 200 status line has gone out.
+  // `generateStaticParams` above is the other half: without it the whole route
+  // is served from its App Shell and the status is 200 regardless.
   if (!cached) notFound();
 
   return (
@@ -139,9 +151,14 @@ function SyllabusBody({ slug, cached }: { slug: string; cached: CachedSyllabus }
         <p>
           Extracted directly from recruiting body notifications. Always confirm against the
           latest official notification before planning your preparation — a syllabus is subject
-          to board revisions. Fetched{" "}
+          to board revisions. Fetched on{" "}
+          {/*
+            A date, not "3 days ago". This page is prerendered and cached for
+            days at a time, so a relative time would be wrong by the next
+            morning, and Cache Components refuses the `Date.now()` it needs.
+          */}
           <time dateTime={fetchedAt} className="font-semibold text-ink">
-            {formatWhen(fetchedAt)}
+            {formatDate(fetchedAt) ?? "an unknown date"}
           </time>
           .
         </p>
@@ -199,14 +216,6 @@ function SyllabusBody({ slug, cached }: { slug: string; cached: CachedSyllabus }
       </div>
     </>
   );
-}
-
-function formatWhen(iso: string): string {
-  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
-  if (!Number.isFinite(days) || days < 0) return "recently";
-  if (days === 0) return "today";
-  if (days === 1) return "yesterday";
-  return `${String(days)} days ago`;
 }
 
 /**
