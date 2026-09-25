@@ -4,6 +4,7 @@ import {
   datesFromOverview,
   datesFromSections,
   linkLabel,
+  officialSourceUrl,
   relationTerm,
   partitionUpdateDates,
   primaryLinks,
@@ -480,6 +481,62 @@ describe("primaryLinks", () => {
 
   it("returns nulls rather than throwing when there are no links", () => {
     expect(primaryLinks([])).toEqual({ action: null, official: null });
+  });
+});
+
+/**
+ * The footer link says "View official source", and until 25 Sep 2026 it went
+ * to the freejobalert.com article every update was reworded from. It must go
+ * somewhere official, or nowhere.
+ */
+describe("officialSourceUrl", () => {
+  const admitCard = {
+    label: "Download Admit Card",
+    url: "https://cdn3.digialm.com/login.html",
+  };
+  const links = [admitCard, { label: "Official Website", url: "https://kvsangathan.nic.in" }];
+
+  it("prefers the organisation's own website", () => {
+    expect(officialSourceUrl(links, "https://ssc.gov.in")).toBe("https://ssc.gov.in/");
+  });
+
+  it("reads a bare domain the way the rest of the page does", () => {
+    expect(officialSourceUrl([], "aai.aero")).toBe("https://aai.aero/");
+  });
+
+  it("falls back to the link labelled as the official website", () => {
+    expect(officialSourceUrl(links, null)).toBe("https://kvsangathan.nic.in");
+  });
+
+  it("takes a government host even when the label says nothing", () => {
+    expect(
+      officialSourceUrl(
+        [
+          { label: "Result PDF", url: "https://example.org/result.pdf" },
+          { label: "Result PDF", url: "https://bpssc.bihar.gov.in/Notices/result.pdf" },
+        ],
+        undefined,
+      ),
+    ).toBe("https://bpssc.bihar.gov.in/Notices/result.pdf");
+  });
+
+  // A host check, not a substring one: `gov.in` in a query string is not a
+  // government site.
+  it("does not mistake a mention of gov.in for a government host", () => {
+    expect(
+      officialSourceUrl(
+        [{ label: "Admit card", url: "https://example.org/?ref=ssc.gov.in" }],
+        null,
+      ),
+    ).toBeNull();
+  });
+
+  it("is null when nothing on the page is plainly official", () => {
+    expect(officialSourceUrl([admitCard], null)).toBeNull();
+  });
+
+  it("never returns the aggregator, even stored as the organisation's website", () => {
+    expect(officialSourceUrl([], "https://www.freejobalert.com/")).toBeNull();
   });
 });
 

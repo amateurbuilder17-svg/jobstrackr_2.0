@@ -679,6 +679,44 @@ export function primaryLinks(links: UpdateLink[]): {
   return { action, official };
 }
 
+/**
+ * Where the footer's "View official source" goes.
+ *
+ * The body's own website when the update is tied to an organisation, else the
+ * first link on the page that is plainly official: one labelled as the official
+ * website, or one on a `.gov.in` or `.nic.in` host. Null when there is neither,
+ * and the footer leaves the link out.
+ *
+ * Not `primaryLinks`' `official`, which falls back to any second link at all —
+ * right for a button that carries that link's own label, wrong for one that
+ * says "official". And not `source_url`, which is what it was until 25 Sep
+ * 2026: that is the freejobalert.com article the update was reworded from, and
+ * no reading of "official source" covers it. `isBasedOn` in the JSON-LD still
+ * names that article, because there it is simply true.
+ */
+export function officialSourceUrl(
+  links: readonly UpdateLink[],
+  organizationWebsite: string | null | undefined,
+): string | null {
+  const website = toUrl(organizationWebsite);
+  if (website) return website;
+
+  return (
+    links.find(
+      (link) => /official|website|home/i.test(link.label) || isGovernmentHost(link.url),
+    )?.url ?? null
+  );
+}
+
+/** A host under `.gov.in` or `.nic.in` — the host, not anywhere in the URL. */
+function isGovernmentHost(url: string): boolean {
+  try {
+    return /\.(gov|nic)\.in$/i.test(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+}
+
 /* ── Related articles ───────────────────────────────────────────────────── */
 
 /**

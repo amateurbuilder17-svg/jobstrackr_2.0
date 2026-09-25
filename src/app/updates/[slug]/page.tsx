@@ -45,6 +45,7 @@ import { updateCategoryHubPath } from "@/lib/hubs/catalog";
 import {
   datesFromOverview,
   datesFromSections,
+  officialSourceUrl,
   partitionUpdateDates,
   primaryLinks,
   relationTerm,
@@ -130,6 +131,7 @@ export default async function UpdatePage({ params }: { params: Promise<{ slug: s
   const links = toUpdateLinks(detail?.download_links, harvested, category);
   const related = toRelatedArticles(detail?.related_articles);
   const { action, official } = primaryLinks(links);
+  const officialSource = officialSourceUrl(links, update.organization?.website);
 
   const term = relationTerm(update.title);
   const siblings = term ? await listRelatedUpdates(term, slug) : [];
@@ -429,15 +431,20 @@ export default async function UpdatePage({ params }: { params: Promise<{ slug: s
         <p className="mt-1">
           Always check the official website before acting on a date or a link.
         </p>
-        <a
-          href={update.source_url}
-          target="_blank"
-          rel="noopener noreferrer nofollow"
-          className="mt-2 inline-flex items-center gap-1 font-semibold text-accent hover:underline"
-        >
-          <span>View official source</span>
-          <ExternalLinkIcon className="size-3" aria-hidden="true" />
-        </a>
+        {/* The official website or notice, never the article this update was
+            reworded from — see `officialSourceUrl`. Left out when the page
+            has nothing official to point at. */}
+        {officialSource ? (
+          <a
+            href={officialSource}
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            className="mt-2 inline-flex items-center gap-1 font-semibold text-accent hover:underline"
+          >
+            <span>View official source</span>
+            <ExternalLinkIcon className="size-3" aria-hidden="true" />
+          </a>
+        ) : null}
       </footer>
     </article>
   );
