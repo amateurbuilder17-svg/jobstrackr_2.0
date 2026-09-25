@@ -37,7 +37,12 @@ export const tags = {
   /** The "already available" list and the sitemap's syllabus entries. */
   syllabusList: () => "syllabus:list" as const,
 
-  /** The sitemap, which changes whenever any indexable entity does. */
+  /**
+   * Nothing carries this since 25 Sep 2026: the sitemaps are read at request
+   * time and kept by the CDN (`lib/seo/sitemap-xml.ts`). It stays a known tag
+   * so a purge script that still sends it is not refused by `/api/revalidate`,
+   * which rejects a whole request over one unknown tag.
+   */
   sitemap: () => "sitemap" as const,
 
   /**

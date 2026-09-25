@@ -70,8 +70,8 @@ export async function hubRouteMetadata(
   if (!hub || page === null) return { title: "Page not found" };
 
   // The same cached read the page makes, so this costs nothing extra.
-  const { total } = await listHubPage(hub.key, hub.filter, page);
-  return hubMetadata(hub, page, total);
+  const { indexable } = await listHubPage(hub.key, hub.filter, page);
+  return hubMetadata(hub, page, indexable);
 }
 
 /** The page itself, or a 404 for an unknown hub or a page past the end. */

@@ -7,6 +7,7 @@ import { UpdateCardSkeleton } from "@/components/updates/update-card";
 import { InfiniteUpdateList } from "@/components/updates/infinite-update-list";
 import { listExamUpdates, toUpdateSort } from "@/lib/db/queries/exam-updates";
 import { PAGE_SIZE } from "@/lib/db/cursor";
+import { NOINDEX_FOLLOW, isUpdateIndexable } from "@/lib/seo/indexing";
 import { CATEGORY_FILTERS, type UpdateCategory } from "@/lib/updates/categories";
 
 export const metadata: Metadata = {
@@ -14,6 +15,9 @@ export const metadata: Metadata = {
   description:
     "Admit cards, results, answer keys and exam dates for Indian government exams, newest first.",
   alternates: { canonical: "/updates" },
+  // A list made only of update pages, which do not ask to be indexed
+  // (`lib/seo/indexing.ts`). Readers still get it, and crawlers still follow it.
+  ...(isUpdateIndexable() ? {} : { robots: NOINDEX_FOLLOW }),
 };
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;

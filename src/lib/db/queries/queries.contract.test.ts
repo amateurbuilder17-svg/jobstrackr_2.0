@@ -95,7 +95,6 @@ describe("every query is bounded", () => {
     ["listOpenJobsMatching", false, async () => (await jobs()).listOpenJobsMatching("SSC")],
     ["listExamUpdates", false, async () => (await updates()).listExamUpdates()],
     ["getExamUpdateBySlug", true, async () => (await updates()).getExamUpdateBySlug("s")],
-    ["listExamUpdateSlugs", false, async () => (await updates()).listExamUpdateSlugs()],
     ["listUpdatesForJob", false, async () => (await updates()).listUpdatesForJob("id")],
     ["listRelatedUpdates", false, async () => (await updates()).listRelatedUpdates("SSC", "x")],
     [
@@ -490,25 +489,6 @@ describe("closed jobs resolve on their own page and nowhere else", () => {
 });
 
 /**
- * Recruitment notices stay out of the sitemap.
- *
- * The `notification` category restates a job that has its own page, and its
- * page answers `noindex` for that reason (`lib/seo/indexing.ts`). Dropping this
- * filter would put about 3,300 pages that refuse the index back into the
- * sitemap, which is the contradiction Search Console reports as an error.
- */
-describe("listExamUpdateSlugs", () => {
-  it("leaves recruitment notices out of the sitemap", async () => {
-    await (await updates()).listExamUpdateSlugs();
-    const category = requests
-      .find((u) => u.pathname.endsWith("/exam_updates"))
-      ?.searchParams.get("category");
-
-    expect(category).toBe("neq.notification");
-  });
-});
-
-/**
  * A hub lists what the sitemap submits, and nothing else.
  *
  * Hubs exist to be a crawl path (`lib/hubs/catalog.ts`). A hub that linked to
@@ -587,7 +567,55 @@ describe("hub lists match the sitemap's rules", () => {
 
     await expect(
       (await hubs()).listHubPage("all-jobs", { kind: "allJobs" }, 81),
-    ).resolves.toEqual({ items: [], total: 0 });
+    ).resolves.toEqual({ items: [], total: 0, indexable: 0 });
+  });
+
+  /**
+   * What a hub asks to be indexed on. Update pages answer `noindex` since 25
+   * Sep 2026 (`isUpdateIndexable`), so a hub counting them would be a page
+   * asking to be indexed for a list of pages that refuse it.
+   */
+  describe("counts only what asks to be indexed", () => {
+    /** An empty page carrying PostgREST's exact count for each table. */
+    function counting(counts: Record<string, number>) {
+      vi.stubGlobal("fetch", (input: string | URL | Request) => {
+        const url = new URL(
+          typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+        );
+        const table = url.pathname.split("/").pop() ?? "";
+        return Promise.resolve(
+          new Response("[]", {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+              "Content-Range": `*/${String(counts[table] ?? 0)}`,
+            },
+          }),
+        );
+      });
+    }
+
+    it("an update-only hub, however long, asks for none of it", async () => {
+      counting({ exam_updates: 40 });
+      const page = await (await hubs()).listHubPage("all-updates", { kind: "allUpdates" }, 1);
+      expect(page).toMatchObject({ total: 40, indexable: 0 });
+    });
+
+    it("a job hub asks for everything it lists", async () => {
+      counting({ jobs: 12 });
+      const page = await (
+        await hubs()
+      ).listHubPage("state-goa", { kind: "state", state: "Goa" }, 1);
+      expect(page).toMatchObject({ total: 12, indexable: 12 });
+    });
+
+    it("an employer's hub lists its updates but is judged on its jobs", async () => {
+      counting({ jobs: 2, exam_updates: 40 });
+      const page = await (
+        await hubs()
+      ).listHubPage("org-ssc", { kind: "organisation", organizationId: "o1" }, 1);
+      expect(page).toMatchObject({ total: 42, indexable: 2 });
+    });
   });
 
   it("the census counts the same rows", async () => {

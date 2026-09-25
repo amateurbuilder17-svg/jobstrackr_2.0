@@ -634,8 +634,8 @@ async function deleteExpiredJobs(
   if (error) return { ok: false, message: `Failed: ${error.message}` };
 
   const deleted = data;
+  // The job sitemap drops these within its six-hour CDN window on its own.
   revalidateTag(tags.jobList(), { expire: 0 });
-  revalidateTag(tags.sitemap(), { expire: 0 });
   revalidatePath("/admin/expired");
 
   if (deleted === parsed.data.length) {

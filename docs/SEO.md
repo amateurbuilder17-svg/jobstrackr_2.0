@@ -25,9 +25,9 @@ On top of that:
 | `JobPosting` structured data on every listing | `src/lib/seo/job-jsonld.ts` |
 | `Article` + `BreadcrumbList` on every exam update | `src/lib/seo/update-jsonld.ts` |
 | `WebSite` + `Organization` + sitelinks search | `src/lib/seo/site-jsonld.ts` |
-| Sitemap, regenerated on content change | `src/app/sitemap.ts` |
-| Which pages ask to be indexed (closed jobs after 30 days and recruitment notices do not) | `src/lib/seo/indexing.ts` |
-| Hub pages — by organisation, state and category, plus `/jobs/page/n` and `/updates/page/n` — the crawl path into every detail page | `src/lib/hubs/catalog.ts` |
+| Sitemap index, and one sitemap each for site pages, jobs and updates, read at request time and kept by the CDN | `src/app/sitemap.xml/route.ts`, `src/app/sitemaps/` |
+| Which pages ask to be indexed (closed jobs after 30 days do not, and no update page does since 25 Sep 2026) | `src/lib/seo/indexing.ts` |
+| Hub pages — by organisation, state and category, plus `/jobs/page/n` and `/updates/page/n` — the crawl path into every detail page; the update-only ones answer `noindex` | `src/lib/hubs/catalog.ts` |
 | Crawler rules, including the assistant crawlers | `src/app/robots.ts` |
 | Orientation file for assistants | `src/app/llms.txt/route.ts` |
 | 301s from every old URL shape | `next.config.ts` → `redirects()` |
@@ -79,8 +79,15 @@ Google sanctions that endpoint for pages carrying `JobPosting` or
 `BroadcastEvent` structured data and states that other use is grounds for
 revoking access. `/jobs/*` qualifies. `/updates/*` does not and is never
 submitted — `eligibleFor` in `src/lib/seo/targets.ts` enforces it, and a test
-asserts it, because the revocation would be silent. Update pages reach Google
-through the sitemap, which is the sanctioned route for them.
+asserts it, because the revocation would be silent.
+
+Since 25 Sep 2026 update pages are not submitted to IndexNow either, and are not
+in the sitemap: every one answers `noindex, follow`. Each was a synonym-swapped
+copy of a freejobalert.com article, and said so in its own markup, which is the
+pattern Google's policy on scaled content names. The site asks to be judged on
+its job pages and hubs; the update pages stay live for readers. The account is
+at the top of `src/lib/seo/indexing.ts`, and `isUpdateIndexable` there is the
+switch if updates are ever rebuilt from the official notices.
 
 ---
 
@@ -120,9 +127,42 @@ and ~150 MB per deploy — roughly 4.5 GB a month at thirty deploys, against a
 number, and it now says 1,000 rather than pretending to say 20,000.
 
 Cost of the fix: the sitemap read goes from ~90 kB to ~520 kB per
-regeneration, and regeneration is bounded by tag invalidation — at most hourly,
-however often a crawler asks. That is the `Supabase egress` line moving from
-2.8% to 9.9% of the free tier in the table above.
+regeneration. How often it regenerates is the next section.
+
+## Why the sitemap is route handlers, not a `sitemap.ts`
+
+Measured on 25 Sep 2026, three days after a deploy: the live `sitemap.xml` was
+byte-for-byte the file that deploy's build had written. Its newest `lastmod`
+was the minute of the build, and none of the pages published since — fourteen
+updates and a job, all live on `/updates` and `/jobs` — were in it. The
+`sitemap.ts` convention gave it a six-hour revalidate and ingest expired its
+tags on every run that wrote, and on Vercel neither ever took effect: it was
+served like `robots.txt`, as a static file, while `/organisations` and the other
+pages on a timer were being rebuilt on schedule. The sitemap only ever changed
+when something was deployed.
+
+So it is route handlers that read the database at request time, behind an index
+at the same URL:
+
+| URL | Holds | CDN window |
+| --- | --- | --- |
+| `/sitemap.xml` | the index of the two below; prerendered, no data | until the next deploy |
+| `/sitemaps/pages.xml` | the site's own pages, the hubs that ask to be indexed, syllabi | 24 hours |
+| `/sitemaps/jobs.xml` | job pages that ask to be indexed | 6 hours |
+
+There is no update sitemap: no update page asks to be indexed (above).
+
+The CDN window is the whole mechanism: it bounds how stale a file can be and how
+often it can be rebuilt, per CDN region, however often crawlers ask. Nothing
+purges a sitemap any more, and nothing has to; `sitemap` stays a known cache tag
+only so older purge scripts are not refused. A child that cannot read the
+database answers 503, which is not cached, rather than an empty file that would
+be. The reasoning is at the top of `src/lib/seo/sitemap-xml.ts`, and
+`scripts/check-traffic-budget.mjs` prices the rebuilds.
+
+The split pays for itself in Search Console. Each child is a sitemap it reports
+on separately — Sitemaps → `sitemap.xml` → a child → *See page indexing* — so
+"how many job pages did Google index" is a number it shows, not an estimate.
 
 ## Setup
 
@@ -308,5 +348,5 @@ correctly forever. The watermark is one row per target and derives the same
 answer from a column that already exists.
 
 **Enumerating listings in `llms.txt`.** That file is an orientation document,
-not an inventory; the inventory is `sitemap.xml`, which is already incremental
-and already correct. Duplicating it would give the two a way to disagree.
+not an inventory; the inventory is `sitemap.xml` and the three sitemaps it
+lists, which are already incremental and already correct. Duplicating it would give the two a way to disagree.

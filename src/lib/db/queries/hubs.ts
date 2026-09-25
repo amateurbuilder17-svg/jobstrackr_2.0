@@ -11,7 +11,11 @@ import { selectIn } from "../select-in";
 import { tags } from "../tags";
 import { todayInIndia } from "@/lib/format/deadline";
 import { HUB_PAGE_SIZE, MIN_INDEXED_HUB_ITEMS, type HubFilter } from "@/lib/hubs/catalog";
-import { UNINDEXED_UPDATE_CATEGORY, closedJobIndexCutoff } from "@/lib/seo/indexing";
+import {
+  UNINDEXED_UPDATE_CATEGORY,
+  closedJobIndexCutoff,
+  isUpdateIndexable,
+} from "@/lib/seo/indexing";
 import type { UpdateCategory } from "@/lib/updates/categories";
 
 /**
@@ -29,10 +33,14 @@ import type { UpdateCategory } from "@/lib/updates/categories";
  * mechanism behind the 744K ISR writes of 949face.
  *
  * ── What a hub lists ───────────────────────────────────────────────────────
- * Exactly what the sitemap submits, through the same two rules: open jobs and
- * jobs closed within `CLOSED_JOB_INDEX_DAYS`, and every published update but
- * recruitment notices. A hub is a crawl path, and a crawl path into pages that
- * answer `noindex` spends the crawl on nothing.
+ * Open jobs and jobs closed within `CLOSED_JOB_INDEX_DAYS`, the sitemap's rule,
+ * and every published update but recruitment notices. A hub is a crawl path,
+ * and a crawl path into pages that answer `noindex` spends the crawl on
+ * nothing — which is why, since update pages stopped asking to be indexed on
+ * 25 Sep 2026, a hub's own robots meta counts only its `indexable` items. The
+ * update-only lists (a category of updates, the updates archive) are never
+ * indexed, and an employer's hub keeps its updates for the people reading it
+ * but is judged on its jobs.
  */
 
 const JOB_ROW = `
@@ -67,6 +75,11 @@ export interface HubPage {
   items: HubItem[];
   /** Everything the hub lists, across all its pages. */
   total: number;
+  /**
+   * How many of those ask to be indexed, which decides whether the hub does:
+   * jobs always, updates only while `isUpdateIndexable` says so.
+   */
+  indexable: number;
 }
 
 /** Indexable jobs: open, or closed inside the index window. */
@@ -205,15 +218,17 @@ export async function listHubPage(
 
   if (filter.kind === "updateCategory" || filter.kind === "allUpdates") {
     const result = await updatesQuery(filter).range(from, to);
-    if (pastTheEnd(result)) return { items: [], total: 0 };
+    if (pastTheEnd(result)) return { items: [], total: 0, indexable: 0 };
     const rows = unwrap("listHubPage:updates", result);
-    return { items: rows.map(toUpdateItem), total: result.count ?? rows.length };
+    const total = result.count ?? rows.length;
+    return { items: rows.map(toUpdateItem), total, indexable: isUpdateIndexable() ? total : 0 };
   }
 
   const result = await jobsQuery(filter).range(from, to);
-  if (pastTheEnd(result)) return { items: [], total: 0 };
+  if (pastTheEnd(result)) return { items: [], total: 0, indexable: 0 };
   const rows = unwrap("listHubPage:jobs", result);
-  return { items: rows.map(toJobItem), total: result.count ?? rows.length };
+  const total = result.count ?? rows.length;
+  return { items: rows.map(toJobItem), total, indexable: total };
 }
 
 /**
@@ -240,11 +255,15 @@ async function organisationPage(
   const updateRows = unwrap("listHubPage:organisation-updates", updates);
 
   const merged = [...jobRows.map(toJobItem), ...updateRows.map(toUpdateItem)].sort(byNewest);
-  const total = (jobs.count ?? jobRows.length) + (updates.count ?? updateRows.length);
+  const jobTotal = jobs.count ?? jobRows.length;
+  const updateTotal = updates.count ?? updateRows.length;
+  const total = jobTotal + updateTotal;
+  const indexable = jobTotal + (isUpdateIndexable() ? updateTotal : 0);
 
   return {
     items: merged.slice((page - 1) * HUB_PAGE_SIZE, page * HUB_PAGE_SIZE),
     total: Math.min(total, API_MAX_ROWS),
+    indexable: Math.min(indexable, API_MAX_ROWS),
   };
 }
 
@@ -289,8 +308,12 @@ export interface HubCensus {
   bySector: Record<string, number>;
   byLevel: Record<string, number>;
   byUpdateCategory: Record<string, number>;
-  /** Organisations with at least `MIN_INDEXED_HUB_ITEMS` items, by name. */
-  organisations: (HubOrganisation & { count: number })[];
+  /**
+   * Organisations with at least `MIN_INDEXED_HUB_ITEMS` items, by name. `count`
+   * is everything the hub lists; `indexable` is how many of those ask to be
+   * indexed, which is what decides whether the hub is in the sitemap.
+   */
+  organisations: (HubOrganisation & { count: number; indexable: number })[];
 }
 
 const EMPTY_CENSUS: HubCensus = {
@@ -324,6 +347,22 @@ export function censusCount(census: HubCensus, filter: HubFilter): number {
     case "organisation":
       return census.organisations.find((o) => o.id === filter.organizationId)?.count ?? 0;
   }
+}
+
+/**
+ * How many of a hub's items ask to be indexed, which is what decides whether
+ * the sitemap lists it — the rule `listHubPage`'s `indexable` applies to the
+ * hub's own robots meta, so the two cannot disagree. An update-only list holds
+ * none while `isUpdateIndexable` says no; an employer's hub counts its jobs.
+ */
+export function censusIndexable(census: HubCensus, filter: HubFilter): number {
+  if (filter.kind === "updateCategory" || filter.kind === "allUpdates") {
+    return isUpdateIndexable() ? censusCount(census, filter) : 0;
+  }
+  if (filter.kind === "organisation") {
+    return census.organisations.find((o) => o.id === filter.organizationId)?.indexable ?? 0;
+  }
+  return censusCount(census, filter);
 }
 
 function bump(counts: Record<string, number>, key: string | null | undefined): void {
@@ -381,16 +420,20 @@ export async function getHubCensus(): Promise<HubCensus> {
       byUpdateCategory: {},
     };
     const byOrg: Record<string, number> = {};
+    const byOrgIndexable: Record<string, number> = {};
+    const updatesIndexable = isUpdateIndexable();
 
     for (const row of jobs) {
       bump(census.byState, row.location_state);
       bump(census.byLevel, row.min_qualification_level);
       for (const tag of row.tags) bump(census.bySector, tag);
       bump(byOrg, row.organization_id);
+      bump(byOrgIndexable, row.organization_id);
     }
     for (const row of updates) {
       bump(census.byUpdateCategory, row.category);
       bump(byOrg, row.organization_id);
+      if (updatesIndexable) bump(byOrgIndexable, row.organization_id);
     }
 
     const listed = Object.keys(byOrg).filter((id) => (byOrg[id] ?? 0) >= MIN_INDEXED_HUB_ITEMS);
@@ -404,7 +447,11 @@ export async function getHubCensus(): Promise<HubCensus> {
     if (error) throw new Error(`getHubCensus:organizations: ${error.message}`);
 
     census.organisations = orgs
-      .map((org) => ({ ...org, count: byOrg[org.id] ?? 0 }))
+      .map((org) => ({
+        ...org,
+        count: byOrg[org.id] ?? 0,
+        indexable: byOrgIndexable[org.id] ?? 0,
+      }))
       .sort((a, b) => a.name.localeCompare(b.name, "en-IN"));
 
     return census;

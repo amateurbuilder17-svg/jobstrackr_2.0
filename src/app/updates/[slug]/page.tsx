@@ -83,10 +83,10 @@ export async function generateMetadata({
     title,
     description,
     alternates: { canonical: `/updates/${slug}` },
-    // A recruitment notice restates a job that has its own page here, so it
-    // steps aside for that page. It is also left out of the sitemap; see
-    // `lib/seo/indexing.ts`.
-    ...(isUpdateIndexable(update) ? {} : { robots: NOINDEX_FOLLOW }),
+    // No update page asks to be indexed: each is a reworded copy of an
+    // article on another site, and says so below. It still links onward, and
+    // it is left out of the sitemap; see `lib/seo/indexing.ts`.
+    ...(isUpdateIndexable() ? {} : { robots: NOINDEX_FOLLOW }),
     openGraph: {
       title,
       description,

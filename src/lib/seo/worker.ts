@@ -281,8 +281,9 @@ async function candidates(
       .from("exam_updates")
       .select("slug, updated_at")
       .eq("is_published", true)
-      // The sitemap's rule: a recruitment notice answers `noindex`, so
-      // announcing one spends a submission on a page the engine will refuse.
+      // Reached only while update pages ask to be indexed, which since 25 Sep
+      // 2026 they do not (`eligibleFor`). A recruitment notice would not go
+      // even then: it restates a job page, which is the one to announce.
       .neq("category", UNINDEXED_UPDATE_CATEGORY)
       .gt("updated_at", since)
       .order("updated_at", { ascending: true })

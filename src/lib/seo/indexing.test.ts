@@ -47,22 +47,13 @@ describe("isJobIndexable", () => {
   });
 });
 
+/**
+ * Every update page is a reworded copy of a freejobalert.com article, and says
+ * so in its own markup. Asking Google to index them was asking it to judge the
+ * site on copies; see the note at the top of `indexing.ts`.
+ */
 describe("isUpdateIndexable", () => {
-  it("does not index a recruitment notice, which restates a job page", () => {
-    expect(isUpdateIndexable({ category: "notification" })).toBe(false);
-  });
-
-  it("indexes every other category", () => {
-    for (const category of [
-      "admit_card",
-      "result",
-      "answer_key",
-      "syllabus",
-      "exam_date",
-      "cutoff",
-      "news",
-    ] as const) {
-      expect(isUpdateIndexable({ category }), category).toBe(true);
-    }
+  it("indexes no update page, whatever its category", () => {
+    expect(isUpdateIndexable()).toBe(false);
   });
 });

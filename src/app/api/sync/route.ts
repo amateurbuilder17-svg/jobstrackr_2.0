@@ -160,8 +160,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         if (outcome.linked > 0) revalidateTag(tags.jobList(), { expire: 0 });
       }
 
-      revalidateTag(tags.sitemap(), { expire: 0 });
-
       // Tell the search engines, after the response rather than before it. The
       // caller is waiting on this request and does not care about the result;
       // the worker owns its own failures and never throws.

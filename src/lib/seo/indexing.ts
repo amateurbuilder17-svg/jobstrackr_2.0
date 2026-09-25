@@ -29,6 +29,19 @@ import type { UpdateCategory } from "@/lib/updates/categories";
  * Both stay published and both still answer 200. Links in WhatsApp forwards and
  * bookmarks keep working, the page keeps linking onward (`follow`), and the
  * job's own page is the one left to rank.
+ *
+ * ── Every update, since 25 Sep 2026 ────────────────────────────────────────
+ * The other categories went the same way three days later. Every update page
+ * named a freejobalert.com article as its source, in `isBasedOn` and in the
+ * link at its foot — all 5,374 updates in the 26 Aug 2026 backup came from
+ * there — and the wording is that article's with synonyms swapped in
+ * ("download" → "obtain", "collect"). Google indexes the original and declines
+ * the copy, and scraped text with its words swapped is the pattern its policy
+ * on scaled content names, which is a judgement that can weigh on the whole
+ * site, job pages included. So the site asks to be judged on its job pages and
+ * its hubs, and every update page, and every list made only of them, answers
+ * `noindex, follow` and stays out of the sitemap and the push worker's
+ * submissions. They all still answer 200 for the people reading them.
  */
 
 /**
@@ -71,14 +84,22 @@ export function isJobIndexable(
 }
 
 /**
- * The update category that is never indexed: the recruitment notice, which
- * duplicates a job page. See the note at the top of this file.
+ * The update category that restates a job page: the recruitment notice. No
+ * list shows it — not a hub, not the sitemap — because the job's own page is
+ * the one to send a reader to. See the note at the top of this file.
  */
 export const UNINDEXED_UPDATE_CATEGORY = "notification" satisfies UpdateCategory;
 
-/** Whether an update page asks to be indexed. */
-export function isUpdateIndexable(update: { category: UpdateCategory }): boolean {
-  return update.category !== UNINDEXED_UPDATE_CATEGORY;
+/**
+ * Whether update pages ask to be indexed: none does, since 25 Sep 2026.
+ *
+ * One answer for all of them, so it takes no row. The page's robots meta, the
+ * hubs' counts and the push worker all read it here, and it is the switch to
+ * turn if updates are ever rebuilt from the official notices — the sitemap
+ * would need its `updates.xml` back as well.
+ */
+export function isUpdateIndexable(): boolean {
+  return false;
 }
 
 /**

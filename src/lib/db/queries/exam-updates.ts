@@ -14,11 +14,9 @@ import {
   PAGE_SIZE,
 } from "../cursor";
 import { unwrap, unwrapMaybe } from "../errors";
-import { fetchAllRows } from "../paginate";
 import { toSearchFilter } from "../search-term";
 import { SEARCH_CONFIG, tags } from "../tags";
 import type { Database } from "../database.types";
-import { UNINDEXED_UPDATE_CATEGORY } from "@/lib/seo/indexing";
 import { linkLabel } from "@/lib/updates/detail-shape";
 import { toUrl } from "@/lib/sync/links";
 
@@ -227,10 +225,11 @@ export async function getExamUpdateBySlug(slug: string): Promise<ExamUpdateDetai
 /**
  * Slugs for `generateStaticParams`, uncached and failure-tolerant.
  *
- * Deliberately separate from `listExamUpdateSlugs`; the reasoning lives in
- * `src/lib/db/build-params.ts`, next to the sentinel it returns. `/updates/[slug]`
- * previously called the cached query directly, which is what turned an
- * unreachable database into a failed build rather than a degraded one.
+ * The reasoning lives in `src/lib/db/build-params.ts`, next to the sentinel it
+ * returns. `/updates/[slug]` once called the sitemap's cached slug query
+ * directly, which is what turned an unreachable database into a failed build
+ * rather than a degraded one. There is no update sitemap now: no update page
+ * asks to be indexed (`lib/seo/indexing.ts`).
  */
 export async function listExamUpdateSlugsForBuild(): Promise<{ slug: string }[]> {
   return slugsForBuild("listExamUpdateSlugsForBuild", async () => {
@@ -245,42 +244,6 @@ export async function listExamUpdateSlugsForBuild(): Promise<{ slug: string }[]>
     if (error) throw error;
     return data;
   });
-}
-
-/**
- * Every update slug that asks to be indexed, for the sitemap.
- *
- * All published updates but recruitment notices, which restate a job page and
- * answer `noindex` for it; see `lib/seo/indexing.ts`.
- */
-export async function listExamUpdateSlugs(): Promise<{ slug: string; updated_at: string }[]> {
-  "use cache";
-  cacheLife("feed");
-  cacheTag(tags.examUpdateList(), tags.sitemap());
-
-  // Caught here, not by the caller — see `listJobSlugs` for why a rejection
-  // inside a `"use cache"` scope cannot be handled from outside it.
-  //
-  // Paged, and ordered by the unique `slug`, for the reason given there: this
-  // query said `.limit(20000)` and was returning exactly 1,000 rows, because
-  // Supabase's `max_rows` truncates server-side without erroring.
-  try {
-    return await fetchAllRows("listExamUpdateSlugs", (from, to) =>
-      publicDb()
-        .from("exam_updates")
-        .select("slug, updated_at")
-        .eq("is_published", true)
-        .neq("category", UNINDEXED_UPDATE_CATEGORY)
-        .order("slug", { ascending: true })
-        .range(from, to),
-    );
-  } catch (error) {
-    console.warn(
-      "[listExamUpdateSlugs] Unreachable; sitemap omits update pages this cache window.",
-      error instanceof Error ? error.message : error,
-    );
-    return [];
-  }
 }
 
 /**

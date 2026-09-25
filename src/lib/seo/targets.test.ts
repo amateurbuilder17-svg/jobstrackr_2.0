@@ -3,9 +3,14 @@ import { describe, expect, it } from "vitest";
 import { CAPS, eligibleFor } from "./targets";
 
 describe("eligibleFor", () => {
-  it("sends both entity kinds to IndexNow", () => {
+  it("sends job pages to IndexNow", () => {
     expect(eligibleFor("indexnow", "job")).toBe(true);
-    expect(eligibleFor("indexnow", "update")).toBe(true);
+  });
+
+  // Every update page answers `noindex` since 25 Sep 2026, and announcing one
+  // spends a submission on a page Bing will refuse.
+  it("sends no update page to IndexNow while updates are not indexed", () => {
+    expect(eligibleFor("indexnow", "update")).toBe(false);
   });
 
   /**

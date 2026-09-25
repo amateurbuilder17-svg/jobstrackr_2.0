@@ -1,5 +1,7 @@
 import "server-only";
 
+import { isUpdateIndexable } from "./indexing";
+
 /**
  * The push-indexing targets, and what each one is allowed to be told.
  *
@@ -22,18 +24,21 @@ export interface SeoUrl {
 export type SeoTarget = "indexnow" | "google";
 
 /**
- * IndexNow takes anything on the host, so both entities go.
+ * Job pages go to both targets. Update pages go to neither while they answer
+ * `noindex`, which every one has since 25 Sep 2026 (`isUpdateIndexable`):
+ * announcing a page that refuses the index spends a submission on nothing.
  *
- * Google's Indexing API does not. Google sanctions it for pages carrying
- * `JobPosting` or `BroadcastEvent` structured data, and states plainly that
- * using it for anything else is grounds for revoking access. `/jobs/*` carries
- * `JobPosting` (see `job-jsonld.ts`); `/updates/*` carries an article and is
- * therefore never submitted, no matter how much we would like it crawled. It
- * reaches Google through the sitemap, which is the sanctioned route for it.
+ * IndexNow would take them if they asked to be indexed; it takes anything on
+ * the host. Google's Indexing API would not, ever. Google sanctions it for
+ * pages carrying `JobPosting` or `BroadcastEvent` structured data, and states
+ * plainly that using it for anything else is grounds for revoking access.
+ * `/jobs/*` carries `JobPosting` (see `job-jsonld.ts`); `/updates/*` carries an
+ * article and is never submitted there, no matter how much we would like it
+ * crawled.
  */
 export function eligibleFor(target: SeoTarget, entity: SeoEntity): boolean {
-  if (target === "indexnow") return true;
-  return entity === "job";
+  if (entity === "job") return true;
+  return target === "indexnow" && isUpdateIndexable();
 }
 
 /**

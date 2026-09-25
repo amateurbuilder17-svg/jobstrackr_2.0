@@ -408,16 +408,24 @@ export async function listJobCardsByIds(ids: string[]): Promise<JobCard[]> {
  * It is absent from here because a sitemap is the list of pages you want in
  * the index, which is no longer the same list as the pages that resolve.
  *
- * `status` rides along so `sitemap.ts` can weight the two apart — see the
- * priorities there — but it is narrowed to a `closed` boolean before it
+ * `status` rides along so `/sitemaps/jobs.xml` can weight the two apart — see
+ * the priorities there — but it is narrowed to a `closed` boolean before it
  * leaves. The generated row type is the whole `job_status` enum regardless of
  * the `.in()` filter above, and handing the caller a `"draft" | "archived"`
  * it can never receive would only invite a branch for a case that cannot
  * happen. The flag costs about six bytes a row on the wire.
  *
- * The one intentionally large read in this module: it runs on sitemap
- * revalidation, not per request. Two columns keep it to roughly 60 bytes a row
- * — about 350 kB across the whole corpus, a handful of times a day.
+ * The one intentionally large read in this module: it runs when the CDN's
+ * copy of the job sitemap expires, not per request. Two columns keep it to
+ * roughly 60 bytes a row — about 350 kB across the whole corpus, at most four
+ * times a day per CDN region (`SITEMAP_CDN_SECONDS`).
+ *
+ * Not `"use cache"`, and it throws instead of degrading, since 25 Sep 2026.
+ * Its result is cached once, by the CDN, as the finished XML; a second copy
+ * here would only be another layer that can hand back an old list. And the
+ * route turns a throw into a 503, which the CDN does not keep — an empty list
+ * would have been cached for six hours as "this site has no job pages". The
+ * account of the sitemap that stayed frozen is in `lib/seo/sitemap-xml.ts`.
  *
  * That claim used to be false. The query said `.limit(20000)` and returned
  * exactly 1,000 rows, because Supabase caps responses at `max_rows`
@@ -434,40 +442,23 @@ export async function listJobCardsByIds(ids: string[]): Promise<JobCard[]> {
 export async function listJobSlugs(): Promise<
   { slug: string; updated_at: string; closed: boolean }[]
 > {
-  "use cache";
-  cacheLife("feed");
-  cacheTag(tags.jobList(), tags.sitemap());
+  const rows = await fetchAllRows("listJobSlugs", (from, to) =>
+    publicDb()
+      .from("jobs")
+      .select("slug, updated_at, status")
+      .in("status", ["published", "closed"])
+      // `gte` is false for a NULL date, which is `isJobIndexable`'s answer
+      // for a closed row with no date too.
+      .or(`status.eq.published,last_date.gte.${closedJobIndexCutoff(todayInIndia())}`)
+      .order("slug", { ascending: true })
+      .range(from, to),
+  );
 
-  // Caught here rather than by the caller. The sitemap is generated at build
-  // time, and a rejection escaping a `"use cache"` scope fails the build
-  // outright — the caller's try/catch never runs. Degrading to an empty list
-  // costs one cache window of a four-URL sitemap, which self-heals on the next
-  // revalidation; the alternative costs the whole deploy.
-  try {
-    const rows = await fetchAllRows("listJobSlugs", (from, to) =>
-      publicDb()
-        .from("jobs")
-        .select("slug, updated_at, status")
-        .in("status", ["published", "closed"])
-        // `gte` is false for a NULL date, which is `isJobIndexable`'s answer
-        // for a closed row with no date too.
-        .or(`status.eq.published,last_date.gte.${closedJobIndexCutoff(todayInIndia())}`)
-        .order("slug", { ascending: true })
-        .range(from, to),
-    );
-
-    return rows.map(({ slug, updated_at, status }) => ({
-      slug,
-      updated_at,
-      closed: status === "closed",
-    }));
-  } catch (error) {
-    console.warn(
-      "[listJobSlugs] Unreachable; sitemap omits job pages this cache window.",
-      error instanceof Error ? error.message : error,
-    );
-    return [];
-  }
+  return rows.map(({ slug, updated_at, status }) => ({
+    slug,
+    updated_at,
+    closed: status === "closed",
+  }));
 }
 
 /**

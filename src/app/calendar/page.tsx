@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   description:
     "Every date that matters for the exams you have saved or are tracking — applications, admit cards, exam days and results, in one month view.",
   // Personal, so it leaves the index. It used to be a public page listing every
-  // deadline on the site; `sitemap.ts` drops the entry to match.
+  // deadline on the site; `/sitemaps/pages.xml` leaves it out to match.
   robots: { index: false, follow: false },
 };
 

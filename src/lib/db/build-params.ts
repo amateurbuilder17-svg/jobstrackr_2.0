@@ -1,10 +1,12 @@
 import "server-only";
 
 /**
- * Slug lists for `generateStaticParams`, and why they are not the cached ones.
+ * Slug lists for `generateStaticParams`, and why they are not the sitemap's.
  *
- * `listJobSlugs` and `listExamUpdateSlugs` are `"use cache"` and tagged, which
- * is right for the sitemap and wrong here, for three reasons:
+ * The sitemap's `listJobSlugs` reads the whole indexable corpus at request
+ * time, and throws when the database is unreachable so the sitemap can answer
+ * 503. It and its update twin were `"use cache"` and tagged until 25 Sep 2026,
+ * and the reasons below are why a build-time list could not use them either way:
  *
  *   1. These run exactly once per build, so caching them buys nothing.
  *   2. A promise that rejects *inside* a `"use cache"` scope cannot be caught

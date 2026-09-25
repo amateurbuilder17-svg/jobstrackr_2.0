@@ -70,7 +70,11 @@ afterEach(() => {
 const jobs = () => import("./jobs");
 const updates = () => import("./exam-updates");
 
-/** The tags ingest purges on every run that writes. See `/api/ingest`. */
+/**
+ * The tags ingest purges on every run that writes. See `/api/ingest`.
+ * `sitemap` is kept in the list although ingest stopped purging it on 25 Sep
+ * 2026: a detail page has no business carrying it either way.
+ */
 const CHURNING_TAGS = ["jobs:list", "updates:list", "sitemap"];
 
 /**

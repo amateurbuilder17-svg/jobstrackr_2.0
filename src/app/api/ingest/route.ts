@@ -226,10 +226,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       // An update that resolved onto a job changes that job's page too.
       if (updates.outcome.linked > 0) revalidateTag(tags.jobList(), { expire: 0 });
     }
-    if (wroteJobs + wroteUpdates > 0) {
-      revalidateTag(tags.sitemap(), { expire: 0 });
-      after(pushToSearchEngines);
-    }
+    // No sitemap tag to expire: the sitemaps are read at request time and kept
+    // by the CDN for six hours to a day (`lib/seo/sitemap-xml.ts`), so a new
+    // page reaches them on that clock whether or not anything is purged here.
+    if (wroteJobs + wroteUpdates > 0) after(pushToSearchEngines);
 
     return NextResponse.json({
       since,

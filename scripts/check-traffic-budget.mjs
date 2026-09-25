@@ -114,7 +114,7 @@ const TRAFFIC = {
   // one-day-old cache and renders — which is why the share is charged in full
   // rather than discounted again.
   //
-  // Still the pessimistic end: `sitemap.ts` marks these `yearly` at priority
+  // Still the pessimistic end: `/sitemaps/jobs.xml` marks these `yearly` at priority
   // 0.3, and crawl rate falls off hard for pages described that way.
   //
   // This is the line to watch if the free tier gets tight. The fix if it does
@@ -122,13 +122,21 @@ const TRAFFIC = {
   // it can hold a far longer cache profile than `content`, which would take
   // this to roughly one render per page per month.
   closedJobRendersPerMonth: Math.round(694 * 8 * (13475 / 9722) * (3753 / 13475)),
-  // Sitemap rebuilds. Bounded by invalidation, not by crawler appetite: the
-  // entry is only marked stale when an ingest actually writes something, so
-  // however often a crawler asks, it can regenerate at most once an hour. That
-  // upper bound is what is modelled — the real figure is the number of times a
-  // crawler happens to ask *after* an invalidation, which for a site this size
-  // is nearer ten a day than twenty-four.
-  sitemapRegenerationsPerMonth: 30 * 24,
+  // Sitemap rebuilds. Bounded by the CDN window, not by crawler appetite: a
+  // CDN region rebuilds a child sitemap at most once per `SITEMAP_CDN_SECONDS`
+  // window however often crawlers ask. This counts the job file, the one big
+  // child — the page file is a few kilobytes on a day's window, and there is
+  // no update file since update pages stopped asking to be indexed — rebuilt
+  // every six hours in four regions. Four is the pessimistic end: Googlebot and
+  // Bingbot both crawl from the US, with only the long tail from Europe. Each
+  // rebuild reads `sitemapRegenerationKb` and ships `sitemapXmlKb` from the
+  // function to the CDN.
+  //
+  // It was 30 * 24, "at most hourly, on invalidation". That was the design,
+  // and it never ran: on Vercel the prerendered `sitemap.ts` was a static file
+  // that changed only on deploy (measured 25 Sep 2026, `lib/seo/sitemap-xml.ts`).
+  // The model priced rebuilds the system was not doing.
+  sitemapRegenerationsPerMonth: 4 * 4 * 30,
   // Update detail pages rendering on demand.
   //
   // The same class of cost as `closedJobRendersPerMonth`, and it was missing
@@ -299,21 +307,27 @@ const PAYLOAD = {
   // related-jobs rail. `STORED.jobs` and `STORED.jobDetails` put the two hot
   // rows at 5.5 + 4.4 kB; the rails add a handful of card rows on top.
   jobDetailRenderKb: 12,
-  // One sitemap regeneration: a slug and an `updated_at` for every publicly
-  // resolvable job and update, at ~60 bytes a row across a ~5,200 + ~3,000
-  // corpus, plus the per-request overhead of the paged round trips it takes.
+  // One job-sitemap rebuild: a slug, an `updated_at` and a status for every
+  // job page that asks to be indexed, plus the per-request overhead of the
+  // paged round trips it takes.
   //
-  // 520 → 820 with the closed-jobs fix. The job query widened from
-  // `published` to `published, closed` — about 3,750 more rows at ~66 bytes,
-  // so ~250 kB — and now selects `status` alongside the slug, which is another
-  // ~10 bytes on every job row. Two more pages of 1,000 rows to fetch, as
-  // well.
+  // 820 → 565 on 25 Sep 2026, and measured rather than estimated this time:
+  // the 3,963 job slugs in that day's live sitemap average 68 characters,
+  // which as PostgREST's JSON is ~565 kB uncompressed. Update pages left the
+  // sitemap that day, and their read with them. The old figure's "~60 bytes a
+  // row" had been low for the job rows alone.
   //
   // This line did not exist while the query was silently truncated to 1,000
   // rows a table by Supabase's `max_rows` — the read was a fifth of this size
   // and the sitemap was a fifth of the site. Paging past the cap is what makes
   // the sitemap complete, and this is what that costs.
-  sitemapRegenerationKb: 820,
+  sitemapRegenerationKb: 565,
+  // The XML one job-sitemap rebuild sends to the CDN, which Vercel meters as
+  // Fast Origin Transfer. Measured on 25 Sep 2026: the 3,963 job entries in
+  // the live sitemap came to 891,254 bytes. The sitemap was a static file then
+  // and cost no origin transfer at all; a sitemap that refreshes does, and
+  // this is that price.
+  sitemapXmlKb: 870,
   // One update detail page rendering: the `UPDATE_DETAIL_SELECT` join — the
   // update row plus its `exam_update_details` row, which carries the five JSONB
   // columns that made the old table 39 MB — plus the sibling rail. `STORED`
@@ -520,8 +534,11 @@ const isrWrites = staleOnArrival;
 /* ── Fast Origin Transfer ──────────────────────────────────────────────── */
 // Bytes leaving the origin — a function rendering a response — as opposed to
 // bytes served from the edge cache, which are ordinary bandwidth. Every ISR
-// write ships a document, and so does every on-demand render.
-const fastOriginKb = (isrWrites + TRAFFIC.updateRendersPerMonth) * PAYLOAD.pageDocumentKb;
+// write ships a document, and so does every on-demand render. So does every
+// sitemap rebuild: the children are route handlers the CDN caches, not files.
+const fastOriginKb =
+  (isrWrites + TRAFFIC.updateRendersPerMonth) * PAYLOAD.pageDocumentKb +
+  TRAFFIC.sitemapRegenerationsPerMonth * PAYLOAD.sitemapXmlKb;
 
 const storedMb =
   Object.values(STORED).reduce((sum, t) => sum + t.rows * t.bytesPerRow, 0) / (1024 * 1024);

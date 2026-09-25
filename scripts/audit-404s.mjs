@@ -227,16 +227,33 @@ function similarity(a, b) {
   return shared / (a.size + b.size - shared);
 }
 
-/** Every live URL the sitemap advertises, as a path → token-set index. */
-async function loadLiveSlugs() {
-  const response = await fetch(`${SITE}/sitemap.xml`);
-  if (!response.ok) throw new Error(`sitemap.xml returned ${String(response.status)}`);
-
+/** The `<loc>` values of one sitemap file. */
+async function sitemapLocs(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${url} returned ${String(response.status)}`);
   const xml = await response.text();
+  return {
+    isIndex: xml.includes("<sitemapindex"),
+    locs: [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]),
+  };
+}
+
+/**
+ * Every live URL the sitemap advertises, as a path → token-set index.
+ *
+ * `/sitemap.xml` is an index of child sitemaps since 25 Sep 2026, so its
+ * `<loc>`s are files to read rather than pages; one level is all there is.
+ */
+async function loadLiveSlugs() {
+  const root = await sitemapLocs(`${SITE}/sitemap.xml`);
+  const locs = root.isIndex
+    ? (await Promise.all(root.locs.map(sitemapLocs))).flatMap((child) => child.locs)
+    : root.locs;
+
   const index = new Map();
 
-  for (const match of xml.matchAll(/<loc>([^<]+)<\/loc>/g)) {
-    const path = new URL(match[1]).pathname;
+  for (const loc of locs) {
+    const path = new URL(loc).pathname;
     const parts = path.split("/").filter(Boolean);
     if (parts.length !== 2) continue; // Only `/jobs/<slug>` and friends.
     const [section, slug] = parts;
