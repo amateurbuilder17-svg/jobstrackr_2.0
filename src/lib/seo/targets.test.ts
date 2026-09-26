@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CAPS, eligibleFor } from "./targets";
+import { CAPS, GOOGLE_LOOKBACK_MS, eligibleFor } from "./targets";
 
 describe("eligibleFor", () => {
   it("sends job pages to IndexNow", () => {
@@ -37,5 +37,13 @@ describe("CAPS", () => {
 
   it("stays well inside IndexNow's 10,000-per-request limit", () => {
     expect(CAPS.indexNowPerRun).toBeLessThanOrEqual(10_000);
+  });
+});
+
+describe("GOOGLE_LOOKBACK_MS", () => {
+  // Long enough to cover a weekend's outage, short enough that the daily quota
+  // is spent on jobs people can still apply to.
+  it("is two days", () => {
+    expect(GOOGLE_LOOKBACK_MS).toBe(172_800_000);
   });
 });

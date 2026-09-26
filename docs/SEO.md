@@ -202,7 +202,9 @@ the variable is not set in the environment being served.
      The escaped `\n` sequences are expected and handled; see
      `normalizePrivateKey`.
 
-Both must be present or the Google target stays switched off.
+Set both for **Production**, then redeploy: Vercel reads environment variables
+when a deployment is built, so a running deployment never sees new ones. Both
+must be present or the Google target stays switched off.
 
 ### 3. Kick off the first run
 
@@ -210,7 +212,7 @@ The worker runs on the next ingest by itself. To start immediately — or to
 drain a backlog one batch at a time — call the manual lever:
 
 ```bash
-curl -H "Authorization: Bearer $CRON_SECRET" https://jobstrackr.in/api/seo/ping
+curl -H "Authorization: Bearer $CRON_SECRET" https://www.jobstrackr.in/api/seo/ping
 ```
 
 The response body is the run result, which is also the fastest way to find out
@@ -241,9 +243,12 @@ reads the table rather than the ingest result, it also catches admin edits,
 watermark where it was, so the next run repeats the same work. There is no
 retry queue and no dead-letter path to drain, deliberately.
 
-**Backfill is paced.** The first run starts at the epoch, so the whole published
-corpus is eligible. It goes out at `CAPS.indexNowPerRun` (500) and
-`CAPS.googlePerRun` (8) per hourly run rather than all at once.
+**Backfill is paced.** IndexNow's first run starts at the epoch, so the whole
+published corpus is eligible, and goes out at `CAPS.indexNowPerRun` (500) a run
+rather than all at once. Google's does not: at 180 a day, oldest first, the
+corpus would take two weeks and hold every new job behind it, so its run never
+reaches further back than `GOOGLE_LOOKBACK_MS` (two days) and takes
+`CAPS.googlePerRun` (8) at a time. Older listings are left to the sitemap.
 
 **The Google quota is counted, not hoped for.** The project allowance is 200
 notifications a day; `CAPS.googleDaily` spends at most 180, leaving room for a

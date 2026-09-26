@@ -3,11 +3,23 @@ import "server-only";
 import { adminDb, type Db } from "@/lib/db/clients";
 import { env, getServerEnv } from "@/lib/env";
 
-import { highestUpdatedAt, mergeByUpdatedAt, trimToCompleteBatch } from "./candidates";
+import {
+  highestUpdatedAt,
+  mergeByUpdatedAt,
+  startingPoint,
+  trimToCompleteBatch,
+} from "./candidates";
 import { submitToGoogle } from "./google-indexing";
 import { submitToIndexNow } from "./indexnow";
 import { UNINDEXED_UPDATE_CATEGORY } from "./indexing";
-import { CAPS, RUN_BUDGET_MS, eligibleFor, type SeoTarget, type SeoUrl } from "./targets";
+import {
+  CAPS,
+  GOOGLE_LOOKBACK_MS,
+  RUN_BUDGET_MS,
+  eligibleFor,
+  type SeoTarget,
+  type SeoUrl,
+} from "./targets";
 
 /**
  * The SEO worker.
@@ -191,7 +203,9 @@ async function runGoogle(
     return { configured: true, submitted: 0, failed: 0, note: "daily quota spent" };
 
   const limit = Math.min(CAPS.googlePerRun, remaining);
-  const batch = await candidates(db, site, "google", state.last_url_updated_at, limit);
+  // Recent changes only, however old the watermark: see `GOOGLE_LOOKBACK_MS`.
+  const since = startingPoint(state.last_url_updated_at, Date.now(), GOOGLE_LOOKBACK_MS);
+  const batch = await candidates(db, site, "google", since, limit);
   if (batch.length === 0) return { configured: true, submitted: 0, failed: 0 };
 
   const { results, authError } = await submitToGoogle(

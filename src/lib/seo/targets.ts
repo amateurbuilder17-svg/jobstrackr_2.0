@@ -65,6 +65,23 @@ export const CAPS = {
 } as const;
 
 /**
+ * How far back Google's run may reach, however old its watermark.
+ *
+ * IndexNow can take the whole corpus in a few runs; Google takes 180 URLs a
+ * day. Its watermark starts at the epoch, and the worker submits oldest first,
+ * so an unbounded first run would spend some two weeks announcing listings
+ * published months ago — every one of them already in the sitemap — while a
+ * job posted today waited behind them. Measured on 25 Sep 2026: ~2,800
+ * published jobs, ~16 days at the daily cap.
+ *
+ * So Google is told about the last two days of changes and nothing older. A
+ * normal day changes well under the cap; a bulk backfill that does not is
+ * announced for two days and then left to the sitemap, which is where the
+ * older half of any backlog was going to be found anyway.
+ */
+export const GOOGLE_LOOKBACK_MS = 2 * 24 * 60 * 60 * 1000;
+
+/**
  * How long the worker may spend before giving up and leaving the rest for the
  * next run.
  *

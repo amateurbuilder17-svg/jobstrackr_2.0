@@ -36,6 +36,17 @@ export function trimToCompleteBatch(fetched: readonly SeoUrl[], limit: number): 
   return safe.length > 0 ? safe : kept;
 }
 
+/**
+ * Where a run starts: the watermark, or `lookbackMs` before now if that is
+ * later. Compared as instants, because the watermark comes back from Postgres
+ * as `+00:00` and a JavaScript timestamp ends in `Z`, and those two spellings
+ * do not sort together as strings.
+ */
+export function startingPoint(watermark: string, nowMs: number, lookbackMs: number): string {
+  const floor = nowMs - lookbackMs;
+  return Date.parse(watermark) >= floor ? watermark : new Date(floor).toISOString();
+}
+
 /** The highest `updatedAt` in a batch — the value the watermark moves to. */
 export function highestUpdatedAt(rows: readonly SeoUrl[]): string | null {
   return rows.reduce<string | null>(

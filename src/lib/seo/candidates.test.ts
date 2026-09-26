@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { highestUpdatedAt, mergeByUpdatedAt, trimToCompleteBatch } from "./candidates";
+import {
+  highestUpdatedAt,
+  mergeByUpdatedAt,
+  startingPoint,
+  trimToCompleteBatch,
+} from "./candidates";
 import type { SeoUrl } from "./targets";
 
 const at = (updatedAt: string, url = `https://x.test/jobs/${updatedAt}`): SeoUrl => ({
@@ -82,5 +87,34 @@ describe("mergeByUpdatedAt", () => {
       "upd-1",
       "job-2",
     ]);
+  });
+});
+
+/**
+ * Google takes 180 URLs a day. A watermark at the epoch, walked oldest first,
+ * would spend two weeks on listings already in the sitemap before reaching one
+ * posted today — so a run starts no further back than the lookback.
+ */
+describe("startingPoint", () => {
+  const now = Date.parse("2026-09-26T12:00:00Z");
+  const twoDays = 2 * 24 * 60 * 60 * 1000;
+
+  it("clamps an old watermark to the lookback", () => {
+    expect(startingPoint("1970-01-01T00:00:00+00:00", now, twoDays)).toBe(
+      "2026-09-24T12:00:00.000Z",
+    );
+  });
+
+  it("keeps a watermark inside the lookback, exactly as stored", () => {
+    expect(startingPoint("2026-09-26T08:00:00.123+00:00", now, twoDays)).toBe(
+      "2026-09-26T08:00:00.123+00:00",
+    );
+  });
+
+  // `+00:00` and `Z` do not sort together as strings; as instants they must.
+  it("compares instants, not spellings", () => {
+    expect(startingPoint("2026-09-24T12:00:00+00:00", now, twoDays)).toBe(
+      "2026-09-24T12:00:00+00:00",
+    );
   });
 });
