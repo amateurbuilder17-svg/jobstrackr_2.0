@@ -89,3 +89,21 @@ describe("officialUrls", () => {
     expect(officialUrls("http://ssc.gov.in/insecure", [])).toEqual([]);
   });
 });
+
+describe("officialUrls and the aggregator", () => {
+  // No link in the app names it, and a syllabus page's sources are links.
+  it("leaves out a freejobalert address the notes wrote down", () => {
+    const notes = "Sources:\nhttps://www.freejobalert.com/ssc-cgl/\nhttps://ssc.gov.in/";
+    expect(officialUrls(notes, [])).toEqual(["https://ssc.gov.in/"]);
+  });
+
+  // Grounding hides the address behind Google's redirect; the title gives it away.
+  it("leaves out a grounding source titled freejobalert", () => {
+    expect(
+      officialUrls("", [
+        { title: "freejobalert.com", url: "https://example.com/wrapped-1" },
+        { title: "ssc.gov.in", url: "https://example.com/wrapped-2" },
+      ]),
+    ).toEqual(["https://example.com/wrapped-2"]);
+  });
+});

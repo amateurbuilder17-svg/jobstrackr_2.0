@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isPromotionalText, isUsableUrl, toUrl } from "./links";
+import { hasBlockedWord, isPromotionalText, isUsableUrl, toUrl } from "./links";
 
 describe("toUrl", () => {
   it("adds a protocol to a bare domain", () => {
@@ -30,6 +30,15 @@ describe("toUrl", () => {
     expect(toUrl("https://jobs.freejobalert.com/x")).toBeNull();
   });
 
+  // The word, not only the host: a redirector, a mirror or a tracking
+  // parameter carries the aggregator just as well.
+  it("blocks freejobalert anywhere in the address, encoded or not", () => {
+    expect(toUrl("https://freejobalert.in/ssc")).toBeNull();
+    expect(toUrl("https://example.org/out?url=https://www.freejobalert.com/x")).toBeNull();
+    expect(toUrl("https://example.org/out?url=https%3A%2F%2FFreeJobAlert.com%2Fx")).toBeNull();
+    expect(toUrl("https://ssc.gov.in/notice?ref=freejobalert")).toBeNull();
+  });
+
   it("does not block a real site that merely mentions one in a parameter", () => {
     // The old check was a substring test against the whole URL, which took out
     // legitimate pages carrying a share parameter.
@@ -45,6 +54,21 @@ describe("toUrl", () => {
 
   it("strips trailing punctuation left by a sentence", () => {
     expect(toUrl("https://ssc.gov.in.")).toBe("https://ssc.gov.in/");
+  });
+});
+
+describe("hasBlockedWord", () => {
+  it("catches the word in a URL or a label, in any case", () => {
+    expect(hasBlockedWord("https://www.freejobalert.com/")).toBe(true);
+    expect(hasBlockedWord("Visit FreeJobAlert")).toBe(true);
+    expect(hasBlockedWord("free%6Aobalert.com")).toBe(true);
+  });
+
+  it("passes everything else, and nothing at all", () => {
+    expect(hasBlockedWord("https://ssc.gov.in/")).toBe(false);
+    expect(hasBlockedWord("Official website")).toBe(false);
+    expect(hasBlockedWord(null)).toBe(false);
+    expect(hasBlockedWord("%E0%A4%A")).toBe(false);
   });
 });
 

@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { mergeDuplicatesAction } from "@/lib/admin/actions";
 import { listDuplicateGroups } from "@/lib/db/queries/admin-jobs";
 import { formatDate } from "@/lib/format/deadline";
+import { hasBlockedWord } from "@/lib/sync/links";
 import { ActionForm } from "../../action-form";
 import { Pager } from "../../pager";
 import { Empty, Section, Stat, StatRow } from "../../ui";
@@ -123,7 +124,11 @@ async function Groups({ searchParams }: { searchParams: SearchParams }) {
                         href={`/jobs/${job.slug}`}
                         className="min-w-0 flex-1 truncate text-xs text-ink-2 hover:text-accent hover:underline"
                       >
-                        {job.sourceUrl ?? job.slug}
+                        {/* The slug when the source is the aggregator: no link text
+                            in the app names it (`lib/sync/links.ts`). */}
+                        {job.sourceUrl && !hasBlockedWord(job.sourceUrl)
+                          ? job.sourceUrl
+                          : job.slug}
                       </Link>
 
                       <span className="shrink-0 text-2xs text-ink-3 tabular">

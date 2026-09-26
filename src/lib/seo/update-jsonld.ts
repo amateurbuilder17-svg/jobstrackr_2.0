@@ -1,6 +1,7 @@
 import { decodeEntities } from "@/lib/format/text";
 import { CATEGORY_LABELS } from "@/lib/updates/categories";
 import type { ExamUpdateDetail } from "@/lib/db/queries/exam-updates";
+import { toUrl } from "@/lib/sync/links";
 
 /**
  * schema.org `Article` for an exam update.
@@ -22,6 +23,9 @@ export function examUpdateJsonLd(
 ): Record<string, unknown> {
   const url = `${siteUrl}/updates/${update.slug}`;
   const title = decodeEntities(update.title);
+  // Both through `toUrl`, like every link this site emits (`lib/sync/links.ts`).
+  const organizationWebsite = toUrl(update.organization?.website);
+  const source = toUrl(update.source_url);
 
   const published = update.published_at ?? update.published_date;
 
@@ -66,14 +70,17 @@ export function examUpdateJsonLd(
           about: {
             "@type": "Organization",
             name: update.organization.name,
-            ...(update.organization.website ? { sameAs: update.organization.website } : {}),
+            ...(organizationWebsite ? { sameAs: organizationWebsite } : {}),
           },
         }
       : {}),
 
-    // The page this was transcribed from. It is the single most useful field
-    // here for an assistant deciding whether to trust the summary.
-    ...(update.source_url ? { isBasedOn: update.source_url } : {}),
+    // The page this was transcribed from, when that is a page this site may
+    // link to. Since 26 Sep 2026 no link here names the aggregator every update
+    // came from (`lib/sync/links.ts`), and this field is a link like any other,
+    // so for those updates it is left out rather than pointed anywhere else: it
+    // says what the text is based on, and nothing else is.
+    ...(source ? { isBasedOn: source } : {}),
   };
 }
 

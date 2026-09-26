@@ -97,6 +97,12 @@ describe("asIsoDate", () => {
 });
 
 describe("asOfficialLink", () => {
+  it("drops a redirector that carries the aggregator in its query", () => {
+    expect(
+      asOfficialLink("https://example.org/out?to=https%3A%2F%2Fwww.freejobalert.com%2Fx"),
+    ).toBeNull();
+  });
+
   it("keeps a conducting body's own URL", () => {
     expect(asOfficialLink("https://ssc.gov.in/admit-card")).toBe(
       "https://ssc.gov.in/admit-card",

@@ -78,6 +78,17 @@ describe("toDateLinks", () => {
       ]),
     ).toEqual([{ text: "Admit card", url: "https://x.gov.in/a.pdf" }]);
   });
+
+  // Backfilled rows never passed the ingest blocklist.
+  it("drops an aggregator link, by address or by label", () => {
+    expect(
+      toDateLinks([
+        { event: "Result", date: "Click Here", link: "https://www.freejobalert.com/x/" },
+        { event: "More at FreeJobAlert", date: "Click Here", link: "https://x.gov.in/r.pdf" },
+        { event: "Result", date: "Click Here", link: "https://x.gov.in/result.pdf" },
+      ]),
+    ).toEqual([{ text: "Result", url: "https://x.gov.in/result.pdf" }]);
+  });
 });
 
 describe("toVacancyTable", () => {

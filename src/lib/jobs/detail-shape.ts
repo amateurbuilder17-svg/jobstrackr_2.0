@@ -33,6 +33,7 @@
  */
 
 import { decodeEntities } from "@/lib/format/text";
+import { hasBlockedWord, toUrl } from "@/lib/sync/links";
 
 export type ImportantDate = {
   event: string;
@@ -201,7 +202,13 @@ export function toImportantDates(value: unknown): ImportantDate[] {
   return out;
 }
 
-/** The "Click here" rows, recovered as links rather than discarded. */
+/**
+ * The "Click here" rows, recovered as links rather than discarded.
+ *
+ * Through `toUrl` as well as the absolute-address check, because rows
+ * backfilled from the old project never passed the ingest blocklist, and an
+ * aggregator link in a date table is still an aggregator link.
+ */
 export function toDateLinks(value: unknown): DetailLink[] {
   const source = unpack(value);
   if (!Array.isArray(source)) return [];
@@ -209,9 +216,12 @@ export function toDateLinks(value: unknown): DetailLink[] {
   const out: DetailLink[] = [];
   for (const entry of source) {
     if (!isRecord(entry)) continue;
-    const url = meaningful(pick(entry, "link", "url", "href"));
-    if (!url || !/^https?:\/\//i.test(url)) continue;
+    const raw = meaningful(pick(entry, "link", "url", "href"));
+    if (!raw || !/^https?:\/\//i.test(raw)) continue;
+    const url = toUrl(raw);
+    if (!url) continue;
     const label = meaningful(pick(entry, "event", "label", "title", "name")) ?? "Official link";
+    if (hasBlockedWord(label)) continue;
     out.push({ text: label, url });
   }
   return out;

@@ -1,4 +1,5 @@
 import type { StatusSource } from "@/lib/exams/report";
+import { hasBlockedWord } from "@/lib/sync/links";
 
 /**
  * Choosing what goes under "Official Sources" on a syllabus page.
@@ -37,13 +38,16 @@ export function officialUrls(notes: string, grounding: StatusSource[]): string[]
     // sentence, or in brackets, otherwise gets stored with the full stop on
     // it — and stored is where it stays for thirty days.
     const url = match[0].replace(/[.,;:]+$/, "");
-    if (isRedirectWrapper(url)) continue;
+    if (isRedirectWrapper(url) || hasBlockedWord(url)) continue;
     seen.add(url);
     if (seen.size >= MAX_SOURCES) break;
   }
 
   if (seen.size > 0) return [...seen];
-  return grounding.slice(0, MAX_SOURCES).map((source) => source.url);
+  return grounding
+    .filter((source) => !hasBlockedWord(source.url) && !hasBlockedWord(source.title))
+    .slice(0, MAX_SOURCES)
+    .map((source) => source.url);
 }
 
 /**

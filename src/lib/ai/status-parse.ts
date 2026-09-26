@@ -1,5 +1,6 @@
 import "server-only";
 
+import { hasBlockedWord, toUrl } from "@/lib/sync/links";
 import {
   EVENT_TYPES,
   EXAM_STAGES,
@@ -78,10 +79,14 @@ export function buildPrompt(subject: StatusSubject, today: Date): string {
     timeZone: "Asia/Kolkata",
   });
 
+  // Through `toUrl`, so a job whose only address is the aggregator article it
+  // was scraped from is not offered to the model as the official site.
+  const website = toUrl(subject.officialWebsite);
+
   const facts = [
     `Exam: ${subject.label}`,
     subject.organization ? `Conducting body: ${subject.organization}` : null,
-    subject.officialWebsite ? `Official website: ${subject.officialWebsite}` : null,
+    website ? `Official website: ${website}` : null,
     subject.stage ? `The candidate is tracking this stage: ${subject.stage}` : null,
   ]
     .filter(Boolean)
@@ -271,6 +276,8 @@ export function asOfficialLink(value: unknown): string | null {
 
   const host = url.hostname.toLowerCase();
   if (BLOCKED_LINK_HOSTS.some((blocked) => host.includes(blocked))) return null;
+  // The whole address, not only the host: a redirector can carry it too.
+  if (hasBlockedWord(url.toString())) return null;
 
   return url.toString();
 }

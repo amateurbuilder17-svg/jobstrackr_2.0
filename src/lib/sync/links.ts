@@ -41,6 +41,35 @@ const BLOCKED_HOSTS = [
 const BLOCKED_SCHEMES = ["tg:", "whatsapp:", "javascript:", "data:", "vbscript:"] as const;
 
 /**
+ * Words no link in the app may carry, anywhere in it: host, path, query or
+ * label. Since 26 Sep 2026, and deliberately wider than `BLOCKED_HOSTS`.
+ *
+ * The aggregator every update was reworded from is not a source to send a
+ * reader to, and its name turns up in more places than its own host: a
+ * redirector's `?url=`, a mirror domain, a search result's title, a label
+ * reading "Visit FreeJobAlert". A host check sees none of those. The word is
+ * distinctive enough that the substring test the note above warns against is
+ * the right one here — nothing legitimate is called "freejobalert".
+ */
+const BLOCKED_WORDS = ["freejobalert"] as const;
+
+/**
+ * Whether a URL or a link's text carries a blocked word, percent-encoded or
+ * not. Every place that renders a link it did not build itself asks this, or
+ * goes through `toUrl`, which does.
+ */
+export function hasBlockedWord(value: string | null | undefined): boolean {
+  if (!value) return false;
+  let text = value.toLowerCase();
+  try {
+    text = `${text} ${decodeURIComponent(text)}`;
+  } catch {
+    // A malformed escape: the raw text is still checked.
+  }
+  return BLOCKED_WORDS.some((word) => text.includes(word));
+}
+
+/**
  * Turns a raw cell into a clickable absolute URL, or null.
  *
  * Scraped overview tables store bare domains with no protocol, and a browser
@@ -83,6 +112,7 @@ export function toUrl(raw: unknown): string | null {
   // A hostname with no dot is a local name, not a public site.
   if (!parsed.hostname.includes(".")) return null;
   if (isBlockedHost(parsed.hostname)) return null;
+  if (hasBlockedWord(parsed.toString())) return null;
 
   return parsed.toString();
 }

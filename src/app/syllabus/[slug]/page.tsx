@@ -10,6 +10,7 @@ import {
   type CachedSyllabus,
 } from "@/lib/db/queries/syllabus";
 import { formatDate } from "@/lib/format/deadline";
+import { hasBlockedWord } from "@/lib/sync/links";
 import { SyllabusActions } from "./syllabus-actions";
 import { SyllabusView } from "./syllabus-view";
 
@@ -83,6 +84,9 @@ export default async function SyllabusDetailPage({
 
 function SyllabusBody({ slug, cached }: { slug: string; cached: CachedSyllabus }) {
   const { syllabus, grounded, fetchedAt } = cached;
+  // Filtered at render as well as when gathered: an entry is cached for a
+  // month, and one fetched before the aggregator was blocked can still name it.
+  const sources = syllabus.sources.filter((url) => !hasBlockedWord(url));
   const multiStage = syllabus.stages.length > 1;
   const initials = toInitials(syllabus.examName);
 
@@ -168,7 +172,7 @@ function SyllabusBody({ slug, cached }: { slug: string; cached: CachedSyllabus }
       <SyllabusView syllabus={syllabus} />
 
       {/* Official Sources Card */}
-      {syllabus.sources.length > 0 ? (
+      {sources.length > 0 ? (
         <section className="mt-10">
           <div className="mb-3 flex items-center gap-2.5">
             <span className="h-4.5 w-1 shrink-0 rounded-full bg-brand" aria-hidden="true" />
@@ -177,7 +181,7 @@ function SyllabusBody({ slug, cached }: { slug: string; cached: CachedSyllabus }
             </h2>
           </div>
           <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-xs divide-y divide-line">
-            {syllabus.sources.map((url) => (
+            {sources.map((url) => (
               <a
                 key={url}
                 href={url}

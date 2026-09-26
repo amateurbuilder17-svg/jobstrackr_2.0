@@ -1,6 +1,7 @@
 import { logoUrl } from "@/lib/db/storage";
 import { resolveSalaryRange } from "@/lib/format/salary";
 import type { JobDetail } from "@/lib/db/queries/jobs";
+import { toUrl } from "@/lib/sync/links";
 
 /**
  * schema.org JobPosting for a listing.
@@ -20,6 +21,8 @@ import type { JobDetail } from "@/lib/db/queries/jobs";
  */
 export function jobPostingJsonLd(job: JobDetail, siteUrl: string): Record<string, unknown> {
   const url = `${siteUrl}/jobs/${job.slug}`;
+  // Through `toUrl`, like every link this site emits (`lib/sync/links.ts`).
+  const organizationWebsite = toUrl(job.organization?.website);
   const description =
     job.detail?.description ??
     job.detail?.eligibility_text ??
@@ -84,8 +87,8 @@ export function jobPostingJsonLd(job: JobDetail, siteUrl: string): Record<string
           hiringOrganization: {
             "@type": "Organization",
             name: job.organization.name,
-            ...(job.organization.website
-              ? { url: job.organization.website, sameAs: job.organization.website }
+            ...(organizationWebsite
+              ? { url: organizationWebsite, sameAs: organizationWebsite }
               : {}),
             // The emblem, when one has been resolved for this body. Google
             // shows it beside the listing in the Jobs card, and a card with a

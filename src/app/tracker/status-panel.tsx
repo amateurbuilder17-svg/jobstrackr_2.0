@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { FetchGuardError, guardedFetch } from "@/lib/net/guarded-fetch";
 import { daysUntilFrom, formatDate } from "@/lib/format/deadline";
+import { hasBlockedWord } from "@/lib/sync/links";
 import {
   admitCardDateOf,
   EVENT_LABELS,
@@ -300,6 +301,12 @@ function Summary({
 function Detail({ report }: { report: ExamStatusReport }) {
   const twoPhases = hasSecondPhase(report.report);
   const today = useToday();
+  // Filtered here as well as where they are gathered: a report is cached, and
+  // one written before the aggregator was blocked still carries its chips
+  // (`hasBlockedWord`, `lib/sync/links.ts`).
+  const sources = report.sources.filter(
+    (source) => !hasBlockedWord(source.url) && !hasBlockedWord(source.title),
+  );
 
   return (
     <div className="mt-4.5 flex flex-col gap-4.5">
@@ -400,10 +407,10 @@ function Detail({ report }: { report: ExamStatusReport }) {
         </Section>
       ) : null}
 
-      {report.sources.length > 0 ? (
+      {sources.length > 0 ? (
         <Section title="Official sources">
           <ul className="flex flex-wrap gap-2">
-            {report.sources.map((source) => (
+            {sources.map((source) => (
               <li key={source.url}>
                 <a
                   href={source.url}
@@ -509,7 +516,7 @@ function Fact({
         <Badge tone={tone} className="tabular font-medium shadow-2xs">
           {value}
         </Badge>
-        {href ? (
+        {href && !hasBlockedWord(href) ? (
           <a
             href={href}
             target="_blank"

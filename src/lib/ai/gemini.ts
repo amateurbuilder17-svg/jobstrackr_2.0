@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { StatusSource } from "@/lib/exams/report";
+import { hasBlockedWord } from "@/lib/sync/links";
 import {
   loadApiKeys,
   recordDeadKey,
@@ -180,10 +181,14 @@ function extractSources(data: GeminiResponse): StatusSource[] {
 
   for (const chunk of chunks) {
     const url = chunk.web?.uri;
+    const title = chunk.web?.title?.trim() ?? "Source";
     if (!url || seen.has(url)) continue;
     if (!url.startsWith("https://")) continue;
+    // The URI is Google's redirect wrapper, so the aggregator shows up in the
+    // title — which is the text of the chip a reader would click.
+    if (hasBlockedWord(url) || hasBlockedWord(title)) continue;
     seen.add(url);
-    sources.push({ title: chunk.web?.title?.trim() ?? "Source", url });
+    sources.push({ title, url });
     if (sources.length >= 6) break;
   }
 

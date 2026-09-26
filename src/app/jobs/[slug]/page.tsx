@@ -53,6 +53,7 @@ import { CATEGORY_LABELS } from "@/lib/updates/categories";
 import { NOINDEX_FOLLOW, isJobIndexable } from "@/lib/seo/indexing";
 import { jobPostingJsonLd } from "@/lib/seo/job-jsonld";
 import { breadcrumbJsonLd } from "@/lib/seo/site-jsonld";
+import { toUrl } from "@/lib/sync/links";
 
 /**
  * Job detail.
@@ -222,8 +223,12 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
   // Formatted here rather than inline so the notice above reads as prose.
   const closedOn = formatDate(job.last_date);
 
-  const documents: QuickLink[] = detail?.notification_pdf
-    ? [{ label: "Official notification (PDF)", url: detail.notification_pdf }]
+  // Every address below goes through `toUrl` on its way out. Ingest writes
+  // these through it too, but rows backfilled from the old project never did,
+  // and no link on this site may point at the aggregator (`lib/sync/links.ts`).
+  const notificationPdf = toUrl(detail?.notification_pdf);
+  const documents: QuickLink[] = notificationPdf
+    ? [{ label: "Official notification (PDF)", url: notificationPdf }]
     : [];
 
   return (
@@ -365,8 +370,8 @@ export default async function JobDetailPage({ params }: { params: Promise<{ slug
         jobId={job.id}
         slug={job.slug}
         title={job.title}
-        applyLink={detail?.apply_link ?? null}
-        officialWebsite={detail?.official_website ?? job.organization?.website ?? null}
+        applyLink={toUrl(detail?.apply_link)}
+        officialWebsite={toUrl(detail?.official_website) ?? toUrl(job.organization?.website)}
         lastDate={job.last_date}
         lastDateDisplay={job.last_date_display}
       />
