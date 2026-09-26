@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Archivo, Archivo_Narrow } from "next/font/google";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 import { AppShell } from "@/components/shell/app-shell";
 import { ServiceWorkerRegistration } from "@/components/shell/sw-register";
@@ -115,6 +116,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Last in the body, and `afterInteractive`: the worker install must
             queue behind the page the reader actually asked for. */}
         <ServiceWorkerRegistration />
+        <SpeedInsights />
       </body>
     </html>
   );
