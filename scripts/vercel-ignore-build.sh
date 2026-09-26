@@ -15,6 +15,17 @@ if [ "$VERCEL_ENV" != "production" ]; then
   exit 0
 fi
 
+# A redeploy of the commit that is already live always builds. A push always
+# brings a new commit, so the same commit as last time means someone asked for
+# this deployment — most often to take in an environment variable, which only
+# reaches a deployment when it is built. Without this the diff below is empty
+# and the redeploy is canceled, which is what happened to both redeploys made
+# for the Google Indexing API credentials on 26 Sep 2026.
+if [ -n "$VERCEL_GIT_PREVIOUS_SHA" ] && [ "$VERCEL_GIT_PREVIOUS_SHA" = "$VERCEL_GIT_COMMIT_SHA" ]; then
+  echo "Redeploy of the live commit: building."
+  exit 1
+fi
+
 # Compare against the last deployed commit, not HEAD^: a push of several
 # commits whose last one is scripts-only must still build. If that commit is
 # missing from Vercel's shallow clone, git exits 128 and the build goes ahead,
