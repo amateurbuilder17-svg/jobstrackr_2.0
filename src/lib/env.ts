@@ -24,12 +24,24 @@ import { z } from "zod";
 const url = z.url();
 const nonEmpty = z.string().min(1);
 
+/**
+ * The site's origin, without a trailing slash.
+ *
+ * Every absolute URL the app emits is built as `${site}/path` — the sitemaps,
+ * canonicals in JSON-LD, robots.txt's `Sitemap:` line — so a value saved in
+ * Vercel as `https://www.jobstrackr.in/` would put `//jobs/...` in every one of
+ * them: a second URL for each page, and not the one the canonical names. A
+ * trailing slash is the natural way to type an origin, so it is stripped here
+ * once rather than trusted to be absent.
+ */
+const origin = url.transform((value) => value.replace(/\/+$/, ""));
+
 /* ── Client — safe to ship to the browser ──────────────────────────────── */
 
 const clientSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: url,
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: nonEmpty,
-  NEXT_PUBLIC_SITE_URL: url,
+  NEXT_PUBLIC_SITE_URL: origin,
 
   // The Google OAuth client ID, present so the browser can ask Google for an
   // ID token directly instead of being bounced through Supabase's auth server.

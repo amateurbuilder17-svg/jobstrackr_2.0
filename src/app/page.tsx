@@ -32,9 +32,14 @@ import { env } from "@/lib/env";
 import { websiteJsonLd } from "@/lib/seo/site-jsonld";
 
 export const metadata = {
-  title: "Jobstrackr — Track Indian Government Exams & Jobs",
+  // Written in the words people search with, not the product's own: "govt
+  // jobs" and "sarkari naukri" are how this audience types the query, and the
+  // title is what Google matches and shows. The brand goes last, where it costs
+  // nothing if the result is truncated. Not templated — the layout's template
+  // only applies to child segments, so this string is the whole `<title>`.
+  title: "Latest Govt Jobs & Sarkari Naukri Notifications — JobsTrackr",
   description:
-    "Track Indian government jobs and competitive exams in one place. See deadlines, admit cards, exam progress and what to do next.",
+    "Latest government job notifications in India: SSC, UPSC, banking, railway, defence, police and state PSC vacancies with last dates, eligibility, fees and the official apply link.",
   // The apex 308s here, and this is the page Google reads to resolve the
   // site-wide favicon — so it is the one page whose canonical matters most.
   alternates: { canonical: "/" },
@@ -82,7 +87,7 @@ export default function Home() {
             first card off a 375×812 screen. `sr-only` clips rather than
             `display: none`, so it is read by assistive technology and counted
             by crawlers; the same pattern, for the same reason, as /jobs. */}
-        <h1 className="sr-only">Government jobs and exam updates in India</h1>
+        <h1 className="sr-only">Latest government jobs and exam updates in India</h1>
 
         <HomeSearchProvider>
           <HomeSearchBar />

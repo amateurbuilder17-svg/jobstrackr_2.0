@@ -15,9 +15,10 @@ import {
 } from "@/lib/jobs/filters";
 
 export const metadata = {
-  title: "Government jobs",
+  // The search phrase, not the tab name. See the home page's title.
+  title: "Latest Government Jobs — Open Sarkari Naukri Vacancies",
   description:
-    "Browse every open government job notification, with deadlines, vacancies and eligibility.",
+    "Every government job notification open for applications in India, closing soonest first: vacancies, eligibility, age limit, fee and last date for SSC, railway, bank, defence and state jobs.",
   alternates: { canonical: "/jobs" },
 };
 
@@ -55,7 +56,7 @@ export default function JobsPage({ searchParams }: { searchParams: SearchParams 
           still giving the page exactly one level-one heading. Without it this
           route had none at all on desktop: the top bar's title is `lg:hidden`,
           so above `lg` there was nothing for a screen reader to land on. */}
-      <h1 className="sr-only">Government jobs</h1>
+      <h1 className="sr-only">Latest government jobs</h1>
 
       {/* Search lives in the top bar on this route — see `TopBar`; only the
           filter row is here. Suspense because it reads useSearchParams, which
@@ -63,6 +64,11 @@ export default function JobsPage({ searchParams }: { searchParams: SearchParams 
       <Suspense fallback={<div className="h-10" />}>
         <FilterBar groups={FILTER_GROUPS} />
       </Suspense>
+
+      {/* Each card's title is an `<h3>`, and without this the outline went
+          straight from the `<h1>` to fifty of them. Hidden for the same reason
+          as the `<h1>`. */}
+      <h2 className="sr-only">Open notifications</h2>
 
       <Suspense fallback={<ResultsSkeleton />}>
         <Results searchParams={searchParams} />

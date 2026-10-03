@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { runInNewContext } from "node:vm";
 
 import { describe, expect, it } from "vitest";
 
@@ -116,5 +117,70 @@ describe("launch splash", () => {
   it("holds the dismissed state with a forwards fill", () => {
     expect(css).toMatch(/animation:\s*splash-dismiss[^;]*forwards/);
     expect(css).toMatch(/100%\s*\{[^}]*visibility:\s*hidden/);
+  });
+
+  /**
+   * The gate's script, run against a fake page. It is a string inlined into
+   * the document, so no type checker or import reaches it, and the cases below
+   * are the whole of its contract: a launch gets the splash, a crawler and a
+   * visitor from a search result do not, and nobody gets it twice.
+   */
+  describe("who sees it", () => {
+    const script = /const SPLASH_SCRIPT = `([^`]+)`/.exec(gate)?.[1] ?? "";
+
+    function run({
+      userAgent = "Mozilla/5.0 (Linux; Android 14) Chrome/130.0 Mobile Safari/537.36",
+      referrer = "",
+      seen = false,
+    }: { userAgent?: string; referrer?: string; seen?: boolean } = {}) {
+      const storage = new Map<string, string>(seen ? [["jt-splash", "1"]] : []);
+      const dataset: Record<string, string> = {};
+      runInNewContext(script, {
+        document: { documentElement: { dataset }, referrer },
+        navigator: { userAgent, webdriver: false },
+        location: { origin: "https://www.jobstrackr.in" },
+        sessionStorage: {
+          getItem: (key: string) => storage.get(key) ?? null,
+          setItem: (key: string, value: string) => storage.set(key, value),
+        },
+        setTimeout: () => 0,
+      });
+      return { shown: dataset.splash === "show", marked: storage.has("jt-splash") };
+    }
+
+    it("is extracted from the gate", () => {
+      expect(script).toContain("sessionStorage");
+    });
+
+    it("plays on a launch with no referrer", () => {
+      expect(run()).toEqual({ shown: true, marked: true });
+    });
+
+    it("plays after a link inside the site", () => {
+      expect(run({ referrer: "https://www.jobstrackr.in/jobs" }).shown).toBe(true);
+    });
+
+    it("does not play twice in one session", () => {
+      expect(run({ seen: true }).shown).toBe(false);
+    });
+
+    it.each([
+      "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X) Chrome/130.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+      "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm) Chrome/130.0 Safari/537.36",
+      "Mozilla/5.0 (Linux; Android 11; moto g power (2022)) Chrome/130.0 Mobile Safari/537.36 Chrome-Lighthouse",
+    ])("does not cover the page for %s", (userAgent) => {
+      expect(run({ userAgent })).toEqual({ shown: false, marked: true });
+    });
+
+    it("does not stand between a search result and the page it promised", () => {
+      expect(run({ referrer: "https://www.google.com/" })).toEqual({
+        shown: false,
+        marked: true,
+      });
+    });
+
+    it("treats a look-alike host as another site", () => {
+      expect(run({ referrer: "https://www.jobstrackr.in.example.com/" }).shown).toBe(false);
+    });
   });
 });

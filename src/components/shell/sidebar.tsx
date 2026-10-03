@@ -66,9 +66,14 @@ export function Sidebar() {
         <MenuScope>
           {MENU_SECTIONS.filter((s) => s.title !== "Quick navigation").map((section) => (
             <section key={section.title} className="mt-6">
-              <h2 className="mb-1.5 px-3 text-[0.6875rem] font-semibold tracking-[0.08em] text-ink-3 uppercase">
+              {/* A label, not an `<h2>`. The sidebar comes first in the DOM on
+                  every route, so as headings these were the opening of every
+                  page's outline: "Smart tools", "Support", "Appearance", then
+                  the page's own `<h1>`. A crawler reads the outline to learn
+                  what a page is about, and a job page is not about the menu. */}
+              <p className="mb-1.5 px-3 text-[0.6875rem] font-semibold tracking-[0.08em] text-ink-3 uppercase">
                 {section.title}
-              </h2>
+              </p>
               <ul className="flex flex-col gap-px">
                 {section.items.map((item) => (
                   <li
@@ -84,9 +89,9 @@ export function Sidebar() {
 
           {/* ── Appearance ──────────────────────────────────────────────── */}
           <section className="mt-6">
-            <h2 className="mb-1.5 px-3 text-[0.6875rem] font-semibold tracking-[0.08em] text-ink-3 uppercase">
+            <p className="mb-1.5 px-3 text-[0.6875rem] font-semibold tracking-[0.08em] text-ink-3 uppercase">
               Appearance
-            </h2>
+            </p>
             <div className="flex items-center justify-between rounded-lg px-3 py-1.5">
               <span className="text-[0.8125rem] font-medium text-ink">Theme</span>
               <ThemeToggle />

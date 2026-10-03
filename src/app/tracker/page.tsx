@@ -13,7 +13,9 @@ import { todayInIndia } from "@/lib/format/deadline";
 import { TrackerView } from "./tracker-view";
 
 export const metadata: Metadata = {
-  title: "My Exams · Jobstrackr",
+  // The root layout's template appends "· JobsTrackr"; naming it here as well
+  // put the brand in the tab twice.
+  title: "My Exams",
   description:
     "Track Indian government jobs and competitive exams in one place. See deadlines, admit cards, exam progress and what to do next.",
   robots: { index: false, follow: false },

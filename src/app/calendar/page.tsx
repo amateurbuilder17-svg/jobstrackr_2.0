@@ -9,7 +9,8 @@ import { todayInIndia } from "@/lib/format/deadline";
 import { CalendarView } from "./calendar-view";
 
 export const metadata: Metadata = {
-  title: "Your calendar · Jobstrackr",
+  // The root layout's template adds the brand; see /tracker.
+  title: "Your calendar",
   description:
     "Every date that matters for the exams you have saved or are tracking — applications, admit cards, exam days and results, in one month view.",
   // Personal, so it leaves the index. It used to be a public page listing every

@@ -47,6 +47,12 @@ describe("client environment", () => {
     await expect(loadEnv()).rejects.toThrow(/NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/);
   });
 
+  it("strips a trailing slash from the site URL, so paths never double it", async () => {
+    stub({ ...VALID_CLIENT, NEXT_PUBLIC_SITE_URL: "https://example.com/" });
+    const { env } = await loadEnv();
+    expect(env.NEXT_PUBLIC_SITE_URL).toBe("https://example.com");
+  });
+
   it("rejects a malformed URL rather than accepting a typo", async () => {
     stub({ ...VALID_CLIENT, NEXT_PUBLIC_SUPABASE_URL: "not-a-url" });
     await expect(loadEnv()).rejects.toThrow(/NEXT_PUBLIC_SUPABASE_URL/);
