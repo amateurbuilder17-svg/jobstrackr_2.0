@@ -50,6 +50,9 @@ export default function UpdatesPage({ searchParams }: { searchParams: SearchPara
         <FilterChips param="category" label="Filter by type" options={CATEGORY_FILTERS} />
       </Suspense>
 
+      {/* Between the `<h1>` and the cards' `<h3>` titles; see /jobs. */}
+      <h2 className="sr-only">Latest updates</h2>
+
       <Suspense fallback={<ResultsSkeleton />}>
         <Results searchParams={searchParams} />
       </Suspense>

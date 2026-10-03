@@ -42,6 +42,14 @@ export const metadata: Metadata = {
   applicationName: "JobsTrackr",
   formatDetection: { telephone: false },
   /**
+   * The large card on X, Telegram and LinkedIn. Without `card` X falls back to
+   * `summary`, a thumbnail beside the title, and the 1200×630 share card from
+   * `opengraph-image.tsx` is shrunk to a square. The image itself is inherited
+   * from `og:image`, which every one of those readers falls back to.
+   */
+  twitter: { card: "summary_large_image" },
+  verification: siteVerification(),
+  /**
    * iOS standalone behaviour.
    *
    * `capable` is what makes an installed icon open without Safari's chrome.
@@ -62,6 +70,31 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
   },
 };
+
+/**
+ * Ownership proofs for Google Search Console and Bing Webmaster Tools.
+ *
+ * Read from the environment at build time, so each is one Vercel variable and a
+ * redeploy, with no code change. Unset, no tag is emitted: an empty
+ * `content=""` proves nothing and is one more thing to explain.
+ *
+ * Neither is needed if the property was verified another way. A Search Console
+ * *domain* property is verified by DNS and ignores this tag entirely; Bing
+ * Webmaster Tools can import a verified Search Console site instead. The tags
+ * are for a URL-prefix property, or for when DNS is not yours to edit.
+ *
+ * Bing matters more here than its search share suggests: ChatGPT search and
+ * Copilot answer from Bing's index.
+ */
+function siteVerification(): Metadata["verification"] {
+  const google = process.env.GOOGLE_SITE_VERIFICATION?.trim();
+  const bing = process.env.BING_SITE_VERIFICATION?.trim();
+
+  return {
+    ...(google ? { google } : {}),
+    ...(bing ? { other: { "msvalidate.01": bing } } : {}),
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: [
