@@ -84,6 +84,11 @@ export function TrackerView({
 
   // The provider's value wins once it exists, so a tab left open overnight
   // regroups at IST midnight along with the countdowns inside the cards.
+  //
+  // The cards are handed this value rather than calling `useToday` again. On
+  // its own that is `null` through the server render and hydration, and a card
+  // with no date picks a different milestone: SSC CGL painted its Tier 1 exam,
+  // already sat, then jumped to the Tier 1 result once the page hydrated.
   const clientToday = useToday();
   const today = clientToday ?? serverToday;
 
@@ -129,7 +134,7 @@ export function TrackerView({
 
       {/* Main Attempts List with Category Sections & Accordion */}
       <div className="mt-6">
-        <AttemptList items={items} counts={counts} />
+        <AttemptList items={items} counts={counts} today={today} />
       </div>
 
       {/* Verified Commission Signal Footnote */}

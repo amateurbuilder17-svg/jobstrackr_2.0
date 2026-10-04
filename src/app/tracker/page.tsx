@@ -83,9 +83,9 @@ async function Tracker() {
       attempts={attempts}
       reports={byKey}
       signals={signalsByKey}
-      // Computed here rather than read from the client clock, so the grouping
-      // the server renders is the grouping that hydrates. `useToday` still
-      // drives the live countdowns, and takes over at IST midnight.
+      // Computed here rather than read from the client clock, so the groups
+      // and milestones the server renders are the ones that hydrate. The
+      // client clock takes over from there, and moves them at IST midnight.
       today={todayInIndia()}
     />
   );

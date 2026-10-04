@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { CheckIcon, ChevronRightIcon, ExternalLinkIcon, SparkIcon } from "@/components/icons";
-import { useToday } from "@/components/jobs/today-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -28,6 +27,8 @@ interface Props {
   attemptId: string;
   name: string;
   initial: ExamStatusReport | null;
+  /** The card's today, so the timeline counts from the same day as its milestone. */
+  today: string;
 }
 
 /** Matches `COOLDOWN_SECONDS` in the route. The two must not drift apart. */
@@ -53,7 +54,7 @@ function shortenPhaseName(name: string): string {
   return name;
 }
 
-export function StatusPanel({ attemptId, name, initial }: Props) {
+export function StatusPanel({ attemptId, name, initial, today }: Props) {
   const router = useRouter();
   // What this panel's own Refresh brought back. The server's copy (`initial`)
   // arrives fresh on every render, and whichever is newer is shown: a second
@@ -196,7 +197,7 @@ export function StatusPanel({ attemptId, name, initial }: Props) {
         </p>
       )}
 
-      {expanded && report ? <Detail report={report} /> : null}
+      {expanded && report ? <Detail report={report} today={today} /> : null}
 
       <div className="mt-4 flex flex-wrap items-center gap-2.5">
         <Button
@@ -300,9 +301,8 @@ function Summary({
 
 /* ── Expanded ──────────────────────────────────────────────────────────── */
 
-function Detail({ report }: { report: ExamStatusReport }) {
+function Detail({ report, today }: { report: ExamStatusReport; today: string }) {
   const twoPhases = hasSecondPhase(report.report);
-  const today = useToday();
   // Filtered here as well as where they are gathered: a report is cached, and
   // one written before the aggregator was blocked still carries its chips
   // (`hasBlockedWord`, `lib/sync/links.ts`).
@@ -326,7 +326,7 @@ function Detail({ report }: { report: ExamStatusReport }) {
               .sort((a, b) => a.date.localeCompare(b.date))
               .filter((ev, i, arr) => i === 0 || ev.date >= (arr[i - 1]?.date ?? ev.date))
               .map((event) => {
-                const days = today === null ? null : daysUntilFrom(today, event.date);
+                const days = daysUntilFrom(today, event.date);
                 const ahead = days !== null && days >= 0;
 
                 return (

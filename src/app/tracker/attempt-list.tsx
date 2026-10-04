@@ -11,7 +11,6 @@ import {
   ChevronRightIcon,
   TrackerIcon,
 } from "@/components/icons";
-import { useToday } from "@/components/jobs/today-provider";
 import { Select } from "@/components/ui/field";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { EMPTY_FORM_STATE } from "@/lib/auth/form-state";
@@ -40,10 +39,13 @@ const SECTIONS: { key: ExamCategory; title: string; quiet?: boolean }[] = [
 export function AttemptList({
   items,
   counts,
+  today,
 }: {
   /** Already grouped and ordered — see `categorize.ts`. */
   items: CategorizedAttempt[];
   counts: Record<ExamCategory, number>;
+  /** The day `items` was grouped on, so each card counts from it too. */
+  today: string;
 }) {
   const [filter, setFilter] = useState<FilterKey>("all");
   /**
@@ -112,6 +114,7 @@ export function AttemptList({
                     key={attempt.id}
                     attempt={attempt}
                     report={report}
+                    today={today}
                     quiet={section.quiet}
                     expanded={!collapsedIds.has(attempt.id)}
                     onToggle={() => {
@@ -135,12 +138,14 @@ export function AttemptList({
 function ExamCardItem({
   attempt,
   report,
+  today,
   expanded,
   onToggle,
   quiet,
 }: {
   attempt: ExamAttempt;
   report: ExamStatusReport | null;
+  today: string;
   expanded: boolean;
   onToggle: () => void;
   quiet?: boolean | undefined;
@@ -168,7 +173,6 @@ function ExamCardItem({
   // exam picked from the list, or Track pressed on a job page.
   const logo = attempt.exam?.organization?.logo_path ?? attempt.job?.organization?.logo_path;
 
-  const today = useToday();
   const stages = useMemo(
     () => computeStages(status, attempt, report),
     [status, attempt, report],
@@ -406,7 +410,7 @@ function ExamCardItem({
 
             {/* Official AI Status Probe / Live Intelligence */}
             <section className="border-t border-border/70 pt-3.5 xl:col-start-1 xl:row-[1/span_5] xl:border-t-0 xl:pt-0">
-              <StatusPanel attemptId={attempt.id} name={name} initial={report} />
+              <StatusPanel attemptId={attempt.id} name={name} initial={report} today={today} />
             </section>
 
             {/* What to do next Recommendation Box */}
