@@ -124,6 +124,12 @@ export async function upsertEducationAction(
     boardUniversity: formData.get("boardUniversity"),
     yearOfPassing: formData.get("yearOfPassing"),
     percentage: formData.get("percentage"),
+    rollNumber: formData.get("rollNumber"),
+    resultDate: formData.get("resultDate"),
+    subjects: formData.get("subjects"),
+    marksObtained: formData.get("marksObtained"),
+    maxMarks: formData.get("maxMarks"),
+    cgpa: formData.get("cgpa"),
   });
 
   if (!parsed.success) return { ok: false, errors: fieldErrors(parsed.error) };
@@ -139,6 +145,12 @@ export async function upsertEducationAction(
       board_university: e.boardUniversity,
       year_of_passing: e.yearOfPassing,
       percentage: e.percentage,
+      roll_number: e.rollNumber,
+      result_date: e.resultDate,
+      subjects: e.subjects,
+      marks_obtained: e.marksObtained,
+      max_marks: e.maxMarks,
+      cgpa: e.cgpa,
     },
     // Matches the `unique (user_id, level)` constraint, so re-submitting a
     // level edits that record rather than failing on the duplicate.

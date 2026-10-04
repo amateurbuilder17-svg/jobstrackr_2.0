@@ -97,6 +97,62 @@ describe("toSuggestions", () => {
   });
 });
 
+describe("toSuggestions · marksheet details", () => {
+  const read = (raw: Record<string, unknown>) =>
+    Object.fromEntries(toSuggestions(raw, empty).map((s) => [s.column, s.value]));
+
+  it("keeps the roll number, result date and subjects it used to drop", () => {
+    expect(
+      read({
+        roll_number: "2104571",
+        result_date: "31/07/2021",
+        subjects: "English, Hindi, Mathematics",
+        marks_obtained: "452",
+        maximum_marks: "500",
+        cgpa: "9.2",
+      }),
+    ).toEqual({
+      roll_number: "2104571",
+      result_date: "2021-07-31",
+      subjects: "English, Hindi, Mathematics",
+      marks_obtained: 452,
+      max_marks: 500,
+      cgpa: 9.2,
+    });
+  });
+
+  it("files every marksheet detail under education", () => {
+    const suggestions = toSuggestions(
+      { roll_number: "A12", result_date: "2021-07-31", subjects: "Physics" },
+      empty,
+    );
+    expect(suggestions.every((s) => s.education)).toBe(true);
+  });
+
+  it("does not turn a bare year into a result date", () => {
+    // `toIsoDate` would make it 1 January, and a form would be given a
+    // declaration date nobody printed. The year belongs in year_of_passing.
+    expect(read({ result_date: "2021" })).toEqual({});
+  });
+
+  it("drops a result date outside what the column accepts", () => {
+    expect(read({ result_date: "1901-05-01" })).toEqual({});
+  });
+
+  it("drops a roll number too long to be one", () => {
+    expect(read({ roll_number: "1".repeat(41) })).toEqual({});
+  });
+
+  it("reads marks with thousands separators, and refuses nonsense", () => {
+    expect(read({ marks_obtained: "1,045", maximum_marks: "1,200" })).toEqual({
+      marks_obtained: 1045,
+      max_marks: 1200,
+    });
+    expect(read({ marks_obtained: "-4" })).toEqual({});
+    expect(read({ cgpa: "78.5" })).toEqual({});
+  });
+});
+
 describe("toIsoDate", () => {
   it("reads day-first, which is what Indian documents use", () => {
     // The one that matters: `new Date("01/02/2003")` is 1 February in some

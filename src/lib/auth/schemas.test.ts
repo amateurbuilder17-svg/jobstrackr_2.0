@@ -156,6 +156,12 @@ describe("education", () => {
     boardUniversity: "",
     yearOfPassing: "",
     percentage: "",
+    rollNumber: "",
+    resultDate: "",
+    subjects: "",
+    marksObtained: "",
+    maxMarks: "",
+    cgpa: "",
   };
 
   it("accepts a future passing year within the six-year window", () => {
@@ -188,6 +194,59 @@ describe("education", () => {
 
   it("rejects a level outside the enum", () => {
     expect(educationSchema.safeParse({ ...BASE, level: "postdoc" }).success).toBe(false);
+  });
+
+  it("turns blank marksheet details into nulls", () => {
+    const result = educationSchema.safeParse(BASE);
+    expect(result.success).toBe(true);
+    expect(result.data).toMatchObject({
+      rollNumber: null,
+      resultDate: null,
+      subjects: null,
+      marksObtained: null,
+      maxMarks: null,
+      cgpa: null,
+    });
+  });
+
+  it("accepts a full set of marksheet details", () => {
+    const result = educationSchema.safeParse({
+      ...BASE,
+      rollNumber: " 2104571 ",
+      resultDate: "2021-07-31",
+      subjects: "English, Hindi, Mathematics, Science, Social Science",
+      marksObtained: "452",
+      maxMarks: "500",
+      cgpa: "9.2",
+    });
+    expect(result.success).toBe(true);
+    expect(result.data).toMatchObject({
+      rollNumber: "2104571",
+      resultDate: "2021-07-31",
+      marksObtained: 452,
+      maxMarks: 500,
+      cgpa: 9.2,
+    });
+  });
+
+  it("refuses more marks than the maximum, which the column check would", () => {
+    expect(
+      educationSchema.safeParse({ ...BASE, marksObtained: "520", maxMarks: "500" }).success,
+    ).toBe(false);
+  });
+
+  it.each(["11", "-0.5"])("rejects CGPA %s", (cgpa) => {
+    expect(educationSchema.safeParse({ ...BASE, cgpa }).success).toBe(false);
+  });
+
+  it.each(["1949-12-31", "31/07/2021"])("rejects result date %s", (resultDate) => {
+    expect(educationSchema.safeParse({ ...BASE, resultDate }).success).toBe(false);
+  });
+
+  it("rejects a roll number longer than the column allows", () => {
+    expect(educationSchema.safeParse({ ...BASE, rollNumber: "1".repeat(41) }).success).toBe(
+      false,
+    );
   });
 });
 

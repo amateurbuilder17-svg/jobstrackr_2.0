@@ -24,7 +24,16 @@
  */
 
 export type FieldKind =
-  "text" | "date" | "number" | "year" | "gender" | "category" | "qualification";
+  | "text"
+  | "date"
+  | "fullDate"
+  | "number"
+  | "marks"
+  | "cgpa"
+  | "year"
+  | "gender"
+  | "category"
+  | "qualification";
 
 export interface FieldSpec {
   /** The profiles column, or an education column when `education` is set. */
@@ -33,6 +42,8 @@ export interface FieldSpec {
   kind: FieldKind;
   /** Education fields go to `education_qualifications`, not `profiles`. */
   education?: boolean;
+  /** For text: tighter than the default 300, to match a column check. */
+  maxLength?: number;
 }
 
 /**
@@ -126,6 +137,33 @@ export const FIELD_MAP: Record<string, FieldSpec> = {
     education: true,
   },
   percentage: { column: "percentage", label: "Percentage", kind: "number", education: true },
+  roll_number: {
+    column: "roll_number",
+    label: "Roll number",
+    kind: "text",
+    education: true,
+    maxLength: 40,
+  },
+  result_date: {
+    column: "result_date",
+    label: "Date of result",
+    kind: "fullDate",
+    education: true,
+  },
+  subjects: { column: "subjects", label: "Subjects", kind: "text", education: true },
+  marks_obtained: {
+    column: "marks_obtained",
+    label: "Marks obtained",
+    kind: "marks",
+    education: true,
+  },
+  maximum_marks: {
+    column: "max_marks",
+    label: "Maximum marks",
+    kind: "marks",
+    education: true,
+  },
+  cgpa: { column: "cgpa", label: "CGPA", kind: "cgpa", education: true },
 };
 
 /** The old app's qualification words, mapped onto this schema's enum. */
@@ -190,7 +228,7 @@ export function toSuggestions(
     // reason a model inventing `"salary": "50000"` cannot reach a profile.
     if (!spec) continue;
 
-    const value = coerce(rawValue, spec.kind);
+    const value = coerce(rawValue, spec.kind, spec.maxLength);
     if (value === null) continue;
 
     const currentValue = current[spec.column] ?? null;
@@ -211,7 +249,7 @@ export function toSuggestions(
   return out;
 }
 
-function coerce(raw: unknown, kind: FieldKind): string | number | null {
+function coerce(raw: unknown, kind: FieldKind, maxLength = 300): string | number | null {
   if (raw === null || raw === undefined) return null;
 
   // Narrowed to primitives before stringifying. A model that returns an object
@@ -231,7 +269,7 @@ function coerce(raw: unknown, kind: FieldKind): string | number | null {
     case "text":
       // A 500-character "address" is the model having transcribed the whole
       // document into one field. Offering it would be worse than dropping it.
-      return text.length <= 300 ? text : null;
+      return text.length <= maxLength ? text : null;
 
     case "number": {
       // "78.5%" and "78.5 %" both mean 78.5.
@@ -242,6 +280,31 @@ function coerce(raw: unknown, kind: FieldKind): string | number | null {
 
     case "date":
       return toIsoDate(text);
+
+    case "fullDate": {
+      // A date somebody will copy into a form as "the date the result was
+      // declared". A bare year is not that date, and `toIsoDate` would turn it
+      // into 1 January — which is `year_of_passing`'s job, not this field's.
+      if (/^(19|20)\d{2}$/.test(text)) return null;
+      const iso = toIsoDate(text);
+      if (!iso) return null;
+      const yr = Number(iso.slice(0, 4));
+      // Matches `education_result_date_sane`, so an accepted value cannot make
+      // the whole education save fail.
+      return yr >= 1950 && yr <= new Date().getUTCFullYear() + 1 ? iso : null;
+    }
+
+    case "marks": {
+      const n = Number.parseFloat(text.replace(/[,\s]/g, ""));
+      if (!Number.isFinite(n) || n < 0 || n >= 100000) return null;
+      return n;
+    }
+
+    case "cgpa": {
+      const n = Number.parseFloat(text.replace(/\s/g, ""));
+      if (!Number.isFinite(n) || n < 0 || n > 10) return null;
+      return n;
+    }
 
     case "year": {
       const iso = toIsoDate(text);

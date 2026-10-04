@@ -227,17 +227,37 @@ async function Details() {
                     </span>
                   ) : null}
                 </div>
-                <CopyField label="Discipline" value={row.discipline} />
-                <CopyField label="Institution" value={row.institution} />
+                <CopyField
+                  label={row.level === "class_12" ? "Stream" : "Discipline"}
+                  value={row.discipline}
+                />
+                <CopyField label={institutionLabel(row.level)} value={row.institution} />
                 <CopyField label="Board / University" value={row.board_university} />
+                {/* The rest is shown only when known: most rows typed in by hand
+                    have none of it, and five empty rows per level would bury
+                    the ones that are filled. */}
+                {row.roll_number ? (
+                  <CopyField label="Roll number" value={row.roll_number} />
+                ) : null}
                 <CopyField
                   label="Year of passing"
                   value={row.year_of_passing === null ? null : String(row.year_of_passing)}
                 />
+                {row.result_date ? (
+                  <CopyField label="Date of result" value={format(row.result_date, true)} />
+                ) : null}
+                {row.subjects ? <CopyField label="Subjects" value={row.subjects} /> : null}
+                {row.marks_obtained !== null ? (
+                  <CopyField label="Marks obtained" value={String(row.marks_obtained)} />
+                ) : null}
+                {row.max_marks !== null ? (
+                  <CopyField label="Maximum marks" value={String(row.max_marks)} />
+                ) : null}
                 <CopyField
                   label="Percentage / Score"
                   value={row.percentage === null ? null : String(row.percentage)}
                 />
+                {row.cgpa !== null ? <CopyField label="CGPA" value={String(row.cgpa)} /> : null}
               </div>
             ))}
           </div>
@@ -273,6 +293,13 @@ async function Details() {
 function qualificationLabel(level: string): string {
   const labels: Record<string, string> = QUALIFICATION_LABELS;
   return labels[level] ?? level;
+}
+
+/** What a form calls the place, which depends on the level. */
+function institutionLabel(level: string): string {
+  if (level === "class_10" || level === "class_12") return "School";
+  if (level === "iti" || level === "diploma") return "Institute";
+  return "College / Institute";
 }
 
 /** Dates as a person writes them; everything else as stored. */
