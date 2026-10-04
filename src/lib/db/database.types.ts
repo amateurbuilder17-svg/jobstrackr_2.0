@@ -132,36 +132,54 @@ export type Database = {
       education_qualifications: {
         Row: {
           board_university: string | null
+          cgpa: number | null
           created_at: string
           discipline: string | null
           id: string
           institution: string | null
           level: Database["public"]["Enums"]["qualification_level"]
+          marks_obtained: number | null
+          max_marks: number | null
           percentage: number | null
+          result_date: string | null
+          roll_number: string | null
+          subjects: string | null
           updated_at: string
           user_id: string
           year_of_passing: number | null
         }
         Insert: {
           board_university?: string | null
+          cgpa?: number | null
           created_at?: string
           discipline?: string | null
           id?: string
           institution?: string | null
           level: Database["public"]["Enums"]["qualification_level"]
+          marks_obtained?: number | null
+          max_marks?: number | null
           percentage?: number | null
+          result_date?: string | null
+          roll_number?: string | null
+          subjects?: string | null
           updated_at?: string
           user_id: string
           year_of_passing?: number | null
         }
         Update: {
           board_university?: string | null
+          cgpa?: number | null
           created_at?: string
           discipline?: string | null
           id?: string
           institution?: string | null
           level?: Database["public"]["Enums"]["qualification_level"]
+          marks_obtained?: number | null
+          max_marks?: number | null
           percentage?: number | null
+          result_date?: string | null
+          roll_number?: string | null
+          subjects?: string | null
           updated_at?: string
           user_id?: string
           year_of_passing?: number | null

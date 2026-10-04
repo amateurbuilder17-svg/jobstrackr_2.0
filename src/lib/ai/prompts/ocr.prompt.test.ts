@@ -18,8 +18,8 @@ import { DOCUMENT_TYPES, OCR_FALLBACK_PROMPT, OCR_PROMPTS } from "./ocr";
  */
 const PINNED: Record<string, string> = {
   identity_card: "c7eea66ac99131623dd1413197680696e6519d22ae83174143b284dbdb93eae2",
-  marksheet: "bdec17bc8b98b7beaca9b0fb407f14a27c4ee1ee4d38c86c4661d43278baaf23",
-  certificate: "d27d8c3a86c1952a5e491f8b6e0cc7676276736d0a955ea9d957cc474fc2b4a0",
+  marksheet: "f505aaffe26f510366803b6c2cdc2285fce06aad298149d688ce381805d5ec15",
+  certificate: "ec67190b1cbcc62ca27a90f337d29c0de6310bdd4cec0ba76cc0ab00fc0d7cec",
   caste_certificate: "3b4c17a655c94eee600b5c0048961be4c8bf6cb5617a726f195c5ad91a0bb5b7",
   reservation_document: "bd6a082c9e5127ca7f92bf5772495e66c988cdf252cfbdcfef6256aeb300d620",
 };
@@ -54,6 +54,8 @@ const PROMISED_KEYS: Record<string, string[]> = {
     "qualification_type",
     "qualification_name",
     "date_of_passing",
+    "result_date",
+    "subjects",
     "marks_obtained",
     "maximum_marks",
     "percentage",
@@ -70,6 +72,7 @@ const PROMISED_KEYS: Record<string, string[]> = {
     "qualification_type",
     "qualification_name",
     "date_of_passing",
+    "result_date",
   ],
   caste_certificate: [
     "full_name",

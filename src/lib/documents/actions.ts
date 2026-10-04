@@ -209,19 +209,26 @@ export async function acceptFieldsAction(
   }
 
   if (Object.keys(educationPatch).length > 0) {
-    const level = (educationPatch.level as string) || "bachelor";
-    const { error } = await db.from("education_qualifications").upsert(
-      {
-        user_id: user.id,
-        level: level as never,
-        discipline: (educationPatch.discipline as string | undefined) ?? null,
-        institution: (educationPatch.institution as string | undefined) ?? null,
-        board_university: (educationPatch.board_university as string | undefined) ?? null,
-        year_of_passing: (educationPatch.year_of_passing as number | undefined) ?? null,
-        percentage: (educationPatch.percentage as number | undefined) ?? null,
-      },
-      { onConflict: "user_id,level" },
-    );
+    const { level: chosenLevel, ...rest } = educationPatch;
+    const level = (chosenLevel as string | undefined) ?? "bachelor";
+
+    // A swapped pair from the model would trip `education_marks_sane` and lose
+    // every other accepted field with it. Neither number is trustworthy then.
+    if (
+      typeof rest.marks_obtained === "number" &&
+      typeof rest.max_marks === "number" &&
+      rest.marks_obtained > rest.max_marks
+    ) {
+      delete rest.marks_obtained;
+      delete rest.max_marks;
+    }
+
+    // Only the accepted columns. An upsert writes every key it is given, so
+    // spelling out the rest as null would wipe the institution somebody typed
+    // in by hand because they ticked only "Percentage" on a scan.
+    const { error } = await db
+      .from("education_qualifications")
+      .upsert({ ...rest, user_id: user.id, level } as never, { onConflict: "user_id,level" });
     if (error) return { ok: false, message: "Could not save education details." };
   }
 

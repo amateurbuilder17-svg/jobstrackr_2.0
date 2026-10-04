@@ -48,6 +48,8 @@ Use null for fields not found.`,
 - Qualification Type (determine: 10th, 12th, graduation, post_graduation, diploma)
 - Qualification Name (e.g., B.Tech, B.Sc, MBA, etc. if applicable)
 - Date/Year of Passing (YYYY-MM-DD or YYYY-01-01)
+- Date of Result Declaration (YYYY-MM-DD), only if a full date is printed on the document
+- Subjects (as printed, comma-separated)
 - Marks Obtained, Maximum Marks, Percentage, CGPA
 
 Return ONLY JSON:
@@ -62,6 +64,8 @@ Return ONLY JSON:
   "qualification_type": "",
   "qualification_name": "",
   "date_of_passing": "",
+  "result_date": "",
+  "subjects": "",
   "marks_obtained": null,
   "maximum_marks": null,
   "percentage": null,
@@ -75,6 +79,7 @@ Use null for fields not found. qualification_type MUST be one of: 10th, 12th, gr
 - Qualification Type (determine: 10th, 12th, graduation, post_graduation, diploma)
 - Qualification Name (e.g., B.Tech, B.Sc, MBA, etc. if applicable)
 - Date/Year of Passing (YYYY-MM-DD or YYYY-01-01)
+- Date of Result Declaration (YYYY-MM-DD), only if a full date is printed on the document
 
 Return ONLY JSON:
 {
@@ -87,7 +92,8 @@ Return ONLY JSON:
   "board_university": "",
   "qualification_type": "",
   "qualification_name": "",
-  "date_of_passing": ""
+  "date_of_passing": "",
+  "result_date": ""
 }
 Use null for fields not found. qualification_type MUST be one of: 10th, 12th, graduation, post_graduation, diploma, other.`,
 

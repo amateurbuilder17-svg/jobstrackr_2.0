@@ -110,6 +110,96 @@ export function EducationSection({ education }: { education: EducationRow[] }) {
           </Field>
         </div>
 
+        {/* Collapsed: the matcher needs none of these, but /my-details hands
+            them to application forms, which ask for every one. A `<details>`
+            so it works before hydration. */}
+        <details className="group rounded-xl border border-line/70 bg-surface-2/40 px-3.5 py-2.5">
+          <summary className="cursor-pointer text-sm font-semibold text-ink select-none">
+            Marksheet details
+            <span className="ml-2 text-xs font-normal text-ink-3">
+              Roll number, result date, subjects, marks
+            </span>
+          </summary>
+
+          <div className="mt-3.5 flex flex-col gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                id="rollNumber"
+                label="Roll number"
+                optional
+                error={state.errors?.rollNumber}
+              >
+                <Input id="rollNumber" maxLength={40} error={state.errors?.rollNumber} />
+              </Field>
+
+              <Field
+                id="resultDate"
+                label="Date of result"
+                optional
+                error={state.errors?.resultDate}
+              >
+                <Input id="resultDate" type="date" error={state.errors?.resultDate} />
+              </Field>
+            </div>
+
+            <Field
+              id="subjects"
+              label="Subjects"
+              optional
+              hint="Comma-separated, as printed on the marksheet."
+              error={state.errors?.subjects}
+            >
+              <Input id="subjects" maxLength={300} error={state.errors?.subjects} />
+            </Field>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field
+                id="marksObtained"
+                label="Marks obtained"
+                optional
+                error={state.errors?.marksObtained}
+              >
+                <Input
+                  id="marksObtained"
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step="0.01"
+                  error={state.errors?.marksObtained}
+                />
+              </Field>
+
+              <Field
+                id="maxMarks"
+                label="Maximum marks"
+                optional
+                error={state.errors?.maxMarks}
+              >
+                <Input
+                  id="maxMarks"
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step="0.01"
+                  error={state.errors?.maxMarks}
+                />
+              </Field>
+
+              <Field id="cgpa" label="CGPA" optional error={state.errors?.cgpa}>
+                <Input
+                  id="cgpa"
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  max={10}
+                  step="0.01"
+                  error={state.errors?.cgpa}
+                />
+              </Field>
+            </div>
+          </div>
+        </details>
+
         <div className="pt-1">
           <SubmitButton
             variant="secondary"
@@ -128,7 +218,12 @@ export function EducationSection({ education }: { education: EducationRow[] }) {
 function EducationRowItem({ row }: { row: EducationRow }) {
   const [, deleteAction] = useActionState(deleteEducationAction, EMPTY_FORM_STATE);
 
-  const detail = [row.discipline, row.board_university, row.institution]
+  const detail = [
+    row.discipline,
+    row.board_university,
+    row.institution,
+    row.roll_number ? `Roll ${row.roll_number}` : null,
+  ]
     .filter(Boolean)
     .join(" · ");
 

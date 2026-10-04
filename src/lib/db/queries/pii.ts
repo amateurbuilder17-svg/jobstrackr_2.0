@@ -40,6 +40,13 @@ export interface EducationRowForForms {
   board_university: string | null;
   year_of_passing: number | null;
   percentage: number | null;
+  roll_number: string | null;
+  /** `YYYY-MM-DD`, formatted at the field. */
+  result_date: string | null;
+  subjects: string | null;
+  marks_obtained: number | null;
+  max_marks: number | null;
+  cgpa: number | null;
 }
 
 /** Education, which forms ask for alongside the personal fields. */
@@ -49,7 +56,9 @@ export async function getEducationForForms(): Promise<EducationRowForForms[]> {
 
   const { data, error } = await db
     .from("education_qualifications")
-    .select("level, discipline, institution, board_university, year_of_passing, percentage")
+    .select(
+      "level, discipline, institution, board_university, year_of_passing, percentage, roll_number, result_date, subjects, marks_obtained, max_marks, cgpa",
+    )
     .eq("user_id", user.id)
     .order("year_of_passing", { ascending: false });
 

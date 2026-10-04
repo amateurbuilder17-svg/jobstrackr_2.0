@@ -40,7 +40,7 @@ export type ProfileRow = Pick<
 
 /** `user_id` is omitted deliberately: RLS already scopes these to the owner. */
 export const EDUCATION_COLUMNS =
-  "id, level, discipline, institution, board_university, year_of_passing, percentage" as const;
+  "id, level, discipline, institution, board_university, year_of_passing, percentage, roll_number, result_date, subjects, marks_obtained, max_marks, cgpa" as const;
 
 export type EducationRow = Pick<
   Database["public"]["Tables"]["education_qualifications"]["Row"],
@@ -51,4 +51,10 @@ export type EducationRow = Pick<
   | "board_university"
   | "year_of_passing"
   | "percentage"
+  | "roll_number"
+  | "result_date"
+  | "subjects"
+  | "marks_obtained"
+  | "max_marks"
+  | "cgpa"
 >;

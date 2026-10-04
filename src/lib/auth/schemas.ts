@@ -173,34 +173,76 @@ export type ProfileInput = z.infer<typeof profileSchema>;
 
 /* ── Education ─────────────────────────────────────────────────────────── */
 
-export const educationSchema = z.object({
-  level: z.enum(QUALIFICATION_LEVELS),
-  discipline: optionalText(120),
-  institution: optionalText(160),
-  boardUniversity: optionalText(160),
+export const educationSchema = z
+  .object({
+    level: z.enum(QUALIFICATION_LEVELS),
+    discipline: optionalText(120),
+    institution: optionalText(160),
+    boardUniversity: optionalText(160),
 
-  yearOfPassing: z
+    yearOfPassing: z
+      .union([z.string(), z.number()])
+      .transform((v) => (v === "" ? null : Number(v)))
+      .nullable()
+      .refine(
+        (v) =>
+          v === null || (Number.isInteger(v) && v >= 1950 && v <= new Date().getFullYear() + 6),
+        {
+          // The +6 upper bound mirrors `education_year_sane`: someone in the first
+          // year of a five-year integrated course has a real future passing year.
+          message: "Enter a year between 1950 and six years from now.",
+        },
+      ),
+
+    percentage: z
+      .union([z.string(), z.number()])
+      .transform((v) => (v === "" ? null : Number(v)))
+      .nullable()
+      .refine((v) => v === null || (Number.isFinite(v) && v >= 0 && v <= 100), {
+        message: "Enter a percentage between 0 and 100.",
+      }),
+
+    // The rest of what a form asks about a marksheet. Bounds mirror the checks in
+    // `education_form_details`.
+    rollNumber: optionalText(40),
+    subjects: optionalText(300),
+
+    resultDate: z
+      .string()
+      .trim()
+      .transform((v) => (v === "" ? null : v))
+      .nullable()
+      .refine((v) => v === null || /^\d{4}-\d{2}-\d{2}$/.test(v), {
+        message: "Enter a valid date.",
+      })
+      .refine((v) => v === null || (v >= "1950-01-01" && v <= nextYear()), {
+        message: "That date is out of range.",
+      }),
+
+    marksObtained: optionalNumber(0, 99999.99, "Enter the marks as a number."),
+    maxMarks: optionalNumber(0.01, 99999.99, "Enter the maximum marks as a number."),
+    cgpa: optionalNumber(0, 10, "Enter a CGPA between 0 and 10."),
+  })
+  .refine(
+    (e) => e.marksObtained === null || e.maxMarks === null || e.marksObtained <= e.maxMarks,
+    { path: ["marksObtained"], message: "Marks obtained cannot be more than the maximum." },
+  );
+
+/** A number field an HTML form posts as a string, blank meaning "not known". */
+function optionalNumber(min: number, max: number, message: string) {
+  return z
     .union([z.string(), z.number()])
     .transform((v) => (v === "" ? null : Number(v)))
     .nullable()
-    .refine(
-      (v) =>
-        v === null || (Number.isInteger(v) && v >= 1950 && v <= new Date().getFullYear() + 6),
-      {
-        // The +6 upper bound mirrors `education_year_sane`: someone in the first
-        // year of a five-year integrated course has a real future passing year.
-        message: "Enter a year between 1950 and six years from now.",
-      },
-    ),
+    .refine((v) => v === null || (Number.isFinite(v) && v >= min && v <= max), { message });
+}
 
-  percentage: z
-    .union([z.string(), z.number()])
-    .transform((v) => (v === "" ? null : Number(v)))
-    .nullable()
-    .refine((v) => v === null || (Number.isFinite(v) && v >= 0 && v <= 100), {
-      message: "Enter a percentage between 0 and 100.",
-    }),
-});
+/** Today plus a year, matching `education_result_date_sane`. */
+function nextYear(): string {
+  const d = new Date();
+  d.setUTCFullYear(d.getUTCFullYear() + 1);
+  return d.toISOString().slice(0, 10);
+}
 
 export type EducationInput = z.infer<typeof educationSchema>;
 
