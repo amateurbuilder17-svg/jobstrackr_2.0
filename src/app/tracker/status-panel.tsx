@@ -156,7 +156,9 @@ export function StatusPanel({ attemptId, name, initial }: Props) {
         : "Check status";
 
   return (
-    <section className="border-t border-line/60 bg-gradient-to-b from-surface-2/40 via-surface-2/20 to-transparent p-4 sm:p-5 dark:from-surface-2/25 dark:to-transparent">
+    // Framed on its own above `xl`, where it is a column beside the card's
+    // other content rather than a band across it.
+    <section className="border-t border-line/60 bg-gradient-to-b from-surface-2/40 via-surface-2/20 to-transparent p-4 sm:p-5 dark:from-surface-2/25 dark:to-transparent xl:rounded-xl xl:border">
       {/* Header Band */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -416,7 +418,7 @@ function Detail({ report }: { report: ExamStatusReport }) {
                   href={source.url}
                   target="_blank"
                   rel="noopener noreferrer nofollow"
-                  className="inline-flex max-w-56 items-center gap-1.5 rounded-full border border-line/80 bg-surface/90 px-3 py-1 text-2xs font-medium text-ink-2 shadow-2xs hover:border-line-strong hover:text-ink dark:border-white/10 dark:bg-surface/60"
+                  className="inline-flex max-w-56 items-center gap-1.5 rounded-full lg:max-w-80 border border-line/80 bg-surface/90 px-3 py-1 text-2xs font-medium text-ink-2 shadow-2xs hover:border-line-strong hover:text-ink dark:border-white/10 dark:bg-surface/60"
                 >
                   <ExternalLinkIcon className="size-3 shrink-0 text-ink-3" />
                   <span className="truncate">{source.title}</span>
@@ -510,8 +512,15 @@ function Fact({
         {term}
       </dt>
       <dd className="flex min-w-0 items-center gap-2 text-right">
+        {/* One line on a phone; two on desktop, where the row is wide enough
+            that a second line reads as the rest of the sentence. */}
         {detail ? (
-          <span className="truncate text-xs text-ink-3 font-medium">{detail}</span>
+          <span
+            title={detail}
+            className="truncate text-xs text-ink-3 font-medium lg:line-clamp-2 lg:whitespace-normal"
+          >
+            {detail}
+          </span>
         ) : null}
         <Badge tone={tone} className="tabular font-medium shadow-2xs">
           {value}

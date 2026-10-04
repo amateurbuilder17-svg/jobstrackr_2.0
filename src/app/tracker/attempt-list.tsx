@@ -157,6 +157,13 @@ function ExamCardItem({
     attempt.job?.title.slice(0, 5) ??
     "EXAM";
   const orgFull = attempt.exam?.name ?? attempt.exam?.short_name ?? attempt.job?.title ?? "";
+  // A desktop-width card fits the whole title on one line, so a second line
+  // repeating it word for word — which is what an exam tracked from a job page
+  // gets — reads as a bug there. That line names the conducting body instead.
+  const desktopOrg =
+    orgFull === name
+      ? (attempt.exam?.organization?.name ?? attempt.job?.organization?.name ?? "")
+      : orgFull;
   // The conducting body's emblem, by either route an attempt can arrive: an
   // exam picked from the list, or Track pressed on a job page.
   const logo = attempt.exam?.organization?.logo_path ?? attempt.job?.organization?.logo_path;
@@ -210,6 +217,16 @@ function ExamCardItem({
 
   const panelId = `exam-${attempt.id}-panel`;
 
+  // What fills the right-hand column of the expanded panel on wide screens.
+  // With none of it the status panel keeps the full width rather than leaving
+  // a third of the card empty.
+  const hasAside =
+    Boolean(attempt.roll_number) ||
+    attempt.score !== null ||
+    Boolean(attempt.notes) ||
+    actionTips.length > 0 ||
+    Boolean(attempt.job);
+
   return (
     <article
       className={cn(
@@ -238,7 +255,19 @@ function ExamCardItem({
           >
             {name}
           </h3>
-          <p className="mt-0.5 truncate text-[13px] text-muted-foreground">{orgFull}</p>
+          <p
+            className={cn(
+              "mt-0.5 truncate text-[13px] text-muted-foreground",
+              desktopOrg !== orgFull && "lg:hidden",
+            )}
+          >
+            {orgFull}
+          </p>
+          {desktopOrg !== orgFull && desktopOrg !== "" ? (
+            <p className="mt-0.5 hidden truncate text-[13px] text-muted-foreground lg:block">
+              {desktopOrg}
+            </p>
+          ) : null}
           <StatusBadge status={status} className="mt-2.5" />
         </div>
 
@@ -251,56 +280,64 @@ function ExamCardItem({
         />
       </button>
 
-      {/* Visual Exam Progress Bar */}
-      <div className="px-4 pb-4">
-        <ExamProgress stages={stages} />
-      </div>
+      {/* Stepper and next milestone. The wrapper has no box below `xl`, so the
+          stacked phone layout is untouched; above it the two sit side by side
+          on the same 2:1 split as the expanded panel, which puts the milestone
+          directly over "What to do next". */}
+      <div className="contents xl:grid xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:items-center xl:gap-x-6 xl:px-4 xl:pb-4">
+        {/* Visual Exam Progress Bar */}
+        <div className={cn("px-4 pb-4 xl:p-0", !nextEvent && "xl:col-span-2")}>
+          <ExamProgress stages={stages} />
+        </div>
 
-      {/* Interactive Next Milestone Event Box */}
-      {nextEvent ? (
-        <div className="mx-4 mb-4">
-          <button
-            type="button"
-            onClick={onToggle}
-            aria-expanded={expanded}
-            aria-controls={panelId}
-            className="flex w-full items-center justify-between gap-3 rounded-xl border border-border/70 bg-secondary/40 p-3 text-left transition-all duration-200 hover:bg-secondary/70 hover:border-brand/30 active:scale-[0.99]"
-          >
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="section-label text-brand-deep text-[11px] font-bold tracking-wider">
-                  NEXT MILESTONE
-                </span>
-                {nextEvent.tone === "warn" ? (
-                  <span className="size-2 rounded-full bg-warning animate-pulse" />
+        {/* Interactive Next Milestone Event Box */}
+        {nextEvent ? (
+          <div className="mx-4 mb-4 xl:m-0">
+            <button
+              type="button"
+              onClick={onToggle}
+              aria-expanded={expanded}
+              aria-controls={panelId}
+              className="flex w-full items-center justify-between gap-3 rounded-xl border border-border/70 bg-secondary/40 p-3 text-left transition-all duration-200 hover:bg-secondary/70 hover:border-brand/30 active:scale-[0.99]"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="section-label text-brand-deep text-[11px] font-bold tracking-wider">
+                    NEXT MILESTONE
+                  </span>
+                  {nextEvent.tone === "warn" ? (
+                    <span className="size-2 rounded-full bg-warning animate-pulse" />
+                  ) : null}
+                </div>
+                {/* Wrapped to two lines on desktop rather than cut at one:
+                    above `xl` this box is a narrow column, not a band. */}
+                <p className="mt-0.5 truncate text-sm font-bold text-foreground lg:line-clamp-2 lg:whitespace-normal">
+                  {nextEvent.title}
+                </p>
+                <p className="text-xs font-semibold tabular-nums text-brand-deep">
+                  {nextEvent.date}
+                </p>
+                {nextEvent.subtitle ? (
+                  <p className="mt-0.5 text-[11.5px] text-muted-foreground truncate lg:line-clamp-2 lg:whitespace-normal">
+                    {nextEvent.subtitle}
+                  </p>
                 ) : null}
               </div>
-              <p className="mt-0.5 truncate text-sm font-bold text-foreground">
-                {nextEvent.title}
-              </p>
-              <p className="text-xs font-semibold tabular-nums text-brand-deep">
-                {nextEvent.date}
-              </p>
-              {nextEvent.subtitle ? (
-                <p className="mt-0.5 text-[11.5px] text-muted-foreground truncate">
-                  {nextEvent.subtitle}
-                </p>
-              ) : null}
-            </div>
 
-            <div className="flex items-center gap-1.5 shrink-0 text-xs font-medium text-brand">
-              <span className="hidden sm:inline">Details</span>
-              <ChevronRightIcon
-                className={cn(
-                  "size-4 transition-transform duration-200 text-muted-foreground",
-                  expanded && "rotate-90 text-brand",
-                )}
-                aria-hidden="true"
-              />
-            </div>
-          </button>
-        </div>
-      ) : null}
+              <div className="flex items-center gap-1.5 shrink-0 text-xs font-medium text-brand">
+                <span className="hidden sm:inline">Details</span>
+                <ChevronRightIcon
+                  className={cn(
+                    "size-4 transition-transform duration-200 text-muted-foreground",
+                    expanded && "rotate-90 text-brand",
+                  )}
+                  aria-hidden="true"
+                />
+              </div>
+            </button>
+          </div>
+        ) : null}
+      </div>
 
       {/* Collapsible Expansion Panel */}
       <div
@@ -312,11 +349,24 @@ function ExamCardItem({
         )}
       >
         <div className="overflow-hidden">
-          <div className="px-4 pb-4 space-y-4 border-t border-border/70 pt-4">
+          {/* One column below `xl`. Above it the status panel takes the left
+              two thirds and everything else stacks on the right, placed by
+              column rather than by wrapper so the DOM — and with it the phone
+              order — is unchanged. Only the last row is flexible: a tall
+              status panel spills into it instead of spreading the right-hand
+              column apart. The `space-y-4` margins carry on as the row rhythm,
+              so empty rows cost nothing. */}
+          <div
+            className={cn(
+              "px-4 pb-4 space-y-4 border-t border-border/70 pt-4",
+              hasAside &&
+                "xl:grid xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] xl:grid-rows-[repeat(4,auto)_1fr] xl:items-start xl:gap-x-6",
+            )}
+          >
             {/* Candidate Details (Roll Number / Score) */}
             {attempt.roll_number || attempt.score !== null ? (
               <section
-                className="border-t border-border/70 pt-3.5"
+                className="border-t border-border/70 pt-3.5 xl:col-start-2"
                 aria-label="Candidate Credentials"
               >
                 <h4 className="section-label mb-2.5">Your Details</h4>
@@ -343,7 +393,10 @@ function ExamCardItem({
 
             {/* User Personal Notes */}
             {attempt.notes ? (
-              <section className="border-t border-border/70 pt-3.5" aria-label="Your Notes">
+              <section
+                className="border-t border-border/70 pt-3.5 xl:col-start-2"
+                aria-label="Your Notes"
+              >
                 <h4 className="section-label mb-1.5">Your Notes</h4>
                 <p className="text-xs italic leading-relaxed text-muted-foreground">
                   &ldquo;{attempt.notes}&rdquo;
@@ -352,13 +405,16 @@ function ExamCardItem({
             ) : null}
 
             {/* Official AI Status Probe / Live Intelligence */}
-            <section className="border-t border-border/70 pt-3.5">
+            <section className="border-t border-border/70 pt-3.5 xl:col-start-1 xl:row-[1/span_5] xl:border-t-0 xl:pt-0">
               <StatusPanel attemptId={attempt.id} name={name} initial={report} />
             </section>
 
             {/* What to do next Recommendation Box */}
             {actionTips.length > 0 ? (
-              <section className="rounded-xl bg-brand-soft p-3.5" aria-label="What to do next">
+              <section
+                className="rounded-xl bg-brand-soft p-3.5 xl:col-start-2"
+                aria-label="What to do next"
+              >
                 <h4 className="section-label text-brand-deep mb-2">What to do next</h4>
                 <ul className="space-y-1.5">
                   {actionTips.map((tip) => (
@@ -376,7 +432,7 @@ function ExamCardItem({
 
             {/* Original notification link */}
             {attempt.job ? (
-              <div className="pt-1">
+              <div className="pt-1 xl:col-start-2">
                 <Link
                   href={`/jobs/${attempt.job.slug}`}
                   className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline"
@@ -388,7 +444,7 @@ function ExamCardItem({
             ) : null}
 
             {/* Status Update & Delete Controls */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 pt-3 xl:col-span-2">
               <form action={statusAction} className="flex items-center gap-2">
                 <input type="hidden" name="id" value={attempt.id} />
                 <label htmlFor={`status-${attempt.id}`} className="sr-only">

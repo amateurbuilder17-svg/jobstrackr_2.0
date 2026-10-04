@@ -26,10 +26,15 @@ export const metadata: Metadata = {
  *
  * Built with progressive streaming SSR. Cookies are read within the
  * Suspense boundary to maintain static shell performance.
+ *
+ * Phone-width below `lg`. On desktop the column follows the window up to
+ * 80rem: a fixed 36rem there cut off the stage names, dates and status facts
+ * the cards carry, and 80rem is where lines stop being readable rather than
+ * where the screen ends.
  */
 export default function TrackerPage() {
   return (
-    <div className="mx-auto w-full max-w-md px-4 pt-8 pb-32 sm:max-w-lg lg:max-w-xl">
+    <div className="mx-auto w-full max-w-md px-4 pt-8 pb-32 sm:max-w-lg lg:max-w-7xl lg:px-8 lg:pb-16">
       <Suspense fallback={<TrackerSkeleton />}>
         <Tracker />
       </Suspense>

@@ -318,69 +318,90 @@ export function computeStages(
 export function ExamProgress({ stages, className }: { stages: Stage[]; className?: string }) {
   return (
     <ol className={cn("flex w-full items-start gap-0", className)} aria-label="Exam progress">
-      {stages.map((stage, i) => (
-        <li
-          key={stage.key}
-          className="flex min-w-0 flex-1 flex-col items-center gap-1.5 text-center"
-        >
-          <div className="flex w-full items-center">
+      {stages.map((stage, i) => {
+        const tone =
+          stage.state === "current"
+            ? "font-bold text-brand-deep"
+            : stage.state === "completed"
+              ? "font-medium text-muted-foreground"
+              : "text-muted-foreground/70";
+
+        return (
+          <li
+            key={stage.key}
+            className="flex min-w-0 flex-1 flex-col items-center gap-1.5 text-center"
+          >
+            <div className="flex w-full items-center">
+              <span
+                className={cn(
+                  "h-px flex-1",
+                  i === 0
+                    ? "bg-transparent"
+                    : stage.state === "upcoming"
+                      ? "bg-border"
+                      : "bg-brand/35",
+                )}
+              />
+              <span
+                className={cn(
+                  "flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors",
+                  stage.state === "completed" &&
+                    "border-brand bg-brand text-primary-foreground",
+                  stage.state === "current" &&
+                    "border-brand bg-brand-soft ring-2 ring-brand/20 text-brand",
+                  stage.state === "upcoming" && "border-border bg-card",
+                )}
+              >
+                {stage.state === "completed" ? (
+                  <CheckIcon className="size-3 stroke-[2.5]" aria-hidden="true" />
+                ) : stage.state === "current" ? (
+                  <span className="size-1.5 rounded-full bg-brand" />
+                ) : null}
+              </span>
+              <span
+                className={cn(
+                  "h-px flex-1",
+                  i === stages.length - 1
+                    ? "bg-transparent"
+                    : stages[i + 1]?.state === "upcoming"
+                      ? "bg-border"
+                      : "bg-brand/35",
+                )}
+              />
+            </div>
             <span
               className={cn(
-                "h-px flex-1",
-                i === 0
-                  ? "bg-transparent"
-                  : stage.state === "upcoming"
-                    ? "bg-border"
-                    : "bg-brand/35",
-              )}
-            />
-            <span
-              className={cn(
-                "flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors",
-                stage.state === "completed" && "border-brand bg-brand text-primary-foreground",
-                stage.state === "current" &&
-                  "border-brand bg-brand-soft ring-2 ring-brand/20 text-brand",
-                stage.state === "upcoming" && "border-border bg-card",
+                "w-full truncate text-[10.5px] leading-tight tracking-tight px-0.5 lg:hidden",
+                tone,
               )}
             >
-              {stage.state === "completed" ? (
-                <CheckIcon className="size-3 stroke-[2.5]" aria-hidden="true" />
-              ) : stage.state === "current" ? (
-                <span className="size-1.5 rounded-full bg-brand" />
-              ) : null}
+              {stage.shortLabel}
             </span>
+            {/* Desktop has room for the name the commission uses — two CBTs no
+              longer both read "CBT" — and for the date or status
+              `computeStages` works out for each stage, which the phone
+              layout has no space to print. */}
             <span
-              className={cn(
-                "h-px flex-1",
-                i === stages.length - 1
-                  ? "bg-transparent"
-                  : stages[i + 1]?.state === "upcoming"
-                    ? "bg-border"
-                    : "bg-brand/35",
-              )}
-            />
-          </div>
-          <span
-            className={cn(
-              "w-full truncate text-[10.5px] leading-tight tracking-tight px-0.5",
-              stage.state === "current"
-                ? "font-bold text-brand-deep"
-                : stage.state === "completed"
-                  ? "font-medium text-muted-foreground"
-                  : "text-muted-foreground/70",
-            )}
-          >
-            {stage.shortLabel}
-          </span>
-          <span className="sr-only">
-            {stage.state === "completed"
-              ? "completed"
-              : stage.state === "current"
-                ? "current stage"
-                : "upcoming"}
-          </span>
-        </li>
-      ))}
+              title={stage.label}
+              className={cn("hidden w-full px-1 text-xs leading-snug lg:line-clamp-2", tone)}
+            >
+              {stage.label}
+            </span>
+            {stage.detail ? (
+              <span className="hidden w-full px-1 text-[11px] leading-tight tabular-nums text-muted-foreground lg:-mt-1 lg:line-clamp-2">
+                {stage.detail}
+              </span>
+            ) : null}
+            <span className="sr-only">
+              {stage.state === "completed"
+                ? "completed"
+                : stage.state === "current"
+                  ? "current stage"
+                  : "upcoming"}
+            </span>
+          </li>
+        );
+      })}
     </ol>
   );
 }
