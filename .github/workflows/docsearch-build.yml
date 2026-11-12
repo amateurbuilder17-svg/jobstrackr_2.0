@@ -1,0 +1,58 @@
+name: DocSearch desktop build
+
+# Builds the Windows and macOS desktop packages for docsearch/.
+# Runs only when packaging-relevant files change, or when started by hand.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "docsearch/packaging/**"
+      - "docsearch/requirements.txt"
+      - ".github/workflows/docsearch-build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: docsearch
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt pyinstaller
+      - name: Install answer-model runtime
+        # Compiled without machine-specific CPU instructions so it runs on older PCs.
+        continue-on-error: true
+        env:
+          CMAKE_ARGS: "-DGGML_NATIVE=OFF"
+        run: pip install llama-cpp-python
+      - name: Tests
+        run: python -m pytest -q
+      - name: Package
+        run: pyinstaller packaging/docsearch.spec --noconfirm
+      - name: Smoke test the packaged app
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then BIN=dist/DocSearch.app/Contents/MacOS/docsearch-cli; else BIN=dist/DocSearch/docsearch-cli.exe; fi
+          "$BIN" --home "$RUNNER_TEMP/home" status
+      - name: Archive
+        run: |
+          cd dist
+          if [ "$RUNNER_OS" = "macOS" ]; then ditto -c -k --keepParent DocSearch.app DocSearch-macOS.zip; else 7z a -tzip DocSearch-Windows.zip DocSearch > /dev/null; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DocSearch-${{ runner.os }}
+          path: docsearch/dist/DocSearch-*.zip
+          retention-days: 14

@@ -1,0 +1,15 @@
+# Core
+numpy>=2.0
+pillow>=10
+pypdfium2>=4.30
+python-docx>=1.1
+openpyxl>=3.1
+rapidocr>=3.4
+onnxruntime>=1.18
+fastembed>=0.5
+fastapi>=0.110
+uvicorn>=0.29
+# Desktop window (falls back to the default browser if missing)
+pywebview>=5
+# Answer model runtime (optional: without it the app shows passages only)
+# llama-cpp-python>=0.3
