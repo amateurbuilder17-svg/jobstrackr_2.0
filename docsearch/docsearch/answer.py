@@ -122,6 +122,10 @@ class Answerer:
             notices.append("Some passages come from documents marked as superseded.")
         if any(src["low_conf"] for src in sources):
             notices.append("Some passages come from scans that were hard to read. Check figures against the page image.")
+        elif any(src["scanned"] for src in sources):
+            # OCR confidence is not proof of a correct reading: a blurred "8" can be
+            # read as "3" with high confidence. Scanned sources always get this note.
+            notices.append("Some passages were read from scanned pages. Scanned text can contain misread characters; check figures against the page image.")
 
         gen = self.models.generator if use_llm else None
         if gen is None:
