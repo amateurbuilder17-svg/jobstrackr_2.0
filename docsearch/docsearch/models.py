@@ -139,6 +139,36 @@ class LlamaCppGenerator:
         return json.loads(out["choices"][0]["message"]["content"])
 
 
+class LettuceChecker:
+    """TinyLettuce: a small encoder trained to mark answer words the context does not support."""
+
+    def __init__(self, model_dir: Path, min_conf: float = 0.5):
+        if not (model_dir / "config.json").exists():
+            raise ModelUnavailable("answer checker model is not downloaded")
+        try:
+            from lettucedetect.models.inference import HallucinationDetector
+        except Exception as exc:
+            raise ModelUnavailable(f"the lettucedetect package is not installed: {exc}") from exc
+        self.name = model_dir.name
+        self.min_conf = min_conf
+        self.lock = threading.Lock()
+        try:
+            self.detector = HallucinationDetector(method="transformer", model_path=str(model_dir))
+        except Exception as exc:
+            raise ModelUnavailable(f"could not load the answer checker: {exc}") from exc
+
+    def unsupported(self, passage: str, question: str, statement: str) -> list[str]:
+        """Parts of the statement the model judges unsupported by the passage."""
+        with self.lock:
+            spans = self.detector.predict(context=[passage], question=question, answer=statement,
+                                          output_format="spans", min_confidence=self.min_conf)
+        return [str(sp.get("text", "")) for sp in spans if str(sp.get("text", "")).strip()]
+
+
+def checker_dir(settings, models: Path) -> Path:
+    return models / "checker" / settings.checker_model.replace("/", "--")
+
+
 def find_llm_file(settings, models: Path) -> Path | None:
     if settings.llm_file:
         p = Path(settings.llm_file)
@@ -206,9 +236,18 @@ class Models:
             return LlamaCppGenerator(f, self.settings.llm_ctx, self.settings.llm_threads)
         return self._get("generator", load)
 
+    @property
+    def checker(self):
+        if not self.settings.checker_model:
+            return None
+        return self._get("checker", lambda: LettuceChecker(checker_dir(self.settings, self.path),
+                                                           self.settings.checker_min_conf))
+
     def status(self) -> dict:
-        emb, rer, gen = self.embedder, self.reranker, self.generator
+        emb, rer, gen, chk = self.embedder, self.reranker, self.generator, self.checker
         return {
+            "checker": {"ok": chk is not None, "name": getattr(chk, "name", self.settings.checker_model),
+                        "problem": self.problems.get("checker", "")},
             "embedder": {"ok": emb is not None, "name": getattr(emb, "name", self.settings.embed_model),
                          "problem": self.problems.get("embedder", "")},
             "reranker": {"ok": not getattr(rer, "is_fallback", True) or self.settings.rerank_model == "lexical",
@@ -231,6 +270,12 @@ class Models:
             d["step"] = "reranker"
             if s.rerank_model != "lexical":
                 FastEmbedReranker(s.rerank_model, self.path, local_only=False)
+            if s.checker_model:
+                d["step"] = "answer checker"
+                from huggingface_hub import snapshot_download
+
+                snapshot_download(s.checker_model, local_dir=str(checker_dir(s, self.path)),
+                                  allow_patterns=["*.json", "*.txt", "*.safetensors"])
             if with_llm and find_llm_file(s, self.path) is None and s.llm_url:
                 d["step"] = "answer model"
                 name = s.llm_url.rsplit("/", 1)[-1]

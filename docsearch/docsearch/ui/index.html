@@ -250,7 +250,8 @@ async function refresh() {
   $("modeltable").innerHTML = "<tr><th>Model</th><th>Status</th><th>Name</th><th></th></tr>" +
     row("Embedding (meaning search)", m.embedder, "Only keyword search works until this is installed.") +
     row("Reranker (relevance check)", m.reranker, "Relevance is judged by keyword overlap until this is installed.") +
-    row("Answer model", m.generator, "Passages are shown without a written answer until this is installed.");
+    row("Answer model", m.generator, "Passages are shown without a written answer until this is installed.") +
+    row("Answer checker (optional)", m.checker, "Extra model that re-checks written answers. The built-in quote and figure checks run regardless.");
   const dl = m.download;
   $("dlbtn").disabled = dl.running;
   $("dlline").textContent = dl.error ? "Failed — " + dl.error : dl.running ? "Downloading " + dl.step + (dl.total ? " " + Math.round(100 * dl.done / dl.total) + "%" : "…") : dl.step === "finished" ? "Finished." : "";

@@ -34,6 +34,10 @@ class Settings:
         "https://huggingface.co/bartowski/microsoft_Phi-4-mini-instruct-GGUF/"
         "resolve/main/microsoft_Phi-4-mini-instruct-Q4_K_M.gguf"
     )
+    # Optional small model that flags unsupported words in a generated answer
+    # (TinyLettuce, MIT). Used only if the `lettucedetect` package is installed.
+    checker_model: str = "KRLabsOrg/tinylettuce-ettin-17m-en-v1"
+    checker_min_conf: float = 0.5
     llm_ctx: int = 4096
     llm_threads: int = 0  # 0: physical cores, capped at 6
 
@@ -53,6 +57,8 @@ class Settings:
     final_k: int = 5
     min_score: float = 0.30  # reranker score below this => "not found"
     min_coverage: float = 0.60  # same, when the lexical fallback reranker is used
+    tail_ratio: float = 0.35  # drop passages scoring far below the best one
+    dedup_similarity: float = 0.85  # passages more alike than this count as copies
     include_superseded: bool = False
 
     # Dates like 03/04/2023 are read as day/month/year unless this is "MDY".

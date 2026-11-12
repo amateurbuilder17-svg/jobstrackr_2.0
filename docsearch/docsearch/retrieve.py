@@ -117,7 +117,22 @@ class Retriever:
         for h, sc in zip(top, scores):
             h.score = float(sc)
         top.sort(key=lambda h: -h.score)
-        return top
+        return self.drop_copies(top)
+
+    def drop_copies(self, ranked: list[Hit]) -> list[Hit]:
+        """Remove passages that are near-copies of a better-ranked one.
+
+        The same circular is often filed (and scanned) several times; without
+        this the top results can be five copies of one paragraph.
+        """
+        limit = self.settings.dedup_similarity
+        kept: list[tuple[Hit, set[str]]] = []
+        for h in ranked:
+            toks = set(words(h.text))
+            if any(toks and len(toks & other) / len(toks | other) >= limit for _, other in kept):
+                continue
+            kept.append((h, toks))
+        return [h for h, _ in kept]
 
     def threshold(self) -> float:
         fallback = getattr(self.models.reranker, "is_fallback", False)

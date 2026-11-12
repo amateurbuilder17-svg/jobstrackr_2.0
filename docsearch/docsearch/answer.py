@@ -17,7 +17,8 @@ SYSTEM = (
     "You answer questions about office documents (SOPs, circulars, instructions) using ONLY the numbered "
     "sources provided. Rules: 1) Use only facts stated in the sources. Never use outside knowledge. "
     "2) Each statement must be supported by exactly one source; give its number. "
-    "3) For each statement copy, word for word, the sentence or phrase from that source that supports it as 'quote'. "
+    "3) For each statement copy, word for word, the phrase from that source that supports it as 'quote' "
+    "(at most 25 words, one continuous piece of the source). "
     "4) Copy every number, amount, date, name and reference code exactly as written in the source. "
     "5) If the sources do not contain the answer, set answerable to false and give no statements. "
     "Keep statements short and factual."
@@ -104,6 +105,10 @@ class Answerer:
         hits = self.retriever.search(question, include_superseded) if question else []
         threshold = self.retriever.threshold()
         good = [h for h in hits if h.score >= threshold][: s.final_k]
+        # Passages far weaker than the best one mostly distract a small answer model.
+        if len(good) > 2:
+            floor = good[0].score * s.tail_ratio
+            good = good[:2] + [h for h in good[2:] if h.score >= floor]
         notices: list[str] = []
         if getattr(self.models.reranker, "is_fallback", False) and s.rerank_model != "lexical":
             notices.append("The reranker model is not installed; relevance is judged by keyword overlap only.")
@@ -147,6 +152,14 @@ class Answerer:
             if not isinstance(st, dict):
                 continue
             ok, why = verify_statement(st, good)
+            checker = self.models.checker if ok else None
+            if checker is not None:
+                try:
+                    flagged = checker.unsupported(flat(good[st["source"] - 1].text), question, st["text"].strip())
+                except Exception:
+                    flagged = []
+                if flagged:
+                    ok, why = False, "the checker model found unsupported wording: " + "; ".join(flagged)[:120]
             if ok:
                 result["statements"].append({"text": st["text"].strip(), "source": st["source"], "quote": st["quote"].strip()})
             else:

@@ -201,3 +201,40 @@ def test_scanned_table_never_answered():
     h = Hit(1, 1, "T", text, 1, 1, [], 0.99, True, "/x.pdf", "T", "Circular", None, None, None, "active", None)
     ok, why = verify_statement({"text": "Grade A limit is 50,000 per Quarter.", "source": 1, "quote": "A   50,000   Quarter"}, [h])
     assert not ok and "table" in why
+
+
+# ---------------------------------------------------------------- adopted from similar projects
+
+class FakeChecker:
+    name = "fake-checker"
+
+    def __init__(self, bad_word):
+        self.bad_word = bad_word
+
+    def unsupported(self, passage, question, statement):
+        return [self.bad_word] if self.bad_word in statement else []
+
+
+def test_checker_model_can_veto(app):
+    out = {"answerable": True, "statements": [
+        {"text": "The sanction limit for local travel is Rs. 50,000 per quarter for officers.", "source": 1, "quote": GOOD_QUOTE}]}
+    app.models._cache["checker"] = FakeChecker("officers")
+    try:
+        res = ask_with(app, out)
+        assert res["mode"] == "passages" and "checker model" in res["rejected"][0]["reason"]
+        app.models._cache["checker"] = FakeChecker("zzz")
+        assert ask_with(app, out)["mode"] == "answer"
+    finally:
+        app.models._cache.pop("checker", None)
+
+
+def test_near_duplicate_passages_removed(app):
+    from docsearch.retrieve import Hit
+
+    def hit(i, text, score):
+        h = Hit(i, i, "T", text, 1, 1, [], 1.0, False, f"/{i}.pdf", "T", "Circular", None, None, None, "active", None)
+        h.score = score
+        return h
+    base = "The sanction limit for local travel is Rs. 50,000 per quarter for officers in Grade A of all branches"
+    ranked = [hit(1, base, 0.9), hit(2, base.replace("branches", "branchcs"), 0.8), hit(3, "Vault opening needs two custodians", 0.7)]
+    assert [h.chunk_id for h in app.retriever.drop_copies(ranked)] == [1, 3]

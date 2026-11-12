@@ -13,3 +13,5 @@ uvicorn>=0.29
 pywebview>=5
 # Answer model runtime (optional: without it the app shows passages only)
 # llama-cpp-python>=0.3
+# Extra answer checker model (optional, pulls in PyTorch; not in the packaged build)
+# lettucedetect>=0.1.8

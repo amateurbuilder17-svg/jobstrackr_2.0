@@ -26,6 +26,18 @@ answer, it says so.
 OCR can still misread a digit on a poor scan, and the check in step 3 compares
 against the OCR text. The page image is the final authority for scanned sources.
 
+## Ideas taken from similar projects
+
+| Project | Taken | Left out |
+|---|---|---|
+| [LettuceDetect](https://github.com/KRLabsOrg/LettuceDetect) (MIT) | TinyLettuce, a 17M-parameter model trained to mark unsupported words in an answer, as an optional extra veto after the built-in checks | Its LLM-judge and data-generation parts |
+| [hushdoc](https://github.com/fangyuan025/hushdoc) (MIT) | Dropping near-copies among the top passages and trimming passages far weaker than the best | LangChain/Chroma stack, Docling layout models (too heavy for 8 GB and a large scan archive), voice, chat history |
+| [kotaemon](https://github.com/Cinnamon/kotaemon) (Apache-2.0) | Short verbatim evidence quotes, which small models copy more reliably | Agent-style reasoning pipelines, GraphRAG, multi-user server |
+| [LARS](https://github.com/abgulati/LARS) (AGPL) | Nothing: its scan OCR depends on a cloud service and its licence restricts reuse | |
+
+The answer checker needs `pip install lettucedetect` (which installs PyTorch) and
+its model in `models/checker/`; it is not part of the packaged desktop build yet.
+
 ## Running from source
 
     python -m venv .venv && . .venv/bin/activate      # Windows: .venv\Scripts\activate
